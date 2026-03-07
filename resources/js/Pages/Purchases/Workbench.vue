@@ -250,7 +250,7 @@ const createPurchase = () => {
                     />
                 </div>
 
-                <div class="overflow-hidden rounded-xl border border-slate-200">
+                <div class="overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50">
                             <tr>
@@ -330,7 +330,7 @@ const createPurchase = () => {
                     {{ page.props.flash?.error ?? page.props.flash?.success }}
                 </p>
 
-                <div class="mt-5 overflow-hidden rounded-xl border border-slate-200">
+                <div class="mt-5 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50">
                             <tr>
