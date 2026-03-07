@@ -74,7 +74,7 @@ class PurchaseController extends Controller
                 ->forBusiness($business->id)
                 ->where('is_active', true)
                 ->orderBy('name')
-                ->limit(300)
+                ->limit(2000)
                 ->get()
                 ->map(fn (Product $product) => [
                     'id' => $product->id,
@@ -82,6 +82,7 @@ class PurchaseController extends Controller
                     'barcode' => $product->barcode,
                     'sku' => $product->sku,
                     'unit_type' => $product->unit_type,
+                    'stock' => (float) $product->stock,
                     'cost_price' => (float) $product->cost_price,
                     'sale_price' => (float) $product->sale_price,
                 ]),
