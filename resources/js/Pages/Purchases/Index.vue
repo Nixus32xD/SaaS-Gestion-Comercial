@@ -47,7 +47,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
                 <button type="button" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="filter">Buscar</button>
             </div>
 
-            <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+            <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50">
                         <tr>

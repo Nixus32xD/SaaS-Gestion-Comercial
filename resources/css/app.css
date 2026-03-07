@@ -1,3 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    html,
+    body,
+    #app {
+        @apply overflow-x-hidden;
+    }
+
+    img,
+    video,
+    canvas,
+    svg {
+        @apply max-w-full;
+    }
+}
+
+@layer components {
+    .app-section {
+        @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5;
+    }
+
+    .app-form-grid {
+        @apply grid gap-4 sm:grid-cols-2;
+    }
+
+    .app-table-wrap {
+        @apply w-full;
+    }
+
+    .app-table-wrap table {
+        min-width: 640px;
+    }
+
+    @media (min-width: 1024px) {
+        .app-table-wrap table {
+            min-width: 100%;
+        }
+    }
+}

@@ -320,7 +320,7 @@ onBeforeUnmount(() => {
                     <p v-else class="px-3 py-4 text-sm text-slate-400">Sin resultados para la busqueda actual.</p>
                 </div>
 
-                <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50">
                             <tr>
