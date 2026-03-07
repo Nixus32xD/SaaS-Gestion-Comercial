@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use App\Support\CurrentBusiness;
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class EnsureSuperAdmin
+{
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $user = $request->user();
+
+        if ($user === null || ! $user->isSuperAdmin()) {
+            abort(403, 'No autorizado.');
+        }
+
+        app(CurrentBusiness::class)->set(null);
+
+        return $next($request);
+    }
+}
+
