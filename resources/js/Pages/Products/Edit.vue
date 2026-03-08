@@ -19,6 +19,8 @@ const form = useForm({
     cost_price: Number(props.product.cost_price),
     stock: Number(props.product.stock),
     min_stock: Number(props.product.min_stock),
+    shelf_life_days: props.product.shelf_life_days ? Number(props.product.shelf_life_days) : '',
+    expiry_alert_days: Number(props.product.expiry_alert_days || 15),
     is_active: Boolean(props.product.is_active),
 });
 
@@ -59,6 +61,8 @@ const submit = () => {
                 <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="rounded-xl border-slate-300 text-sm" placeholder="Precio costo" />
                 <input v-model.number="form.stock" type="number" min="0" step="0.001" class="rounded-xl border-slate-300 text-sm" placeholder="Stock" />
                 <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="rounded-xl border-slate-300 text-sm" placeholder="Stock minimo" />
+                <input v-model.number="form.shelf_life_days" type="number" min="1" step="1" class="rounded-xl border-slate-300 text-sm" placeholder="Vida util en dias" />
+                <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="rounded-xl border-slate-300 text-sm" placeholder="Alerta de vencimiento (dias)" />
                 <textarea v-model="form.description" rows="3" class="rounded-xl border-slate-300 text-sm md:col-span-2" placeholder="Descripcion" />
             </div>
 

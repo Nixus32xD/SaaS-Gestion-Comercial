@@ -10,6 +10,7 @@ const props = defineProps({
     top_sold_products: { type: Array, default: () => [] },
     latest_sales: { type: Array, default: () => [] },
     latest_purchases: { type: Array, default: () => [] },
+    expiration_alerts: { type: Array, default: () => [] },
 });
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
@@ -183,6 +184,20 @@ const trendLabelIndexes = computed(() => {
             </section>
 
             <section class="grid gap-4 lg:grid-cols-2">
+                <article class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm lg:col-span-2">
+                    <h3 class="text-base font-semibold text-amber-900">Alertas de vencimiento</h3>
+                    <ul v-if="expiration_alerts.length" class="mt-3 space-y-2 text-sm">
+                        <li v-for="item in expiration_alerts" :key="item.id" class="rounded-lg border border-amber-300 bg-white/70 px-3 py-2">
+                            <span class="font-medium text-slate-800">{{ item.product_name }}</span>
+                            <span class="ml-2 text-slate-600">vence {{ item.expires_at }}</span>
+                            <span class="ml-2 font-semibold" :class="item.status === 'expired' ? 'text-rose-700' : 'text-amber-700'">
+                                {{ item.status === 'expired' ? 'Vencido' : `Faltan ${item.days_remaining} dias` }}
+                            </span>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-3 text-sm text-slate-600">No hay productos proximos a vencer.</p>
+                </article>
+
                 <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 class="text-base font-semibold text-slate-900">Productos con stock bajo</h3>
                     <ul v-if="low_stock_products.length" class="mt-3 space-y-2 text-sm">

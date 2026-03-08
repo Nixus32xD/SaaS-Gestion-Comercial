@@ -40,6 +40,7 @@ class StorePurchaseRequest extends FormRequest
             'items.*.product_id' => ['nullable', 'integer'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_cost' => ['required', 'numeric', 'gte:0'],
+            'items.*.expires_at' => ['nullable', 'date'],
             'items.*.product' => ['nullable', 'array'],
             'items.*.product.name' => ['nullable', 'string', 'max:150'],
             'items.*.product.barcode' => ['nullable', 'string', 'max:120'],
@@ -47,6 +48,8 @@ class StorePurchaseRequest extends FormRequest
             'items.*.product.unit_type' => ['nullable', 'in:unit,weight'],
             'items.*.product.sale_price' => ['nullable', 'numeric', 'gte:0'],
             'items.*.product.min_stock' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.product.shelf_life_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],
+            'items.*.product.expiry_alert_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],
         ];
     }
 

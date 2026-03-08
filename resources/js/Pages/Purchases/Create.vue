@@ -13,6 +13,7 @@ const state = reactive({
     search: '',
     quantity: 1,
     unit_cost: 0,
+    expires_at: '',
     highlightedIndex: 0,
     activeProductId: null,
     helperMessage: 'Busca por nombre, codigo de barras o SKU. Enter agrega el producto.',
@@ -23,6 +24,8 @@ const state = reactive({
         unit_type: 'unit',
         sale_price: 0,
         min_stock: 0,
+        shelf_life_days: '',
+        expiry_alert_days: 15,
     },
 });
 
@@ -39,12 +42,33 @@ const nowLocalDateTime = () => {
     return localDate.toISOString().slice(0, 16);
 };
 
+const dateToYmd = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+
+    const offsetMinutes = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offsetMinutes * 60000));
+    return localDate.toISOString().slice(0, 10);
+};
+
 const form = useForm({
     supplier_id: '',
     purchased_at: nowLocalDateTime(),
     notes: '',
     items: [],
 });
+
+const buildCalculatedExpiration = (shelfLifeDays) => {
+    const days = Number(shelfLifeDays || 0);
+    if (days <= 0) return '';
+
+    const purchasedAt = form.purchased_at ? new Date(form.purchased_at) : new Date();
+    if (Number.isNaN(purchasedAt.getTime())) return '';
+
+    const expiresAt = new Date(purchasedAt);
+    expiresAt.setDate(expiresAt.getDate() + days);
+
+    return dateToYmd(expiresAt);
+};
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -144,11 +168,13 @@ const addExistingProduct = (product, source = 'manual') => {
     }
 
     unitCost = Number(unitCost.toFixed(2));
+    const expiresAt = state.expires_at || buildCalculatedExpiration(product.shelf_life_days) || null;
 
     const existingLine = form.items.find((item) => (
         item.product_id === product.id
         && item.product === null
         && Number(item.unit_cost) === unitCost
+        && (item.expires_at || null) === expiresAt
     ));
 
     if (existingLine) {
@@ -158,6 +184,7 @@ const addExistingProduct = (product, source = 'manual') => {
             product_id: product.id,
             quantity: Number(quantity.toFixed(3)),
             unit_cost: unitCost,
+            expires_at: expiresAt,
             product: null,
         });
     }
@@ -167,6 +194,7 @@ const addExistingProduct = (product, source = 'manual') => {
     state.search = '';
     state.activeProductId = null;
     state.highlightedIndex = 0;
+    state.expires_at = '';
     state.helperMessage = source === 'scanner'
         ? `Producto agregado por codigo: ${product.name}`
         : `Producto agregado: ${product.name}`;
@@ -195,10 +223,13 @@ const addNewProductItem = () => {
         return;
     }
 
+    const expiresAt = state.expires_at || buildCalculatedExpiration(state.new_product.shelf_life_days);
+
     form.items.push({
         product_id: null,
         quantity: Number(quantity.toFixed(3)),
         unit_cost: Number(unitCost.toFixed(2)),
+        expires_at: expiresAt || null,
         product: {
             name,
             barcode: String(state.new_product.barcode || '').trim() || null,
@@ -206,6 +237,8 @@ const addNewProductItem = () => {
             unit_type: state.new_product.unit_type,
             sale_price: Number(Number(state.new_product.sale_price || 0).toFixed(2)),
             min_stock: Number(Number(state.new_product.min_stock || 0).toFixed(3)),
+            shelf_life_days: state.new_product.shelf_life_days ? Number(state.new_product.shelf_life_days) : null,
+            expiry_alert_days: Number(state.new_product.expiry_alert_days || 15),
         },
     });
 
@@ -216,9 +249,12 @@ const addNewProductItem = () => {
         unit_type: 'unit',
         sale_price: 0,
         min_stock: 0,
+        shelf_life_days: '',
+        expiry_alert_days: 15,
     };
     state.quantity = 1;
     state.unit_cost = 0;
+    state.expires_at = '';
     state.helperMessage = `Producto nuevo agregado: ${name}`;
 
     nextTick(() => {
@@ -509,6 +545,14 @@ onBeforeUnmount(() => {
                         <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-700">Stock minimo</label>
                         <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-slate-300 text-sm" placeholder="0.000" />
                     </div>
+                    <div>
+                        <label for="new_product_shelf_life_days" class="mb-1 block text-sm font-medium text-slate-700">Vida util (dias)</label>
+                        <input id="new_product_shelf_life_days" v-model.number="state.new_product.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                    </div>
+                    <div>
+                        <label for="new_product_expiry_alert_days" class="mb-1 block text-sm font-medium text-slate-700">Alerta vencimiento (dias)</label>
+                        <input id="new_product_expiry_alert_days" v-model.number="state.new_product.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" />
+                    </div>
                 </div>
 
                 <div class="mt-4 grid gap-3 md:grid-cols-3">
@@ -519,6 +563,10 @@ onBeforeUnmount(() => {
                     <div>
                         <label for="purchase_unit_cost" class="mb-1 block text-sm font-medium text-slate-700">Costo unitario</label>
                         <input id="purchase_unit_cost" ref="unitCostInput" v-model.number="state.unit_cost" type="number" min="0" step="0.01" class="w-full rounded-xl border-slate-300 text-sm" />
+                    </div>
+                    <div>
+                        <label for="purchase_expires_at" class="mb-1 block text-sm font-medium text-slate-700">Vencimiento del lote</label>
+                        <input id="purchase_expires_at" v-model="state.expires_at" type="date" class="w-full rounded-xl border-slate-300 text-sm" />
                     </div>
                     <div class="flex items-end">
                         <button type="button" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="addCurrentItem">
@@ -536,6 +584,7 @@ onBeforeUnmount(() => {
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Producto</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Cantidad</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Costo</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">Vencimiento</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Subtotal</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500"></th>
                             </tr>
@@ -545,6 +594,7 @@ onBeforeUnmount(() => {
                                 <td class="px-3 py-2 font-semibold text-slate-900">{{ itemLabel(item) }}</td>
                                 <td class="px-3 py-2">{{ item.quantity }}</td>
                                 <td class="px-3 py-2">{{ money(item.unit_cost) }}</td>
+                                <td class="px-3 py-2">{{ item.expires_at || '-' }}</td>
                                 <td class="px-3 py-2">{{ money(Number(item.quantity) * Number(item.unit_cost)) }}</td>
                                 <td class="px-3 py-2 text-right">
                                     <button type="button" class="rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50" @click="removeItem(index)">Quitar</button>
@@ -553,7 +603,7 @@ onBeforeUnmount(() => {
                         </tbody>
                         <tbody v-else>
                             <tr>
-                                <td colspan="5" class="px-3 py-5 text-center text-slate-400">Agrega items para registrar la compra.</td>
+                                <td colspan="6" class="px-3 py-5 text-center text-slate-400">Agrega items para registrar la compra.</td>
                             </tr>
                         </tbody>
                     </table>

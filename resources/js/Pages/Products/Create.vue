@@ -18,6 +18,8 @@ const form = useForm({
     cost_price: 0,
     stock: 0,
     min_stock: 0,
+    shelf_life_days: '',
+    expiry_alert_days: 15,
     is_active: true,
 });
 
@@ -87,6 +89,14 @@ const submit = () => {
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-700">Stock minimo</label>
                     <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-slate-300 text-sm" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Vida util (dias)</label>
+                    <input v-model.number="form.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-700">Alerta antes de vencer (dias)</label>
+                    <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" />
                 </div>
                 <div class="space-y-1 md:col-span-2">
                     <label class="text-sm font-medium text-slate-700">Descripcion</label>

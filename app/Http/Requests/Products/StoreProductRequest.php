@@ -45,8 +45,9 @@ class StoreProductRequest extends FormRequest
             'cost_price' => ['required', 'numeric', 'gte:0'],
             'stock' => ['nullable', 'numeric', 'gte:0'],
             'min_stock' => ['nullable', 'numeric', 'gte:0'],
+            'shelf_life_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],
+            'expiry_alert_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
 }
-

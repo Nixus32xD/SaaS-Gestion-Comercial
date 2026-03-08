@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\PurchaseItem;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -67,36 +68,22 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
-        $days = 14;
-        $startDate = now()->subDays($days - 1)->startOfDay();
-        $endDate = now()->endOfDay();
-
-        $salesByDay = Sale::query()
-            ->forBusiness($business->id)
-            ->whereBetween('sold_at', [$startDate, $endDate])
-            ->selectRaw('DATE(sold_at) as day, SUM(total) as total')
-            ->groupBy('day')
+        $expirationAlerts = PurchaseItem::query()
+            ->select('purchase_items.*')
+            ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
+            ->where('purchases.business_id', $business->id)
+            ->whereNotNull('purchase_items.expires_at')
+            ->orderBy('purchase_items.expires_at')
+            ->with('product:id,expiry_alert_days')
+            ->limit(250)
             ->get()
-            ->mapWithKeys(fn ($row): array => [(string) $row->day => (float) $row->total]);
+            ->filter(function (PurchaseItem $item): bool {
+                $alertDays = (int) ($item->product?->expiry_alert_days ?? 15);
 
-        $purchasesByDay = Purchase::query()
-            ->forBusiness($business->id)
-            ->whereBetween('purchased_at', [$startDate, $endDate])
-            ->selectRaw('DATE(purchased_at) as day, SUM(total) as total')
-            ->groupBy('day')
-            ->get()
-            ->mapWithKeys(fn ($row): array => [(string) $row->day => (float) $row->total]);
-
-        $dailyTotals = collect(range(0, $days - 1))
-            ->map(function (int $offset) use ($startDate, $salesByDay, $purchasesByDay): array {
-                $day = (clone $startDate)->addDays($offset)->toDateString();
-
-                return [
-                    'date' => $day,
-                    'sales_total' => (float) ($salesByDay->get($day, 0)),
-                    'purchases_total' => (float) ($purchasesByDay->get($day, 0)),
-                ];
-            });
+                return $item->expires_at !== null
+                    && $item->expires_at->startOfDay()->lessThanOrEqualTo(now()->startOfDay()->addDays(max($alertDays, 1)));
+            })
+            ->take(8);
 
         return Inertia::render('Dashboard/Index', [
             'summary' => [
@@ -130,7 +117,13 @@ class DashboardController extends Controller
                 'purchased_at' => $purchase->purchased_at?->format('Y-m-d H:i'),
                 'supplier' => $purchase->supplier?->name,
             ]),
-            'daily_totals' => $dailyTotals->values()->all(),
+            'expiration_alerts' => $expirationAlerts->map(fn (PurchaseItem $item) => [
+                'id' => $item->id,
+                'product_name' => $item->product_name,
+                'expires_at' => $item->expires_at?->toDateString(),
+                'days_remaining' => $item->expires_at ? now()->startOfDay()->diffInDays($item->expires_at->startOfDay(), false) : null,
+                'status' => $item->expires_at?->isPast() ? 'expired' : 'upcoming',
+            ]),
         ]);
     }
 }

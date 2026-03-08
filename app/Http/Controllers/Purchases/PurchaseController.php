@@ -85,6 +85,8 @@ class PurchaseController extends Controller
                     'stock' => (float) $product->stock,
                     'cost_price' => (float) $product->cost_price,
                     'sale_price' => (float) $product->sale_price,
+                    'shelf_life_days' => $product->shelf_life_days,
+                    'expiry_alert_days' => $product->expiry_alert_days,
                 ]),
         ]);
     }
@@ -129,6 +131,7 @@ class PurchaseController extends Controller
                     'quantity' => (float) $item->quantity,
                     'unit_cost' => (float) $item->unit_cost,
                     'subtotal' => (float) $item->subtotal,
+                    'expires_at' => $item->expires_at?->format('Y-m-d'),
                 ]),
             ],
         ]);

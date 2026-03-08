@@ -125,6 +125,20 @@ const closeSidebar = () => {
                     {{ $page.props.flash?.error || $page.props.flash?.success }}
                 </section>
                 <section
+                    v-if="$page.props.expiration_alerts?.length"
+                    class="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+                >
+                    <p class="font-semibold">Alertas de vencimiento ({{ $page.props.expiration_alerts.length }})</p>
+                    <ul class="mt-2 space-y-1">
+                        <li v-for="alert in $page.props.expiration_alerts" :key="alert.purchase_item_id">
+                            {{ alert.product_name }} · vence {{ alert.expires_at }}
+                            <span class="font-medium">
+                                ({{ alert.status === 'expired' ? 'vencido' : `faltan ${alert.days_remaining} dias` }})
+                            </span>
+                        </li>
+                    </ul>
+                </section>
+                <section
                     v-if="$page.props.errors && Object.keys($page.props.errors).length"
                     class="mb-6 rounded-2xl border border-rose-200/45 bg-rose-400/15 p-4 text-sm text-rose-100"
                 >

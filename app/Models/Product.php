@@ -31,6 +31,8 @@ class Product extends Model
         'cost_price',
         'stock',
         'min_stock',
+        'shelf_life_days',
+        'expiry_alert_days',
         'is_active',
     ];
 
@@ -44,6 +46,8 @@ class Product extends Model
             'cost_price' => 'decimal:2',
             'stock' => 'decimal:3',
             'min_stock' => 'decimal:3',
+            'shelf_life_days' => 'int',
+            'expiry_alert_days' => 'int',
             'is_active' => 'bool',
         ];
     }
@@ -64,4 +68,3 @@ class Product extends Model
         return $this->hasMany(StockMovement::class);
     }
 }
-
