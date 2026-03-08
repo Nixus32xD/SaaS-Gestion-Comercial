@@ -70,7 +70,7 @@ defineProps({
 
                     <div class="mt-4 rounded-2xl bg-cyan-300/15 p-5 ring-1 ring-cyan-100/30">
                         <p class="text-sm text-cyan-100/90">Mensual</p>
-                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 30.000</p>
+                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 20.000</p>
                         <p class="mt-2 text-xs text-slate-200/90">Mantenimiento y acompanamiento operativo.</p>
                     </div>
                 </section>
