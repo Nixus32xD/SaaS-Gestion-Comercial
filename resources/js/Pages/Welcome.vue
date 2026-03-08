@@ -98,6 +98,9 @@ defineProps({
                         <p class="mt-2 text-xs text-slate-200/90">
                             Referencia: entre ARS 200.000 y ARS 300.000 cuando se cargan grandes volumenes.
                         </p>
+                        <p class="mt-2 text-xs text-slate-300/95">
+                            Cada item cuenta como 1 producto independiente (ej: Coca, talco, prepizza queso, etc.).
+                        </p>
                     </div>
 
                     <div class="mt-4 rounded-2xl bg-cyan-300/15 p-5 ring-1 ring-cyan-100/30">
