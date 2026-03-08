@@ -43,16 +43,17 @@ defineProps({
                     </h2>
                     <p class="mt-5 max-w-2xl text-base text-slate-200/90 md:text-lg">
                         Implementacion, configuracion inicial y puesta en marcha para ventas, compras y stock.
+                        La carga masiva de productos puede contratarse como servicio opcional.
                     </p>
 
                     <div class="mt-8 grid gap-4 sm:grid-cols-2">
                         <article class="box">
-                            <h3 class="title text-lg font-semibold">Implementacion inicial</h3>
-                            <p class="mt-2 text-sm text-slate-200/85">Carga base y parametrizacion del sistema.</p>
+                            <h3 class="title text-lg font-semibold">Puesta en marcha</h3>
+                            <p class="mt-2 text-sm text-slate-200/85">Configuracion, parametros iniciales y capacitacion.</p>
                         </article>
                         <article class="box">
-                            <h3 class="title text-lg font-semibold">Soporte mensual</h3>
-                            <p class="mt-2 text-sm text-slate-200/85">Acompanamiento continuo para operar sin fricciones.</p>
+                            <h3 class="title text-lg font-semibold">Carga opcional</h3>
+                            <p class="mt-2 text-sm text-slate-200/85">Si queres, cargo tus productos para que arranques mas rapido.</p>
                         </article>
                     </div>
 
@@ -84,17 +85,25 @@ defineProps({
                     <p class="title text-sm uppercase tracking-[0.2em] text-cyan-100/90">Costos en ARS</p>
 
                     <div class="mt-5 rounded-2xl bg-white/10 p-5 ring-1 ring-white/15">
-                        <p class="text-sm text-cyan-100/90">Instalacion</p>
-                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 200.000 a ARS 300.000</p>
+                        <p class="text-sm text-cyan-100/90">Implementacion base</p>
+                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 150.000</p>
                         <p class="mt-2 text-xs text-slate-200/90">
-                            Depende de la cantidad de productos que quieras que cargue inicialmente.
+                            Incluye configuracion inicial, puesta en marcha y capacitacion para uso del sistema.
+                        </p>
+                    </div>
+
+                    <div class="mt-4 rounded-2xl bg-white/10 p-5 ring-1 ring-white/15">
+                        <p class="text-sm text-cyan-100/90">Carga de productos (opcional)</p>
+                        <p class="title mt-1 text-xl font-extrabold text-white">Desde ARS 1.000 por producto</p>
+                        <p class="mt-2 text-xs text-slate-200/90">
+                            Referencia: entre ARS 200.000 y ARS 300.000 cuando se cargan grandes volumenes.
                         </p>
                     </div>
 
                     <div class="mt-4 rounded-2xl bg-cyan-300/15 p-5 ring-1 ring-cyan-100/30">
                         <p class="text-sm text-cyan-100/90">Mensual</p>
-                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 20.000</p>
-                        <p class="mt-2 text-xs text-slate-200/90">Mantenimiento y acompanamiento operativo.</p>
+                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 30.000</p>
+                        <p class="mt-2 text-xs text-slate-200/90">Mantenimiento, soporte y acompanamiento operativo.</p>
                     </div>
 
                     <div class="mt-4 rounded-2xl bg-emerald-300/15 p-5 ring-1 ring-emerald-100/30">
