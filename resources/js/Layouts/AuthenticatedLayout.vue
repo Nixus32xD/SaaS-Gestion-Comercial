@@ -120,7 +120,10 @@ const closeSidebar = () => {
             </header>
 
             <main class="px-4 py-6 sm:px-6 lg:px-8">
-                <header v-if="$slots.header" class="app-section mb-6">
+                <header
+                    v-if="$slots.header"
+                    class="mb-6 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-4 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur sm:p-5"
+                >
                     <slot name="header" />
                 </header>
                 <section
@@ -132,7 +135,7 @@ const closeSidebar = () => {
                 </section>
                 <section
                     v-if="$page.props.expiration_alerts?.length"
-                    class="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+                    class="mb-6 rounded-2xl border border-amber-200/40 bg-amber-300/12 p-4 text-sm text-amber-100"
                 >
                     <p class="font-semibold">Alertas de vencimiento ({{ $page.props.expiration_alerts.length }})</p>
                     <ul class="mt-2 space-y-1">
