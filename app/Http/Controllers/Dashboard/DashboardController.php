@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\PurchaseItem;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -67,6 +68,23 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
+        $expirationAlerts = PurchaseItem::query()
+            ->select('purchase_items.*')
+            ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
+            ->where('purchases.business_id', $business->id)
+            ->whereNotNull('purchase_items.expires_at')
+            ->orderBy('purchase_items.expires_at')
+            ->with('product:id,expiry_alert_days')
+            ->limit(250)
+            ->get()
+            ->filter(function (PurchaseItem $item): bool {
+                $alertDays = (int) ($item->product?->expiry_alert_days ?? 15);
+
+                return $item->expires_at !== null
+                    && $item->expires_at->startOfDay()->lessThanOrEqualTo(now()->startOfDay()->addDays(max($alertDays, 1)));
+            })
+            ->take(8);
+
         return Inertia::render('Dashboard/Index', [
             'summary' => [
                 'today_sales' => $todaySales,
@@ -98,6 +116,13 @@ class DashboardController extends Controller
                 'total' => (float) $purchase->total,
                 'purchased_at' => $purchase->purchased_at?->format('Y-m-d H:i'),
                 'supplier' => $purchase->supplier?->name,
+            ]),
+            'expiration_alerts' => $expirationAlerts->map(fn (PurchaseItem $item) => [
+                'id' => $item->id,
+                'product_name' => $item->product_name,
+                'expires_at' => $item->expires_at?->toDateString(),
+                'days_remaining' => $item->expires_at ? now()->startOfDay()->diffInDays($item->expires_at->startOfDay(), false) : null,
+                'status' => $item->expires_at?->isPast() ? 'expired' : 'upcoming',
             ]),
         ]);
     }

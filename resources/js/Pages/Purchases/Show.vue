@@ -40,13 +40,14 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
 
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="text-base font-semibold text-slate-900">Items</h3>
-                <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50">
                             <tr>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Producto</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Cantidad</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Costo</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">Vencimiento</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-500">Subtotal</th>
                             </tr>
                         </thead>
@@ -55,6 +56,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
                                 <td class="px-3 py-2 font-semibold text-slate-900">{{ item.product_name }}</td>
                                 <td class="px-3 py-2">{{ item.quantity }}</td>
                                 <td class="px-3 py-2">{{ money(item.unit_cost) }}</td>
+                                <td class="px-3 py-2">{{ item.expires_at || '-' }}</td>
                                 <td class="px-3 py-2">{{ money(item.subtotal) }}</td>
                             </tr>
                         </tbody>

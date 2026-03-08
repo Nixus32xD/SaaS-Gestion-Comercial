@@ -9,6 +9,7 @@ use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,8 @@ class PurchaseService
     public function createPurchase(Business $business, User $user, array $payload): Purchase
     {
         return DB::transaction(function () use ($business, $user, $payload): Purchase {
+            $purchasedAt = $this->resolveDateTimeValue($payload['purchased_at'] ?? null);
+
             $supplierId = data_get($payload, 'supplier_id');
             $supplier = null;
 
@@ -93,9 +96,17 @@ class PurchaseService
                         'cost_price' => $unitCost,
                         'stock' => 0,
                         'min_stock' => round((float) data_get($item, 'product.min_stock', 0), 3),
+                        'shelf_life_days' => data_get($item, 'product.shelf_life_days'),
+                        'expiry_alert_days' => data_get($item, 'product.expiry_alert_days', 15),
                         'is_active' => true,
                     ]);
                 }
+
+                $expiresAt = $this->resolveExpirationDate(
+                    $item,
+                    $product,
+                    $purchasedAt,
+                );
 
                 return [
                     'product' => $product,
@@ -103,6 +114,7 @@ class PurchaseService
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
                     'subtotal' => round($quantity * $unitCost, 2),
+                    'expires_at' => $expiresAt?->toDateString(),
                 ];
             });
 
@@ -116,7 +128,7 @@ class PurchaseService
                 'subtotal' => $subtotal,
                 'total' => $subtotal,
                 'notes' => $payload['notes'] ?? null,
-                'purchased_at' => $this->resolveDateTimeValue($payload['purchased_at'] ?? null),
+                'purchased_at' => $purchasedAt,
             ]);
 
             foreach ($lines as $line) {
@@ -131,6 +143,7 @@ class PurchaseService
                     'quantity' => $line['quantity'],
                     'unit_cost' => $line['unit_cost'],
                     'subtotal' => $line['subtotal'],
+                    'expires_at' => $line['expires_at'],
                 ]);
 
                 $product->stock = $after;
@@ -190,5 +203,22 @@ class PurchaseService
         }
 
         return $value;
+    }
+
+    private function resolveExpirationDate(array $item, Product $product, mixed $purchasedAt): ?Carbon
+    {
+        $manualExpiration = data_get($item, 'expires_at');
+
+        if (is_string($manualExpiration) && trim($manualExpiration) !== '') {
+            return Carbon::parse($manualExpiration)->startOfDay();
+        }
+
+        if ($product->shelf_life_days === null || (int) $product->shelf_life_days <= 0) {
+            return null;
+        }
+
+        return Carbon::parse($purchasedAt)
+            ->startOfDay()
+            ->addDays((int) $product->shelf_life_days);
     }
 }

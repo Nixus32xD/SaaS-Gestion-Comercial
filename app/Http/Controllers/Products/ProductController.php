@@ -49,6 +49,8 @@ class ProductController extends Controller
                 'cost_price' => (float) $product->cost_price,
                 'stock' => (float) $product->stock,
                 'min_stock' => (float) $product->min_stock,
+                'shelf_life_days' => $product->shelf_life_days,
+                'expiry_alert_days' => $product->expiry_alert_days,
                 'is_active' => $product->is_active,
                 'supplier' => $product->supplier?->name,
                 'has_low_stock' => (float) $product->stock <= (float) $product->min_stock,
@@ -99,6 +101,8 @@ class ProductController extends Controller
             'cost_price' => $data['cost_price'],
             'stock' => $initialStock,
             'min_stock' => $data['min_stock'] ?? 0,
+            'shelf_life_days' => $data['shelf_life_days'] ?? null,
+            'expiry_alert_days' => $data['expiry_alert_days'] ?? 15,
             'is_active' => (bool) ($data['is_active'] ?? true),
         ]);
 
@@ -142,6 +146,8 @@ class ProductController extends Controller
                 'cost_price' => (float) $product->cost_price,
                 'stock' => (float) $product->stock,
                 'min_stock' => (float) $product->min_stock,
+                'shelf_life_days' => $product->shelf_life_days,
+                'expiry_alert_days' => $product->expiry_alert_days,
                 'is_active' => $product->is_active,
             ],
             'suppliers' => Supplier::query()
@@ -178,6 +184,8 @@ class ProductController extends Controller
             'cost_price' => $data['cost_price'],
             'stock' => $newStock,
             'min_stock' => $data['min_stock'] ?? 0,
+            'shelf_life_days' => $data['shelf_life_days'] ?? null,
+            'expiry_alert_days' => $data['expiry_alert_days'] ?? 15,
             'is_active' => (bool) ($data['is_active'] ?? true),
         ]);
 
@@ -245,4 +253,3 @@ class ProductController extends Controller
             ->exists();
     }
 }
-

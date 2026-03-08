@@ -40,7 +40,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
 
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="text-base font-semibold text-slate-900">Items</h3>
-                <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50">
                             <tr>

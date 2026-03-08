@@ -2,9 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\ProductExpirationAlertService;
+use App\Support\CurrentBusiness;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
-use App\Support\CurrentBusiness;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -31,6 +32,14 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $business = app(CurrentBusiness::class)->get();
+        $expirationAlerts = [];
+
+        if ($business !== null) {
+            $expirationAlerts = app(ProductExpirationAlertService::class)
+                ->listForBusiness($business->id, 8)
+                ->values()
+                ->all();
+        }
 
         return [
             ...parent::share($request),
@@ -49,6 +58,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
             ],
+            'expiration_alerts' => $expirationAlerts,
         ];
     }
 }

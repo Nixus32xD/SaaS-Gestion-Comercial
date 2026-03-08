@@ -20,6 +20,7 @@ class PurchaseItem extends Model
         'quantity',
         'unit_cost',
         'subtotal',
+        'expires_at',
     ];
 
     /**
@@ -31,6 +32,7 @@ class PurchaseItem extends Model
             'quantity' => 'decimal:3',
             'unit_cost' => 'decimal:2',
             'subtotal' => 'decimal:2',
+            'expires_at' => 'date',
         ];
     }
 
@@ -50,4 +52,3 @@ class PurchaseItem extends Model
         return $this->belongsTo(Product::class);
     }
 }
-
