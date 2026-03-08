@@ -141,6 +141,12 @@ const handleSearchEnter = () => {
 };
 
 const handleSearchKeydown = (event) => {
+    if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault();
+        submitIfReady();
+        return;
+    }
+
     if (event.key === 'ArrowDown') {
         event.preventDefault();
 
@@ -197,6 +203,11 @@ const submit = () => {
     form.post(route('sales.store'));
 };
 
+const submitIfReady = () => {
+    if (!form.items.length || form.processing) return;
+    submit();
+};
+
 const handleGlobalShortcuts = (event) => {
     if (event.key === 'F2') {
         event.preventDefault();
@@ -218,15 +229,16 @@ const handleGlobalShortcuts = (event) => {
 
     if (event.ctrlKey && event.key === 'Enter') {
         event.preventDefault();
-        if (form.items.length && !form.processing) {
-            submit();
-        }
+        submitIfReady();
     }
 };
 
 onMounted(() => {
     syncSelection();
     window.addEventListener('keydown', handleGlobalShortcuts);
+    nextTick(() => {
+        searchInput.value?.focus();
+    });
 });
 
 onBeforeUnmount(() => {
@@ -248,7 +260,7 @@ onBeforeUnmount(() => {
             </div>
         </template>
 
-        <form class="grid gap-6" @submit.prevent="submit">
+        <form class="grid gap-6" @submit.prevent>
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-800">
                     <p class="font-semibold">Atajos</p>
@@ -303,9 +315,9 @@ onBeforeUnmount(() => {
                             <button
                                 type="button"
                                 class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
-                                :class="product.id === activeProductId || index === state.highlightedIndex ? 'bg-indigo-50' : ''"
+                                :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-indigo-50' : ''"
                                 role="option"
-                                :aria-selected="product.id === activeProductId || index === state.highlightedIndex ? 'true' : 'false'"
+                                :aria-selected="product.id === state.activeProductId || index === state.highlightedIndex ? 'true' : 'false'"
                                 @click="selectProduct(product)"
                                 @dblclick="addProductToCart(product, 'manual')"
                             >
@@ -371,7 +383,7 @@ onBeforeUnmount(() => {
                     <p>Total: <strong>{{ money(total) }}</strong></p>
                 </div>
                 <div class="mt-4 flex justify-end">
-                    <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing || !form.items.length">
+                    <button type="button" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing || !form.items.length" @click="submitIfReady">
                         Confirmar venta
                     </button>
                 </div>
