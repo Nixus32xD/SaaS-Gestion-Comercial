@@ -91,6 +91,7 @@ const syncSelection = () => {
     if (!filteredProducts.value.find((product) => product.id === state.activeProductId)) {
         state.highlightedIndex = 0;
         state.activeProductId = filteredProducts.value[0].id;
+        setDefaultCost(filteredProducts.value[0]);
         return;
     }
 
@@ -101,9 +102,7 @@ const syncSelection = () => {
 const setDefaultCost = (product) => {
     if (!product) return;
 
-    if (Number(state.unit_cost || 0) <= 0) {
-        state.unit_cost = Number(product.cost_price || 0);
-    }
+    state.unit_cost = Number(product.cost_price || 0);
 };
 
 const selectProduct = (product) => {
@@ -242,6 +241,7 @@ const handleSearchEnter = () => {
     const exactCodeMatch = findExactCodeMatch(state.search);
 
     if (exactCodeMatch) {
+        setDefaultCost(exactCodeMatch);
         addExistingProduct(exactCodeMatch, 'scanner');
         return;
     }

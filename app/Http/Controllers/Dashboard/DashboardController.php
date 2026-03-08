@@ -67,6 +67,37 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
+        $days = 14;
+        $startDate = now()->subDays($days - 1)->startOfDay();
+        $endDate = now()->endOfDay();
+
+        $salesByDay = Sale::query()
+            ->forBusiness($business->id)
+            ->whereBetween('sold_at', [$startDate, $endDate])
+            ->selectRaw('DATE(sold_at) as day, SUM(total) as total')
+            ->groupBy('day')
+            ->get()
+            ->mapWithKeys(fn ($row): array => [(string) $row->day => (float) $row->total]);
+
+        $purchasesByDay = Purchase::query()
+            ->forBusiness($business->id)
+            ->whereBetween('purchased_at', [$startDate, $endDate])
+            ->selectRaw('DATE(purchased_at) as day, SUM(total) as total')
+            ->groupBy('day')
+            ->get()
+            ->mapWithKeys(fn ($row): array => [(string) $row->day => (float) $row->total]);
+
+        $dailyTotals = collect(range(0, $days - 1))
+            ->map(function (int $offset) use ($startDate, $salesByDay, $purchasesByDay): array {
+                $day = (clone $startDate)->addDays($offset)->toDateString();
+
+                return [
+                    'date' => $day,
+                    'sales_total' => (float) ($salesByDay->get($day, 0)),
+                    'purchases_total' => (float) ($purchasesByDay->get($day, 0)),
+                ];
+            });
+
         return Inertia::render('Dashboard/Index', [
             'summary' => [
                 'today_sales' => $todaySales,
@@ -99,6 +130,7 @@ class DashboardController extends Controller
                 'purchased_at' => $purchase->purchased_at?->format('Y-m-d H:i'),
                 'supplier' => $purchase->supplier?->name,
             ]),
+            'daily_totals' => $dailyTotals->values()->all(),
         ]);
     }
 }
