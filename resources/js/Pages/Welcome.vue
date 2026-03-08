@@ -55,6 +55,29 @@ defineProps({
                             <p class="mt-2 text-sm text-slate-200/85">Acompanamiento continuo para operar sin fricciones.</p>
                         </article>
                     </div>
+
+                    <article class="box mt-4">
+                        <h3 class="title text-lg font-semibold">Que incluye hoy</h3>
+                        <ul class="mt-3 space-y-2 text-sm text-slate-200/90">
+                            <li class="flex items-start gap-2"><span class="dot" />Gestion de ventas, compras y stock.</li>
+                            <li class="flex items-start gap-2"><span class="dot" />Control de productos y proveedores.</li>
+                            <li class="flex items-start gap-2"><span class="dot" />Reportes operativos para seguimiento diario.</li>
+                        </ul>
+                    </article>
+
+                    <article class="box mt-4">
+                        <h3 class="title text-lg font-semibold">Alcance</h3>
+                        <p class="mt-2 text-sm text-slate-200/85">Ideal para negocios minoristas y de mostrador:</p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <span class="tag">Kioscos</span>
+                            <span class="tag">Tiendas</span>
+                            <span class="tag">Ferreterias</span>
+                            <span class="tag">Petshops</span>
+                            <span class="tag">Regalerias</span>
+                            <span class="tag">Autoservicios</span>
+                            <span class="tag">Y mas</span>
+                        </div>
+                    </article>
                 </section>
 
                 <section class="entry panel price" style="animation-delay: 180ms">
@@ -72,6 +95,23 @@ defineProps({
                         <p class="text-sm text-cyan-100/90">Mensual</p>
                         <p class="title mt-1 text-2xl font-extrabold text-white">ARS 20.000</p>
                         <p class="mt-2 text-xs text-slate-200/90">Mantenimiento y acompanamiento operativo.</p>
+                    </div>
+
+                    <div class="mt-4 rounded-2xl bg-emerald-300/15 p-5 ring-1 ring-emerald-100/30">
+                        <p class="text-sm text-emerald-100">Demo gratuita</p>
+                        <p class="title mt-1 text-xl font-extrabold text-white">7 dias sin costo</p>
+                        <p class="mt-2 text-xs text-slate-200/90">
+                            Se cargan hasta 50 productos (carga realizada por mi) e incluye capacitacion de uso.
+                        </p>
+                    </div>
+
+                    <div class="mt-4 rounded-2xl bg-cyan-300/12 p-5 ring-1 ring-cyan-100/25">
+                        <p class="text-sm text-cyan-100/90">Proximas actualizaciones</p>
+                        <ul class="mt-2 space-y-1 text-xs text-slate-200/90">
+                            <li class="flex items-start gap-2"><span class="dot" />Vencimientos de productos.</li>
+                            <li class="flex items-start gap-2"><span class="dot" />Notificaciones via mail.</li>
+                            <li class="flex items-start gap-2"><span class="dot" />Soporte multi sucursal.</li>
+                        </ul>
                     </div>
                 </section>
             </main>
@@ -112,6 +152,25 @@ defineProps({
     border: 1px solid rgba(186, 230, 253, 0.2);
     background: rgba(15, 23, 42, 0.5);
     padding: 1rem;
+}
+
+.tag {
+    border-radius: 9999px;
+    border: 1px solid rgba(186, 230, 253, 0.35);
+    background: rgba(56, 189, 248, 0.12);
+    padding: 0.2rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(224, 242, 254, 0.95);
+}
+
+.dot {
+    margin-top: 0.35rem;
+    height: 0.45rem;
+    width: 0.45rem;
+    border-radius: 9999px;
+    background: rgb(103, 232, 249);
+    flex-shrink: 0;
 }
 
 .price {
