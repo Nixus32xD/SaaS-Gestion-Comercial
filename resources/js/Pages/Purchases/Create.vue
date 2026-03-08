@@ -405,7 +405,7 @@ onBeforeUnmount(() => {
 
         <form class="grid gap-6" @submit.prevent="submit">
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-800">
+                <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
                     <p class="font-semibold">Atajos</p>
                     <p>F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
                 </div>
