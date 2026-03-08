@@ -435,9 +435,9 @@ onBeforeUnmount(() => {
                 </section>
 
                 <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <h4 class="text-sm font-semibold text-slate-900">Atajos</h4>
-                    <p class="mt-1 text-xs text-slate-500">Atajos activos en esta pantalla.</p>
-                    <ul class="mt-2 space-y-1 text-sm text-slate-600">
+                    <h4 class="text-sm font-semibold text-cyan-100">Atajos</h4>
+                    <p class="mt-1 text-xs text-slate-300">Atajos activos en esta pantalla.</p>
+                    <ul class="mt-2 space-y-1 text-sm text-slate-200">
                         <li v-for="shortcut in shortcuts" :key="shortcut">- {{ shortcut }}</li>
                     </ul>
                 </section>

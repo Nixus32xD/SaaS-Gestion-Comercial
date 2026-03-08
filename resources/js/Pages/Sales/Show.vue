@@ -1,9 +1,11 @@
 <script setup>
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 
 const props = defineProps({
     sale: { type: Object, required: true },
+    auto_back: { type: Boolean, default: false },
 });
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
@@ -11,6 +13,36 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     currency: 'ARS',
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
+
+const redirectSeconds = ref(5);
+const showAutoBackMessage = computed(() => props.auto_back === true);
+
+let redirectTimeout = null;
+let countdownInterval = null;
+
+onMounted(() => {
+    if (!showAutoBackMessage.value) return;
+
+    countdownInterval = window.setInterval(() => {
+        if (redirectSeconds.value > 1) {
+            redirectSeconds.value -= 1;
+        }
+    }, 1000);
+
+    redirectTimeout = window.setTimeout(() => {
+        router.visit(route('sales.create'));
+    }, redirectSeconds.value * 1000);
+});
+
+onBeforeUnmount(() => {
+    if (redirectTimeout !== null) {
+        window.clearTimeout(redirectTimeout);
+    }
+
+    if (countdownInterval !== null) {
+        window.clearInterval(countdownInterval);
+    }
+});
 </script>
 
 <template>
@@ -29,6 +61,10 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
 
         <div class="grid gap-6">
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p v-if="showAutoBackMessage" class="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                    Venta registrada. Volviendo a nueva venta en {{ redirectSeconds }}s...
+                </p>
+
                 <div class="grid gap-2 text-sm text-slate-700">
                     <p>Vendedor: <strong>{{ sale.user || '-' }}</strong></p>
                     <p>Subtotal: <strong>{{ money(sale.subtotal) }}</strong></p>

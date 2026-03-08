@@ -95,11 +95,11 @@ class SaleController extends Controller
         $sale = $this->saleService->createSale($business, $user, $request->validated());
 
         return redirect()
-            ->route('sales.show', $sale)
+            ->route('sales.show', ['sale' => $sale, 'auto_back' => 1])
             ->with('success', 'Venta registrada correctamente.');
     }
 
-    public function show(CurrentBusiness $currentBusiness, Sale $sale): Response
+    public function show(Request $request, CurrentBusiness $currentBusiness, Sale $sale): Response
     {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
@@ -108,6 +108,7 @@ class SaleController extends Controller
         $sale->load(['items.product', 'user']);
 
         return Inertia::render('Sales/Show', [
+            'auto_back' => $request->boolean('auto_back'),
             'sale' => [
                 'id' => $sale->id,
                 'sale_number' => $sale->sale_number,
@@ -128,4 +129,3 @@ class SaleController extends Controller
         ]);
     }
 }
-

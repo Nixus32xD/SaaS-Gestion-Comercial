@@ -115,6 +115,7 @@ const syncSelection = () => {
     if (!filteredProducts.value.find((product) => product.id === state.activeProductId)) {
         state.highlightedIndex = 0;
         state.activeProductId = filteredProducts.value[0].id;
+        setDefaultCost(filteredProducts.value[0]);
         return;
     }
 
@@ -125,9 +126,7 @@ const syncSelection = () => {
 const setDefaultCost = (product) => {
     if (!product) return;
 
-    if (Number(state.unit_cost || 0) <= 0) {
-        state.unit_cost = Number(product.cost_price || 0);
-    }
+    state.unit_cost = Number(product.cost_price || 0);
 };
 
 const selectProduct = (product) => {
@@ -278,6 +277,7 @@ const handleSearchEnter = () => {
     const exactCodeMatch = findExactCodeMatch(state.search);
 
     if (exactCodeMatch) {
+        setDefaultCost(exactCodeMatch);
         addExistingProduct(exactCodeMatch, 'scanner');
         return;
     }
@@ -441,7 +441,7 @@ onBeforeUnmount(() => {
 
         <form class="grid gap-6" @submit.prevent="submit">
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-800">
+                <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
                     <p class="font-semibold">Atajos</p>
                     <p>F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
                 </div>

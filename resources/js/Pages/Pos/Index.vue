@@ -128,8 +128,8 @@ defineProps({
                         <li v-for="method in paymentMethods" :key="method.key">- {{ method.name }}</li>
                     </ul>
 
-                    <h4 class="mt-4 text-sm font-semibold text-slate-900">Atajos</h4>
-                    <ul class="mt-2 space-y-1 text-sm text-slate-600">
+                    <h4 class="mt-4 text-sm font-semibold text-cyan-100">Atajos</h4>
+                    <ul class="mt-2 space-y-1 text-sm text-slate-200">
                         <li v-for="shortcut in shortcuts" :key="shortcut">- {{ shortcut }}</li>
                     </ul>
                 </section>
