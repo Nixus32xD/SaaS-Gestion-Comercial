@@ -41,6 +41,14 @@ defineProps({
                     >
                         Revisar Stock
                     </Link>
+                    <Link
+                        :href="route('logout')"
+                        method="post"
+                        as="button"
+                        class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                    >
+                        Cerrar sesion
+                    </Link>
                 </div>
             </div>
         </template>

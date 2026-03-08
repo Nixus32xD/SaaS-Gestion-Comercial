@@ -1,8 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
-import Dropdown from '@/Components/Dropdown.vue';
-import DropdownLink from '@/Components/DropdownLink.vue';
 import SidebarLink from '@/Components/SidebarLink.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
@@ -82,24 +80,9 @@ const closeSidebar = () => {
                 </SidebarLink>
             </nav>
 
-            <div class="mt-auto">
-                <Dropdown align="right" width="56">
-                    <template #trigger>
-                        <button
-                            type="button"
-                            class="flex w-full items-center justify-between rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 transition hover:border-slate-600 hover:bg-slate-700"
-                        >
-                            <span class="truncate">{{ $page.props.auth.user?.email }}</span>
-                            <svg class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                    </template>
-                    <template #content>
-                        <DropdownLink :href="route('profile.edit')">Perfil</DropdownLink>
-                        <DropdownLink :href="route('logout')" method="post" as="button">Cerrar sesion</DropdownLink>
-                    </template>
-                </Dropdown>
+            <div class="mt-auto border-t border-slate-800 pt-4">
+                <p class="text-xs uppercase tracking-wider text-slate-400">Sesion activa</p>
+                <p class="mt-1 truncate text-sm text-slate-200">{{ $page.props.auth.user?.email }}</p>
             </div>
         </aside>
 
