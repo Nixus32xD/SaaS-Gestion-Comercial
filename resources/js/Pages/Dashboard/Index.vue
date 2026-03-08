@@ -187,8 +187,9 @@ const trendLabelIndexes = computed(() => {
                 <article class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm lg:col-span-2">
                     <h3 class="text-base font-semibold text-amber-900">Alertas de vencimiento</h3>
                     <ul v-if="expiration_alerts.length" class="mt-3 space-y-2 text-sm">
-                        <li v-for="item in expiration_alerts" :key="item.id" class="rounded-lg border border-amber-300 bg-white/70 px-3 py-2">
+                        <li v-for="item in expiration_alerts" :key="item.purchase_item_id" class="rounded-lg border border-amber-300 bg-white/70 px-3 py-2">
                             <span class="font-medium text-slate-800">{{ item.product_name }}</span>
+                            <span v-if="item.purchase_number" class="ml-2 text-slate-500">lote {{ item.purchase_number }}</span>
                             <span class="ml-2 text-slate-600">vence {{ item.expires_at }}</span>
                             <span class="ml-2 font-semibold" :class="item.status === 'expired' ? 'text-rose-700' : 'text-amber-700'">
                                 {{ item.status === 'expired' ? 'Vencido' : `Faltan ${item.days_remaining} dias` }}

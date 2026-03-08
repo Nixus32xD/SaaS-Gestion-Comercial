@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
-use App\Models\PurchaseItem;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Supplier;
+use App\Services\ProductExpirationAlertService;
 use App\Support\CurrentBusiness;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -16,7 +16,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(CurrentBusiness $currentBusiness): Response
+    public function index(CurrentBusiness $currentBusiness, ProductExpirationAlertService $expirationAlertService): Response
     {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
@@ -68,22 +68,34 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
-        $expirationAlerts = PurchaseItem::query()
-            ->select('purchase_items.*')
-            ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
-            ->where('purchases.business_id', $business->id)
-            ->whereNotNull('purchase_items.expires_at')
-            ->orderBy('purchase_items.expires_at')
-            ->with('product:id,expiry_alert_days')
-            ->limit(250)
-            ->get()
-            ->filter(function (PurchaseItem $item): bool {
-                $alertDays = (int) ($item->product?->expiry_alert_days ?? 15);
+        $expirationAlerts = $expirationAlertService->listForBusiness($business->id, 8)->values();
 
-                return $item->expires_at !== null
-                    && $item->expires_at->startOfDay()->lessThanOrEqualTo(now()->startOfDay()->addDays(max($alertDays, 1)));
-            })
-            ->take(8);
+        $trendStart = now()->startOfDay()->subDays(13);
+        $trendEnd = now()->endOfDay();
+
+        $salesByDate = Sale::query()
+            ->forBusiness($business->id)
+            ->selectRaw('DATE(sold_at) as day, SUM(total) as total')
+            ->whereBetween('sold_at', [$trendStart, $trendEnd])
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $purchasesByDate = Purchase::query()
+            ->forBusiness($business->id)
+            ->selectRaw('DATE(purchased_at) as day, SUM(total) as total')
+            ->whereBetween('purchased_at', [$trendStart, $trendEnd])
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $dailyTotals = collect(range(0, 13))->map(function (int $offset) use ($trendStart, $salesByDate, $purchasesByDate): array {
+            $date = $trendStart->copy()->addDays($offset)->toDateString();
+
+            return [
+                'date' => $date,
+                'sales_total' => (float) ($salesByDate->get($date) ?? 0),
+                'purchases_total' => (float) ($purchasesByDate->get($date) ?? 0),
+            ];
+        });
 
         return Inertia::render('Dashboard/Index', [
             'summary' => [
@@ -92,6 +104,7 @@ class DashboardController extends Controller
                 'products_count' => $productsCount,
                 'suppliers_count' => $suppliersCount,
             ],
+            'daily_totals' => $dailyTotals->all(),
             'low_stock_products' => $lowStock->map(fn (Product $product) => [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -117,13 +130,7 @@ class DashboardController extends Controller
                 'purchased_at' => $purchase->purchased_at?->format('Y-m-d H:i'),
                 'supplier' => $purchase->supplier?->name,
             ]),
-            'expiration_alerts' => $expirationAlerts->map(fn (PurchaseItem $item) => [
-                'id' => $item->id,
-                'product_name' => $item->product_name,
-                'expires_at' => $item->expires_at?->toDateString(),
-                'days_remaining' => $item->expires_at ? now()->startOfDay()->diffInDays($item->expires_at->startOfDay(), false) : null,
-                'status' => $item->expires_at?->isPast() ? 'expired' : 'upcoming',
-            ]),
+            'expiration_alerts' => $expirationAlerts->all(),
         ]);
     }
 }

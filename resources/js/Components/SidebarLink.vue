@@ -19,8 +19,8 @@ const props = defineProps({
 
 const classes = computed(() => (
     props.active
-        ? 'group flex items-center gap-3 rounded-xl border border-cyan-200/35 bg-cyan-300/20 px-3 py-2.5 text-sm font-semibold text-cyan-100 shadow-[0_10px_24px_rgba(8,47,73,0.25)]'
-        : 'group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-200/25 hover:bg-slate-800/70 hover:text-cyan-100'
+        ? 'group flex items-center gap-3 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2.5 text-sm font-semibold text-cyan-900 shadow-sm'
+        : 'group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900'
 ));
 </script>
 
