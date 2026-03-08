@@ -31,13 +31,23 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $business = app(CurrentBusiness::class)->get();
+        $user = $request->user();
+
+        if ($business === null && $user?->isBusinessAdmin()) {
+            $business = $user->business;
+            if ($business?->is_active) {
+                app(CurrentBusiness::class)->set($business);
+            } else {
+                $business = null;
+            }
+        }
 
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
-                'is_super_admin' => $request->user()?->isSuperAdmin() ?? false,
-                'role' => $request->user()?->role,
+                'user' => $user,
+                'is_super_admin' => $user?->isSuperAdmin() ?? false,
+                'role' => $user?->role,
             ],
             'business' => $business ? [
                 'id' => $business->id,

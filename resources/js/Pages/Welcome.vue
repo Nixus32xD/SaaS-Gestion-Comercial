@@ -20,10 +20,10 @@ defineProps({
                 <nav v-if="canLogin">
                     <Link
                         v-if="$page.props.auth.user"
-                        :href="route('dashboard')"
+                        :href="$page.props.auth?.is_super_admin ? route('admin.businesses.index') : route('dashboard')"
                         class="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-cyan-200"
                     >
-                        Ir al dashboard
+                        {{ $page.props.auth?.is_super_admin ? 'Ir a comercios' : 'Ir al dashboard' }}
                     </Link>
                     <Link
                         v-else
