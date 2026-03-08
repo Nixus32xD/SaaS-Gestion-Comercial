@@ -62,7 +62,7 @@ class PurchaseService
                 ]);
             }
 
-            $lines = $items->map(function (array $item) use ($products, $business, $supplier): array {
+            $lines = $items->map(function (array $item) use ($products, $business, $supplier, $purchasedAt): array {
                 $quantity = round((float) $item['quantity'], 3);
                 $unitCost = round((float) $item['unit_cost'], 2);
                 $productId = data_get($item, 'product_id');

@@ -446,7 +446,7 @@ onBeforeUnmount(() => {
                     <p>F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
                 </div>
 
-                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                <div class="mt-4 grid gap-3 md:grid-cols-4">
                     <div>
                         <label for="supplier_id" class="mb-1 block text-sm font-medium text-slate-700">Proveedor</label>
                         <select id="supplier_id" v-model="form.supplier_id" class="w-full rounded-xl border-slate-300 text-sm">

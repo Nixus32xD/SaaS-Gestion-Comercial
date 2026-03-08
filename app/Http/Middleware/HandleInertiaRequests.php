@@ -31,9 +31,18 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        $user = $request->user();
         $business = app(CurrentBusiness::class)->get();
+        $user = $request->user();
         $expirationAlerts = [];
+
+        if ($business === null && $user?->isBusinessAdmin()) {
+            $business = $user->business;
+            if ($business?->is_active) {
+                app(CurrentBusiness::class)->set($business);
+            } else {
+                $business = null;
+            }
+        }
 
         if ($business !== null) {
             $expirationAlerts = app(ProductExpirationAlertService::class)
