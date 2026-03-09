@@ -24,7 +24,6 @@ const state = reactive({
         unit_type: 'unit',
         sale_price: 0,
         min_stock: 0,
-        shelf_life_days: '',
         expiry_alert_days: 15,
     },
 });
@@ -42,14 +41,6 @@ const nowLocalDateTime = () => {
     return localDate.toISOString().slice(0, 16);
 };
 
-const dateToYmd = (date) => {
-    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
-
-    const offsetMinutes = date.getTimezoneOffset();
-    const localDate = new Date(date.getTime() - (offsetMinutes * 60000));
-    return localDate.toISOString().slice(0, 10);
-};
-
 const form = useForm({
     supplier_id: '',
     purchased_at: nowLocalDateTime(),
@@ -57,17 +48,19 @@ const form = useForm({
     items: [],
 });
 
-const buildCalculatedExpiration = (shelfLifeDays) => {
-    const days = Number(shelfLifeDays || 0);
-    if (days <= 0) return '';
+const calculateShelfLifeDays = (expiresAtValue) => {
+    if (!expiresAtValue) return null;
+
+    const expiresAt = new Date(`${expiresAtValue}T00:00:00`);
+    if (Number.isNaN(expiresAt.getTime())) return null;
 
     const purchasedAt = form.purchased_at ? new Date(form.purchased_at) : new Date();
-    if (Number.isNaN(purchasedAt.getTime())) return '';
+    if (Number.isNaN(purchasedAt.getTime())) return null;
 
-    const expiresAt = new Date(purchasedAt);
-    expiresAt.setDate(expiresAt.getDate() + days);
+    purchasedAt.setHours(0, 0, 0, 0);
 
-    return dateToYmd(expiresAt);
+    const diffDays = Math.ceil((expiresAt.getTime() - purchasedAt.getTime()) / 86400000);
+    return diffDays > 0 ? diffDays : 1;
 };
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
@@ -168,7 +161,7 @@ const addExistingProduct = (product, source = 'manual') => {
     }
 
     unitCost = Number(unitCost.toFixed(2));
-    const expiresAt = state.expires_at || buildCalculatedExpiration(product.shelf_life_days) || null;
+    const expiresAt = state.expires_at || null;
 
     const existingLine = form.items.find((item) => (
         item.product_id === product.id
@@ -223,7 +216,8 @@ const addNewProductItem = () => {
         return;
     }
 
-    const expiresAt = state.expires_at || buildCalculatedExpiration(state.new_product.shelf_life_days);
+    const expiresAt = state.expires_at || null;
+    const shelfLifeDays = calculateShelfLifeDays(expiresAt);
 
     form.items.push({
         product_id: null,
@@ -237,7 +231,7 @@ const addNewProductItem = () => {
             unit_type: state.new_product.unit_type,
             sale_price: Number(Number(state.new_product.sale_price || 0).toFixed(2)),
             min_stock: Number(Number(state.new_product.min_stock || 0).toFixed(3)),
-            shelf_life_days: state.new_product.shelf_life_days ? Number(state.new_product.shelf_life_days) : null,
+            shelf_life_days: shelfLifeDays,
             expiry_alert_days: Number(state.new_product.expiry_alert_days || 15),
         },
     });
@@ -249,7 +243,6 @@ const addNewProductItem = () => {
         unit_type: 'unit',
         sale_price: 0,
         min_stock: 0,
-        shelf_life_days: '',
         expiry_alert_days: 15,
     };
     state.quantity = 1;
@@ -544,10 +537,6 @@ onBeforeUnmount(() => {
                     <div>
                         <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-300">Stock minimo</label>
                         <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.000" />
-                    </div>
-                    <div>
-                        <label for="new_product_shelf_life_days" class="mb-1 block text-sm font-medium text-slate-300">Vida util (dias)</label>
-                        <input id="new_product_shelf_life_days" v-model.number="state.new_product.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                     </div>
                     <div>
                         <label for="new_product_expiry_alert_days" class="mb-1 block text-sm font-medium text-slate-300">Alerta vencimiento (dias)</label>

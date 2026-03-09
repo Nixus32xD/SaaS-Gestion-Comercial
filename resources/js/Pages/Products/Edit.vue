@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -24,7 +25,42 @@ const form = useForm({
     is_active: Boolean(props.product.is_active),
 });
 
+const dateToYmd = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+
+    const offsetMinutes = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offsetMinutes * 60000));
+    return localDate.toISOString().slice(0, 10);
+};
+
+const shelfLifeDaysToDate = (daysValue) => {
+    const days = Number(daysValue || 0);
+    if (days <= 0) return '';
+
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
+    baseDate.setDate(baseDate.getDate() + days);
+
+    return dateToYmd(baseDate);
+};
+
+const toShelfLifeDays = (dateValue) => {
+    if (!dateValue) return '';
+
+    const target = new Date(`${dateValue}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return '';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil((target.getTime() - today.getTime()) / 86400000);
+    return diffDays > 0 ? diffDays : 1;
+};
+
+const shelfLifeDate = ref(shelfLifeDaysToDate(props.product.shelf_life_days));
+
 const submit = () => {
+    form.shelf_life_days = toShelfLifeDays(shelfLifeDate.value);
     form.put(route('products.update', props.product.id));
 };
 </script>
@@ -61,7 +97,7 @@ const submit = () => {
                 <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Precio costo" />
                 <input v-model.number="form.stock" type="number" min="0" step="0.001" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Stock" />
                 <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Stock minimo" />
-                <input v-model.number="form.shelf_life_days" type="number" min="1" step="1" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Vida util en dias" />
+                <input v-model="shelfLifeDate" type="date" class="rounded-xl border-cyan-100/25 text-sm" />
                 <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Alerta de vencimiento (dias)" />
                 <textarea v-model="form.description" rows="3" class="rounded-xl border-cyan-100/25 text-sm md:col-span-2" placeholder="Descripcion" />
             </div>

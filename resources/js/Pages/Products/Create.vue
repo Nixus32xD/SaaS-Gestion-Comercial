@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -23,7 +24,23 @@ const form = useForm({
     is_active: true,
 });
 
+const shelfLifeDate = ref('');
+
+const toShelfLifeDays = (dateValue) => {
+    if (!dateValue) return '';
+
+    const target = new Date(`${dateValue}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return '';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil((target.getTime() - today.getTime()) / 86400000);
+    return diffDays > 0 ? diffDays : 1;
+};
+
 const submit = () => {
+    form.shelf_life_days = toShelfLifeDays(shelfLifeDate.value);
     form.post(route('products.store'));
 };
 </script>
@@ -91,8 +108,8 @@ const submit = () => {
                     <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Vida util (dias)</label>
-                    <input v-model.number="form.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
+                    <label class="text-sm font-medium text-slate-300">Fecha de vencimiento (referencia)</label>
+                    <input v-model="shelfLifeDate" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-300">Alerta antes de vencer (dias)</label>
