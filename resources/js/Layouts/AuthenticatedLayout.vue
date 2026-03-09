@@ -34,7 +34,7 @@ const closeSidebar = () => {
 
 <template>
     <div
-        class="min-h-screen text-slate-100"
+        class="app-shell min-h-screen text-slate-100"
         style="background:
             radial-gradient(circle at 85% 15%, rgba(56, 189, 248, 0.24), transparent 40%),
             radial-gradient(circle at 10% 70%, rgba(15, 23, 42, 0.45), transparent 38%),

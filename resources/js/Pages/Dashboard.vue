@@ -52,8 +52,8 @@ defineProps({
                     :key="kpi.label"
                     class="app-section"
                 >
-                    <p class="text-xs uppercase tracking-wider text-slate-500">{{ kpi.label }}</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-900">{{ kpi.value }}</p>
+                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">{{ kpi.label }}</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ kpi.value }}</p>
                 </article>
             </section>
 
@@ -72,8 +72,8 @@ defineProps({
                     class="app-section group flex flex-col justify-between transition hover:-translate-y-0.5 hover:shadow-[0_22px_40px_rgba(8,47,73,0.35)]"
                 >
                     <div>
-                        <h3 class="text-lg font-semibold text-slate-900">{{ module.title }}</h3>
-                        <p class="mt-2 text-sm text-slate-600">{{ module.description }}</p>
+                        <h3 class="text-lg font-semibold text-slate-100">{{ module.title }}</h3>
+                        <p class="mt-2 text-sm text-slate-300">{{ module.description }}</p>
                     </div>
                     <Link
                         :href="route(module.route)"
@@ -90,12 +90,12 @@ defineProps({
                     :key="queue.title"
                     class="app-section"
                 >
-                    <h3 class="text-base font-semibold text-slate-900">{{ queue.title }}</h3>
+                    <h3 class="text-base font-semibold text-slate-100">{{ queue.title }}</h3>
                     <ul class="mt-3 space-y-2">
                         <li
                             v-for="task in queue.items"
                             :key="task"
-                            class="flex items-start gap-2 text-sm text-slate-600"
+                            class="flex items-start gap-2 text-sm text-slate-300"
                         >
                             <span class="mt-1 block h-2 w-2 rounded-full bg-cyan-300" />
                             <span>{{ task }}</span>
@@ -105,7 +105,7 @@ defineProps({
             </section>
 
             <section class="app-section">
-                <p class="text-sm font-medium text-slate-700">
+                <p class="text-sm font-medium text-slate-200">
                     Comercio: {{ $page.props.business?.name ?? 'No definido' }}
                 </p>
             </section>

@@ -68,10 +68,10 @@ const filteredPurchases = computed(() => (
 const statusName = (key) => props.statuses.find((status) => status.key === key)?.name ?? key;
 
 const statusClass = (key) => {
-    if (key === 'received') return 'bg-emerald-100 text-emerald-700';
-    if (key === 'sent') return 'bg-sky-100 text-sky-700';
-    if (key === 'cancelled') return 'bg-rose-100 text-rose-700';
-    return 'bg-amber-100 text-amber-700';
+    if (key === 'received') return 'bg-emerald-400/15 text-emerald-100';
+    if (key === 'sent') return 'bg-sky-400/15 text-sky-100';
+    if (key === 'cancelled') return 'bg-rose-400/15 text-rose-100';
+    return 'bg-amber-400/15 text-amber-100';
 };
 
 const formatMoney = (value) => moneyFormatter.format(Number(value) || 0);
@@ -152,8 +152,8 @@ const createPurchase = () => {
         <template #header>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-2xl font-bold leading-tight text-slate-900">Compras</h2>
-                    <p class="mt-1 text-sm text-slate-500">Gestion de proveedores y ordenes de reposicion.</p>
+                    <h2 class="text-2xl font-bold leading-tight text-slate-100">Compras</h2>
+                    <p class="mt-1 text-sm text-slate-300/80">Gestion de proveedores y ordenes de reposicion.</p>
                 </div>
                 <button
                     type="button"
@@ -166,7 +166,7 @@ const createPurchase = () => {
         </template>
 
         <div class="grid gap-6">
-            <section class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+            <section class="rounded-2xl border border-cyan-200/30 bg-cyan-400/10 p-4 text-sm text-cyan-100">
                 <p class="font-semibold">Como funciona Compras</p>
                 <p class="mt-1">
                     Flujo recomendado: <strong>Borrador</strong> → <strong>Enviada</strong> → <strong>Recibida</strong>.
@@ -178,42 +178,42 @@ const createPurchase = () => {
                 <article
                     v-for="item in summary"
                     :key="item.label"
-                    class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                    class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm"
                 >
-                    <p class="text-xs uppercase tracking-wider text-slate-500">{{ item.label }}</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-900">{{ item.value }}</p>
+                    <p class="text-xs uppercase tracking-wider text-slate-300/80">{{ item.label }}</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ item.value }}</p>
                 </article>
             </section>
 
             <section
                 v-if="state.showForm"
-                class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                class="grid gap-4 rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm"
             >
                 <div class="grid gap-3 md:grid-cols-4">
                     <input
                         v-model="form.supplier_name"
                         type="text"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-cyan-100/25 text-sm"
                         placeholder="Proveedor"
                     />
-                    <select v-model="form.status" class="rounded-xl border-slate-300 text-sm">
+                    <select v-model="form.status" class="rounded-xl border-cyan-100/25 text-sm">
                         <option v-for="status in statuses" :key="status.key" :value="status.key">{{ status.name }}</option>
                     </select>
                     <input
                         v-model="form.expected_at"
                         type="date"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-cyan-100/25 text-sm"
                     />
                     <input
                         v-model="form.notes"
                         type="text"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-cyan-100/25 text-sm"
                         placeholder="Notas"
                     />
                 </div>
 
-                <div class="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-5">
-                    <select v-model="lineDraft.product_id" class="rounded-xl border-slate-300 text-sm md:col-span-2">
+                <div class="grid gap-3 rounded-xl border border-cyan-100/20 p-3 md:grid-cols-5">
+                    <select v-model="lineDraft.product_id" class="rounded-xl border-cyan-100/25 text-sm md:col-span-2">
                         <option value="">Producto</option>
                         <option v-for="product in products" :key="product.id" :value="product.id">
                             {{ product.name }} ({{ product.sku || 'sin SKU' }})
@@ -224,7 +224,7 @@ const createPurchase = () => {
                         type="number"
                         min="0.001"
                         step="0.001"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-cyan-100/25 text-sm"
                         placeholder="Cantidad"
                     />
                     <input
@@ -232,12 +232,12 @@ const createPurchase = () => {
                         type="number"
                         min="0"
                         step="0.01"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-cyan-100/25 text-sm"
                         placeholder="Costo unitario"
                     />
                     <button
                         type="button"
-                        class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        class="rounded-xl border border-cyan-100/25 bg-slate-900/50 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800/70"
                         @click="addItem"
                     >
                         Agregar item
@@ -245,23 +245,23 @@ const createPurchase = () => {
                     <input
                         v-model="lineDraft.description"
                         type="text"
-                        class="rounded-xl border-slate-300 text-sm md:col-span-5"
+                        class="rounded-xl border-cyan-100/25 text-sm md:col-span-5"
                         placeholder="Descripcion opcional de la linea"
                     />
                 </div>
 
-                <div class="overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
+                <div class="overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-950/35">
                             <tr>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Producto</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Cantidad</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Costo</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Subtotal</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Costo</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Subtotal</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                             </tr>
                         </thead>
-                        <tbody v-if="form.items.length" class="divide-y divide-slate-100 bg-white">
+                        <tbody v-if="form.items.length" class="divide-y divide-slate-700/40 bg-slate-950/30">
                             <tr v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`">
                                 <td class="px-3 py-2">{{ item.description }}</td>
                                 <td class="px-3 py-2">{{ item.qty }}</td>
@@ -270,7 +270,7 @@ const createPurchase = () => {
                                 <td class="px-3 py-2 text-right">
                                     <button
                                         type="button"
-                                        class="rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                                        class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20"
                                         @click="removeItem(index)"
                                     >
                                         Quitar
@@ -289,8 +289,8 @@ const createPurchase = () => {
                 </div>
 
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <p class="text-sm font-semibold text-slate-700">
-                        Total calculado: <span class="text-slate-900">{{ formatMoney(computedTotal) }}</span>
+                    <p class="text-sm font-semibold text-slate-300">
+                        Total calculado: <span class="text-slate-100">{{ formatMoney(computedTotal) }}</span>
                     </p>
                     <button
                         type="button"
@@ -303,17 +303,17 @@ const createPurchase = () => {
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h3 class="text-base font-semibold text-slate-900">Ordenes de compra</h3>
+                    <h3 class="text-base font-semibold text-slate-100">Ordenes de compra</h3>
                     <div class="flex flex-wrap gap-2">
                         <input
                             v-model="state.search"
                             type="text"
-                            class="rounded-xl border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            class="rounded-xl border-cyan-100/25 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             placeholder="Buscar por proveedor o numero"
                         />
-                        <select v-model="state.status" class="rounded-xl border-slate-300 text-sm">
+                        <select v-model="state.status" class="rounded-xl border-cyan-100/25 text-sm">
                             <option value="all">Todos</option>
                             <option v-for="status in statuses" :key="status.key" :value="status.key">
                                 {{ status.name }}
@@ -325,27 +325,27 @@ const createPurchase = () => {
                 <p
                     v-if="page.props.flash?.success || page.props.flash?.error"
                     class="mt-3 rounded-lg px-3 py-2 text-sm"
-                    :class="page.props.flash?.error ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'"
+                    :class="page.props.flash?.error ? 'bg-rose-400/15 text-rose-100' : 'bg-emerald-400/15 text-emerald-100'"
                 >
                     {{ page.props.flash?.error ?? page.props.flash?.success }}
                 </p>
 
-                <div class="mt-5 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
+                <div class="mt-5 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-950/35">
                             <tr>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Nro Orden</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Proveedor</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Estado</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Items</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Total</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Entrega estimada</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Nro Orden</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Proveedor</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Estado</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Items</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Total</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Entrega estimada</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                             </tr>
                         </thead>
-                        <tbody v-if="filteredPurchases.length" class="divide-y divide-slate-100 bg-white">
+                        <tbody v-if="filteredPurchases.length" class="divide-y divide-slate-700/40 bg-slate-950/30">
                             <tr v-for="purchase in filteredPurchases" :key="purchase.id">
-                                <td class="px-3 py-2 font-medium text-slate-800">{{ purchase.number }}</td>
+                                <td class="px-3 py-2 font-medium text-slate-100">{{ purchase.number }}</td>
                                 <td class="px-3 py-2">{{ purchase.supplier }}</td>
                                 <td class="px-3 py-2">
                                     <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="statusClass(purchase.status)">
@@ -360,7 +360,7 @@ const createPurchase = () => {
                                         <button
                                             v-if="purchase.status === 'draft'"
                                             type="button"
-                                            class="rounded-lg border border-sky-300 px-2 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+                                            class="rounded-lg border border-sky-300/45 px-2 py-1 text-xs font-semibold text-sky-100 hover:bg-sky-400/20"
                                             @click="moveToStatus(purchase.id, 'sent')"
                                         >
                                             Enviar
@@ -368,7 +368,7 @@ const createPurchase = () => {
                                         <button
                                             v-if="purchase.status === 'sent'"
                                             type="button"
-                                            class="rounded-lg border border-emerald-300 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                            class="rounded-lg border border-emerald-300/45 px-2 py-1 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/20"
                                             @click="moveToStatus(purchase.id, 'received')"
                                         >
                                             Recibir
@@ -376,7 +376,7 @@ const createPurchase = () => {
                                         <button
                                             v-if="purchase.status !== 'cancelled' && purchase.status !== 'received'"
                                             type="button"
-                                            class="rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                                            class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20"
                                             @click="moveToStatus(purchase.id, 'cancelled')"
                                         >
                                             Cancelar
@@ -398,3 +398,4 @@ const createPurchase = () => {
         </div>
     </AuthenticatedLayout>
 </template>
+

@@ -35,77 +35,77 @@ const submit = () => {
         <template #header>
             <div class="flex items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Nuevo producto</h2>
-                    <p class="mt-1 text-sm text-slate-500">Alta de producto para ventas y compras.</p>
+                    <h2 class="text-2xl font-bold text-slate-100">Nuevo producto</h2>
+                    <p class="mt-1 text-sm text-slate-300/80">Alta de producto para ventas y compras.</p>
                 </div>
-                <Link :href="route('products.index')" class="text-sm font-semibold text-slate-600 hover:text-slate-900">Volver</Link>
+                <Link :href="route('products.index')" class="text-sm font-semibold text-slate-300 hover:text-slate-100">Volver</Link>
             </div>
         </template>
 
-        <form class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" @submit.prevent="submit">
+        <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm" @submit.prevent="submit">
             <div class="grid gap-3 md:grid-cols-2">
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Nombre</label>
-                    <input v-model="form.name" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Nombre del producto" />
+                    <label class="text-sm font-medium text-slate-300">Nombre</label>
+                    <input v-model="form.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Nombre del producto" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Slug</label>
-                    <input v-model="form.slug" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Slug (opcional)" />
+                    <label class="text-sm font-medium text-slate-300">Slug</label>
+                    <input v-model="form.slug" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Slug (opcional)" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Proveedor</label>
-                    <select v-model="form.supplier_id" class="w-full rounded-xl border-slate-300 text-sm">
+                    <label class="text-sm font-medium text-slate-300">Proveedor</label>
+                    <select v-model="form.supplier_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
                         <option value="">Sin proveedor</option>
                         <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
                     </select>
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Tipo de unidad</label>
-                    <select v-model="form.unit_type" class="w-full rounded-xl border-slate-300 text-sm">
+                    <label class="text-sm font-medium text-slate-300">Tipo de unidad</label>
+                    <select v-model="form.unit_type" class="w-full rounded-xl border-cyan-100/25 text-sm">
                         <option value="unit">Unidad</option>
                         <option value="weight">Peso</option>
                     </select>
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Codigo de barras</label>
-                    <input v-model="form.barcode" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                    <label class="text-sm font-medium text-slate-300">Codigo de barras</label>
+                    <input v-model="form.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">SKU</label>
-                    <input v-model="form.sku" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                    <label class="text-sm font-medium text-slate-300">SKU</label>
+                    <input v-model="form.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Precio de venta</label>
-                    <input v-model.number="form.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-slate-300 text-sm" />
+                    <label class="text-sm font-medium text-slate-300">Precio de venta</label>
+                    <input v-model.number="form.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Precio de costo</label>
-                    <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-slate-300 text-sm" />
+                    <label class="text-sm font-medium text-slate-300">Precio de costo</label>
+                    <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Stock inicial</label>
-                    <input v-model.number="form.stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-slate-300 text-sm" />
+                    <label class="text-sm font-medium text-slate-300">Stock inicial</label>
+                    <input v-model.number="form.stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Stock minimo</label>
-                    <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-slate-300 text-sm" />
+                    <label class="text-sm font-medium text-slate-300">Stock minimo</label>
+                    <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Vida util (dias)</label>
-                    <input v-model.number="form.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                    <label class="text-sm font-medium text-slate-300">Vida util (dias)</label>
+                    <input v-model.number="form.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-700">Alerta antes de vencer (dias)</label>
-                    <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" />
+                    <label class="text-sm font-medium text-slate-300">Alerta antes de vencer (dias)</label>
+                    <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1 md:col-span-2">
-                    <label class="text-sm font-medium text-slate-700">Descripcion</label>
-                    <textarea v-model="form.description" rows="3" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Descripcion opcional" />
+                    <label class="text-sm font-medium text-slate-300">Descripcion</label>
+                    <textarea v-model="form.description" rows="3" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Descripcion opcional" />
                 </div>
             </div>
 
-            <label class="mt-4 inline-flex items-center gap-2 text-sm text-slate-700">
-                <input v-model="form.is_active" type="checkbox" class="rounded border-slate-300">
+            <label class="mt-4 inline-flex items-center gap-2 text-sm text-slate-300">
+                <input v-model="form.is_active" type="checkbox" class="rounded border-cyan-100/25">
                 Producto activo
             </label>
 
@@ -117,3 +117,4 @@ const submit = () => {
         </form>
     </AuthenticatedLayout>
 </template>
+

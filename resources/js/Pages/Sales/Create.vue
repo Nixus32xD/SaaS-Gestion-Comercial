@@ -253,15 +253,15 @@ onBeforeUnmount(() => {
         <template #header>
             <div class="flex items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Nueva venta</h2>
-                    <p class="mt-1 text-sm text-slate-500">Carga rapida por nombre o lector de codigo.</p>
+                    <h2 class="text-2xl font-bold text-slate-100">Nueva venta</h2>
+                    <p class="mt-1 text-sm text-slate-300/80">Carga rapida por nombre o lector de codigo.</p>
                 </div>
-                <Link :href="route('sales.index')" class="text-sm font-semibold text-slate-600 hover:text-slate-900">Volver</Link>
+                <Link :href="route('sales.index')" class="text-sm font-semibold text-slate-300 hover:text-slate-100">Volver</Link>
             </div>
         </template>
 
         <form class="grid gap-6" @submit.prevent>
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
                     <p class="font-semibold">Atajos</p>
                     <p>F2: foco en buscador | F4: foco en cantidad | Alt+A: agregar producto | Ctrl+Enter: confirmar venta | Esc: limpiar busqueda</p>
@@ -269,13 +269,13 @@ onBeforeUnmount(() => {
 
                 <div class="mt-4 grid gap-3 md:grid-cols-4">
                     <div class="md:col-span-2">
-                        <label for="product-search" class="mb-1 block text-sm font-medium text-slate-700">Producto (nombre, barcode o SKU)</label>
+                        <label for="product-search" class="mb-1 block text-sm font-medium text-slate-300">Producto (nombre, barcode o SKU)</label>
                         <input
                             id="product-search"
                             ref="searchInput"
                             v-model="state.search"
                             type="text"
-                            class="w-full rounded-xl border-slate-300 text-sm"
+                            class="w-full rounded-xl border-cyan-100/25 text-sm"
                             placeholder="Escanear codigo o escribir nombre y Enter"
                             aria-controls="product-results"
                             aria-autocomplete="list"
@@ -285,7 +285,7 @@ onBeforeUnmount(() => {
                         >
                     </div>
                     <div>
-                        <label for="product-qty" class="mb-1 block text-sm font-medium text-slate-700">Cantidad</label>
+                        <label for="product-qty" class="mb-1 block text-sm font-medium text-slate-300">Cantidad</label>
                         <input
                             id="product-qty"
                             ref="quantityInput"
@@ -293,13 +293,13 @@ onBeforeUnmount(() => {
                             type="number"
                             min="0.001"
                             step="0.001"
-                            class="w-full rounded-xl border-slate-300 text-sm"
+                            class="w-full rounded-xl border-cyan-100/25 text-sm"
                         >
                     </div>
                     <div class="flex items-end">
                         <button
                             type="button"
-                            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            class="w-full rounded-xl border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
                             @click="addProductToCart(activeProduct, 'manual')"
                         >
                             Agregar
@@ -307,50 +307,50 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <p class="mt-2 text-xs text-slate-500" aria-live="polite">{{ state.helperMessage }}</p>
+                <p class="mt-2 text-xs text-slate-300/80" aria-live="polite">{{ state.helperMessage }}</p>
 
-                <div id="product-results" class="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-200" role="listbox" aria-label="Resultados de productos">
+                <div id="product-results" class="mt-3 max-h-64 overflow-auto rounded-xl border border-cyan-100/20" role="listbox" aria-label="Resultados de productos">
                     <ul v-if="filteredProducts.length" class="divide-y divide-slate-100 text-sm">
                         <li v-for="(product, index) in filteredProducts" :key="product.id">
                             <button
                                 type="button"
-                                class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
-                                :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-indigo-50' : ''"
+                                class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-800/70"
+                                :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-cyan-400/15' : ''"
                                 role="option"
                                 :aria-selected="product.id === state.activeProductId || index === state.highlightedIndex ? 'true' : 'false'"
                                 @click="selectProduct(product)"
                                 @dblclick="addProductToCart(product, 'manual')"
                             >
                                 <span>
-                                    <span class="font-semibold text-slate-900">{{ product.name }}</span>
-                                    <span class="ml-2 text-xs text-slate-500">{{ product.barcode || product.sku || 'sin codigo' }}</span>
+                                    <span class="font-semibold text-slate-100">{{ product.name }}</span>
+                                    <span class="ml-2 text-xs text-slate-300/80">{{ product.barcode || product.sku || 'sin codigo' }}</span>
                                 </span>
-                                <span class="text-xs text-slate-600">stock {{ product.stock }} - {{ money(product.sale_price) }}</span>
+                                <span class="text-xs text-slate-300">stock {{ product.stock }} - {{ money(product.sale_price) }}</span>
                             </button>
                         </li>
                     </ul>
                     <p v-else class="px-3 py-4 text-sm text-slate-400">Sin resultados para la busqueda actual.</p>
                 </div>
 
-                <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
+                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-950/35">
                             <tr>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Producto</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Cantidad</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Precio</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Subtotal</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Precio</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Subtotal</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                             </tr>
                         </thead>
                         <tbody v-if="form.items.length" class="divide-y divide-slate-100">
                             <tr v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`">
-                                <td class="px-3 py-2 font-semibold text-slate-900">{{ item.product_name }}</td>
+                                <td class="px-3 py-2 font-semibold text-slate-100">{{ item.product_name }}</td>
                                 <td class="px-3 py-2">{{ item.quantity }}</td>
                                 <td class="px-3 py-2">{{ money(item.unit_price) }}</td>
                                 <td class="px-3 py-2">{{ money(Number(item.quantity) * Number(item.unit_price)) }}</td>
                                 <td class="px-3 py-2 text-right">
-                                    <button type="button" class="rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50" @click="removeItem(index)">Quitar</button>
+                                    <button type="button" class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -363,22 +363,22 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="grid gap-3 md:grid-cols-3">
                     <div>
-                        <label for="sold-at" class="mb-1 block text-sm font-medium text-slate-700">Fecha y hora</label>
-                        <input id="sold-at" v-model="form.sold_at" type="datetime-local" class="w-full rounded-xl border-slate-300 text-sm" />
+                        <label for="sold-at" class="mb-1 block text-sm font-medium text-slate-300">Fecha y hora</label>
+                        <input id="sold-at" v-model="form.sold_at" type="datetime-local" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
-                        <label for="discount" class="mb-1 block text-sm font-medium text-slate-700">Descuento</label>
-                        <input id="discount" v-model.number="form.discount" type="number" min="0" step="0.01" class="w-full rounded-xl border-slate-300 text-sm" placeholder="0.00" />
+                        <label for="discount" class="mb-1 block text-sm font-medium text-slate-300">Descuento</label>
+                        <input id="discount" v-model.number="form.discount" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.00" />
                     </div>
                     <div>
-                        <label for="notes" class="mb-1 block text-sm font-medium text-slate-700">Notas</label>
-                        <input id="notes" v-model="form.notes" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Observaciones" />
+                        <label for="notes" class="mb-1 block text-sm font-medium text-slate-300">Notas</label>
+                        <input id="notes" v-model="form.notes" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Observaciones" />
                     </div>
                 </div>
-                <div class="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+                <div class="mt-4 rounded-xl bg-slate-950/35 p-3 text-sm text-slate-300">
                     <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
                     <p>Total: <strong>{{ money(total) }}</strong></p>
                 </div>
@@ -391,3 +391,4 @@ onBeforeUnmount(() => {
         </form>
     </AuthenticatedLayout>
 </template>
+

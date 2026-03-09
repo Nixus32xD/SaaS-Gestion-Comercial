@@ -432,15 +432,15 @@ onBeforeUnmount(() => {
         <template #header>
             <div class="flex items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Nueva compra</h2>
-                    <p class="mt-1 text-sm text-slate-500">Carga rapida por lector de codigo o busqueda manual.</p>
+                    <h2 class="text-2xl font-bold text-slate-100">Nueva compra</h2>
+                    <p class="mt-1 text-sm text-slate-300/80">Carga rapida por lector de codigo o busqueda manual.</p>
                 </div>
-                <Link :href="route('purchases.index')" class="text-sm font-semibold text-slate-600 hover:text-slate-900">Volver</Link>
+                <Link :href="route('purchases.index')" class="text-sm font-semibold text-slate-300 hover:text-slate-100">Volver</Link>
             </div>
         </template>
 
         <form class="grid gap-6" @submit.prevent="submit">
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
                     <p class="font-semibold">Atajos</p>
                     <p>F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
@@ -448,43 +448,43 @@ onBeforeUnmount(() => {
 
                 <div class="mt-4 grid gap-3 md:grid-cols-4">
                     <div>
-                        <label for="supplier_id" class="mb-1 block text-sm font-medium text-slate-700">Proveedor</label>
-                        <select id="supplier_id" v-model="form.supplier_id" class="w-full rounded-xl border-slate-300 text-sm">
+                        <label for="supplier_id" class="mb-1 block text-sm font-medium text-slate-300">Proveedor</label>
+                        <select id="supplier_id" v-model="form.supplier_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
                             <option value="">Sin proveedor</option>
                             <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
                         </select>
                     </div>
                     <div>
-                        <label for="purchased_at" class="mb-1 block text-sm font-medium text-slate-700">Fecha y hora</label>
-                        <input id="purchased_at" v-model="form.purchased_at" type="datetime-local" class="w-full rounded-xl border-slate-300 text-sm" />
+                        <label for="purchased_at" class="mb-1 block text-sm font-medium text-slate-300">Fecha y hora</label>
+                        <input id="purchased_at" v-model="form.purchased_at" type="datetime-local" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
-                        <label for="purchase_notes" class="mb-1 block text-sm font-medium text-slate-700">Notas</label>
-                        <input id="purchase_notes" v-model="form.notes" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Observaciones" />
+                        <label for="purchase_notes" class="mb-1 block text-sm font-medium text-slate-300">Notas</label>
+                        <input id="purchase_notes" v-model="form.notes" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Observaciones" />
                     </div>
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="flex flex-wrap items-center gap-4">
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                        <input :checked="state.mode === 'existing'" type="radio" class="border-slate-300" @change="setMode('existing')">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                        <input :checked="state.mode === 'existing'" type="radio" class="border-cyan-100/25" @change="setMode('existing')">
                         Usar producto existente
                     </label>
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                        <input :checked="state.mode === 'new'" type="radio" class="border-slate-300" @change="setMode('new')">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                        <input :checked="state.mode === 'new'" type="radio" class="border-cyan-100/25" @change="setMode('new')">
                         Crear producto nuevo
                     </label>
                 </div>
 
                 <div v-if="state.mode === 'existing'" class="mt-4">
-                    <label for="product-search" class="mb-1 block text-sm font-medium text-slate-700">Producto (nombre, barcode o SKU)</label>
+                    <label for="product-search" class="mb-1 block text-sm font-medium text-slate-300">Producto (nombre, barcode o SKU)</label>
                     <input
                         id="product-search"
                         ref="searchInput"
                         v-model="state.search"
                         type="text"
-                        class="w-full rounded-xl border-slate-300 text-sm"
+                        class="w-full rounded-xl border-cyan-100/25 text-sm"
                         placeholder="Escanear codigo y Enter o buscar por nombre"
                         aria-controls="purchase-product-results"
                         aria-autocomplete="list"
@@ -493,23 +493,23 @@ onBeforeUnmount(() => {
                         @keydown="handleSearchKeydown"
                     >
 
-                    <div id="purchase-product-results" class="mt-3 max-h-64 overflow-auto rounded-xl border border-slate-200" role="listbox" aria-label="Resultados de productos">
+                    <div id="purchase-product-results" class="mt-3 max-h-64 overflow-auto rounded-xl border border-cyan-100/20" role="listbox" aria-label="Resultados de productos">
                         <ul v-if="filteredProducts.length" class="divide-y divide-slate-100 text-sm">
                             <li v-for="(product, index) in filteredProducts" :key="product.id">
                                 <button
                                     type="button"
-                                    class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
-                                    :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-indigo-50' : ''"
+                                    class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-800/70"
+                                    :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-cyan-400/15' : ''"
                                     role="option"
                                     :aria-selected="product.id === state.activeProductId || index === state.highlightedIndex ? 'true' : 'false'"
                                     @click="selectProduct(product)"
                                     @dblclick="addExistingProduct(product, 'manual')"
                                 >
                                     <span>
-                                        <span class="font-semibold text-slate-900">{{ product.name }}</span>
-                                        <span class="ml-2 text-xs text-slate-500">{{ product.barcode || product.sku || 'sin codigo' }}</span>
+                                        <span class="font-semibold text-slate-100">{{ product.name }}</span>
+                                        <span class="ml-2 text-xs text-slate-300/80">{{ product.barcode || product.sku || 'sin codigo' }}</span>
                                     </span>
-                                    <span class="text-xs text-slate-600">stock {{ product.stock }} - costo {{ money(product.cost_price) }}</span>
+                                    <span class="text-xs text-slate-300">stock {{ product.stock }} - costo {{ money(product.cost_price) }}</span>
                                 </button>
                             </li>
                         </ul>
@@ -519,85 +519,85 @@ onBeforeUnmount(() => {
 
                 <div v-else class="mt-4 grid gap-3 md:grid-cols-3">
                     <div>
-                        <label for="new_product_name" class="mb-1 block text-sm font-medium text-slate-700">Nombre del producto</label>
-                        <input id="new_product_name" ref="newNameInput" v-model="state.new_product.name" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Ej: Yerba 1kg" />
+                        <label for="new_product_name" class="mb-1 block text-sm font-medium text-slate-300">Nombre del producto</label>
+                        <input id="new_product_name" ref="newNameInput" v-model="state.new_product.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Ej: Yerba 1kg" />
                     </div>
                     <div>
-                        <label for="new_product_barcode" class="mb-1 block text-sm font-medium text-slate-700">Codigo de barras</label>
-                        <input id="new_product_barcode" v-model="state.new_product.barcode" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                        <label for="new_product_barcode" class="mb-1 block text-sm font-medium text-slate-300">Codigo de barras</label>
+                        <input id="new_product_barcode" v-model="state.new_product.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                     </div>
                     <div>
-                        <label for="new_product_sku" class="mb-1 block text-sm font-medium text-slate-700">SKU</label>
-                        <input id="new_product_sku" v-model="state.new_product.sku" type="text" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                        <label for="new_product_sku" class="mb-1 block text-sm font-medium text-slate-300">SKU</label>
+                        <input id="new_product_sku" v-model="state.new_product.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                     </div>
                     <div>
-                        <label for="new_product_unit_type" class="mb-1 block text-sm font-medium text-slate-700">Tipo de unidad</label>
-                        <select id="new_product_unit_type" v-model="state.new_product.unit_type" class="w-full rounded-xl border-slate-300 text-sm">
+                        <label for="new_product_unit_type" class="mb-1 block text-sm font-medium text-slate-300">Tipo de unidad</label>
+                        <select id="new_product_unit_type" v-model="state.new_product.unit_type" class="w-full rounded-xl border-cyan-100/25 text-sm">
                             <option value="unit">Unidad</option>
                             <option value="weight">Peso</option>
                         </select>
                     </div>
                     <div>
-                        <label for="new_product_sale_price" class="mb-1 block text-sm font-medium text-slate-700">Precio de venta sugerido</label>
-                        <input id="new_product_sale_price" v-model.number="state.new_product.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-slate-300 text-sm" placeholder="0.00" />
+                        <label for="new_product_sale_price" class="mb-1 block text-sm font-medium text-slate-300">Precio de venta sugerido</label>
+                        <input id="new_product_sale_price" v-model.number="state.new_product.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.00" />
                     </div>
                     <div>
-                        <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-700">Stock minimo</label>
-                        <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-slate-300 text-sm" placeholder="0.000" />
+                        <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-300">Stock minimo</label>
+                        <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.000" />
                     </div>
                     <div>
-                        <label for="new_product_shelf_life_days" class="mb-1 block text-sm font-medium text-slate-700">Vida util (dias)</label>
-                        <input id="new_product_shelf_life_days" v-model.number="state.new_product.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" placeholder="Opcional" />
+                        <label for="new_product_shelf_life_days" class="mb-1 block text-sm font-medium text-slate-300">Vida util (dias)</label>
+                        <input id="new_product_shelf_life_days" v-model.number="state.new_product.shelf_life_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                     </div>
                     <div>
-                        <label for="new_product_expiry_alert_days" class="mb-1 block text-sm font-medium text-slate-700">Alerta vencimiento (dias)</label>
-                        <input id="new_product_expiry_alert_days" v-model.number="state.new_product.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-slate-300 text-sm" />
+                        <label for="new_product_expiry_alert_days" class="mb-1 block text-sm font-medium text-slate-300">Alerta vencimiento (dias)</label>
+                        <input id="new_product_expiry_alert_days" v-model.number="state.new_product.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                 </div>
 
                 <div class="mt-4 grid gap-3 md:grid-cols-3">
                     <div>
-                        <label for="purchase_quantity" class="mb-1 block text-sm font-medium text-slate-700">Cantidad</label>
-                        <input id="purchase_quantity" ref="quantityInput" v-model.number="state.quantity" type="number" min="0.001" step="0.001" class="w-full rounded-xl border-slate-300 text-sm" />
+                        <label for="purchase_quantity" class="mb-1 block text-sm font-medium text-slate-300">Cantidad</label>
+                        <input id="purchase_quantity" ref="quantityInput" v-model.number="state.quantity" type="number" min="0.001" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
-                        <label for="purchase_unit_cost" class="mb-1 block text-sm font-medium text-slate-700">Costo unitario</label>
-                        <input id="purchase_unit_cost" ref="unitCostInput" v-model.number="state.unit_cost" type="number" min="0" step="0.01" class="w-full rounded-xl border-slate-300 text-sm" />
+                        <label for="purchase_unit_cost" class="mb-1 block text-sm font-medium text-slate-300">Costo unitario</label>
+                        <input id="purchase_unit_cost" ref="unitCostInput" v-model.number="state.unit_cost" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
-                        <label for="purchase_expires_at" class="mb-1 block text-sm font-medium text-slate-700">Vencimiento del lote</label>
-                        <input id="purchase_expires_at" v-model="state.expires_at" type="date" class="w-full rounded-xl border-slate-300 text-sm" />
+                        <label for="purchase_expires_at" class="mb-1 block text-sm font-medium text-slate-300">Vencimiento del lote</label>
+                        <input id="purchase_expires_at" v-model="state.expires_at" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div class="flex items-end">
-                        <button type="button" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="addCurrentItem">
+                        <button type="button" class="w-full rounded-xl border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70" @click="addCurrentItem">
                             Agregar item
                         </button>
                     </div>
                 </div>
 
-                <p class="mt-2 text-xs text-slate-500" aria-live="polite">{{ state.helperMessage }}</p>
+                <p class="mt-2 text-xs text-slate-300/80" aria-live="polite">{{ state.helperMessage }}</p>
 
-                <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
+                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-950/35">
                             <tr>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Producto</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Cantidad</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Costo</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Vencimiento</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Subtotal</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Costo</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Vencimiento</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Subtotal</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                             </tr>
                         </thead>
                         <tbody v-if="form.items.length" class="divide-y divide-slate-100">
                             <tr v-for="(item, index) in form.items" :key="`${item.product_id || 'new'}-${index}`">
-                                <td class="px-3 py-2 font-semibold text-slate-900">{{ itemLabel(item) }}</td>
+                                <td class="px-3 py-2 font-semibold text-slate-100">{{ itemLabel(item) }}</td>
                                 <td class="px-3 py-2">{{ item.quantity }}</td>
                                 <td class="px-3 py-2">{{ money(item.unit_cost) }}</td>
                                 <td class="px-3 py-2">{{ item.expires_at || '-' }}</td>
                                 <td class="px-3 py-2">{{ money(Number(item.quantity) * Number(item.unit_cost)) }}</td>
                                 <td class="px-3 py-2 text-right">
-                                    <button type="button" class="rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50" @click="removeItem(index)">Quitar</button>
+                                    <button type="button" class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -610,8 +610,8 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p class="text-sm text-slate-700">Total: <strong>{{ money(total) }}</strong></p>
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
+                <p class="text-sm text-slate-300">Total: <strong>{{ money(total) }}</strong></p>
                 <div class="mt-4 flex justify-end">
                     <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing || !form.items.length">
                         Confirmar compra
@@ -621,3 +621,4 @@ onBeforeUnmount(() => {
         </form>
     </AuthenticatedLayout>
 </template>
+

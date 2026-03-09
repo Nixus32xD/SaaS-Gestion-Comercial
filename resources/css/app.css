@@ -19,7 +19,7 @@
 
 @layer components {
     .app-section {
-        @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5;
+        @apply rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-4 text-slate-100 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur sm:p-5;
     }
 
     .app-form-grid {
@@ -38,5 +38,70 @@
         .app-table-wrap table {
             min-width: 100%;
         }
+    }
+
+    .app-shell input[type='text'],
+    .app-shell input[type='search'],
+    .app-shell input[type='email'],
+    .app-shell input[type='password'],
+    .app-shell input[type='number'],
+    .app-shell input[type='date'],
+    .app-shell input[type='datetime-local'],
+    .app-shell input[type='tel'],
+    .app-shell input[type='url'],
+    .app-shell select,
+    .app-shell textarea {
+        @apply border-cyan-100/25 bg-slate-950/55 text-slate-100 shadow-sm;
+        color-scheme: dark;
+    }
+
+    .app-shell input[type='text']::placeholder,
+    .app-shell input[type='search']::placeholder,
+    .app-shell input[type='email']::placeholder,
+    .app-shell input[type='password']::placeholder,
+    .app-shell input[type='number']::placeholder,
+    .app-shell input[type='date']::placeholder,
+    .app-shell input[type='datetime-local']::placeholder,
+    .app-shell input[type='tel']::placeholder,
+    .app-shell input[type='url']::placeholder,
+    .app-shell textarea::placeholder {
+        @apply text-slate-400;
+    }
+
+    .app-shell input[type='text']:focus,
+    .app-shell input[type='search']:focus,
+    .app-shell input[type='email']:focus,
+    .app-shell input[type='password']:focus,
+    .app-shell input[type='number']:focus,
+    .app-shell input[type='date']:focus,
+    .app-shell input[type='datetime-local']:focus,
+    .app-shell input[type='tel']:focus,
+    .app-shell input[type='url']:focus,
+    .app-shell select:focus,
+    .app-shell textarea:focus {
+        @apply border-cyan-300/55 ring-2 ring-cyan-300/20;
+    }
+
+    .app-shell input[type='text']:disabled,
+    .app-shell input[type='search']:disabled,
+    .app-shell input[type='email']:disabled,
+    .app-shell input[type='password']:disabled,
+    .app-shell input[type='number']:disabled,
+    .app-shell input[type='date']:disabled,
+    .app-shell input[type='datetime-local']:disabled,
+    .app-shell input[type='tel']:disabled,
+    .app-shell input[type='url']:disabled,
+    .app-shell select:disabled,
+    .app-shell textarea:disabled {
+        @apply cursor-not-allowed opacity-70;
+    }
+
+    .app-shell select option {
+        @apply bg-slate-900 text-slate-100;
+    }
+
+    .app-shell input[type='date']::-webkit-calendar-picker-indicator,
+    .app-shell input[type='datetime-local']::-webkit-calendar-picker-indicator {
+        filter: invert(1) brightness(1.2) opacity(0.75);
     }
 }
