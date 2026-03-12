@@ -20,7 +20,7 @@ class EnsureBusinessContext
             return $next($request);
         }
 
-        if (! $user->isBusinessAdmin()) {
+        if (! $user->isBusinessUser()) {
             abort(403, 'No tienes permisos para acceder a este modulo.');
         }
 
@@ -44,4 +44,3 @@ class EnsureBusinessContext
         return $next($request);
     }
 }
-

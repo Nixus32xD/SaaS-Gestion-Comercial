@@ -8,14 +8,6 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
-    roles: {
-        type: Array,
-        default: () => [],
-    },
-    branches: {
-        type: Array,
-        default: () => [],
-    },
 });
 
 const page = usePage();
@@ -25,13 +17,13 @@ const form = useForm({
     email: '',
     password: '',
     password_confirmation: '',
-    default_branch_id: props.branches[0]?.id ?? '',
-    role_id: props.roles[0]?.id ?? '',
-    status: 'active',
+    role: 'staff',
+    is_active: true,
 });
 
-const activeUsers = computed(() => props.users.filter((user) => user.status === 'active').length);
-const inactiveUsers = computed(() => props.users.filter((user) => user.status === 'inactive').length);
+const totalUsers = computed(() => props.users.length);
+const activeUsers = computed(() => props.users.filter((user) => user.is_active).length);
+const inactiveUsers = computed(() => props.users.filter((user) => !user.is_active).length);
 
 const submit = () => {
     form.post(route('users.store'), {
@@ -39,9 +31,10 @@ const submit = () => {
     });
 };
 
-const toggleStatus = (membership) => {
-    const nextStatus = membership.status === 'active' ? 'inactive' : 'active';
-    router.patch(route('users.status', membership.membership_id), { status: nextStatus });
+const toggleStatus = (user) => {
+    router.patch(route('users.status', user.id), {
+        is_active: !user.is_active,
+    });
 };
 </script>
 
@@ -51,78 +44,67 @@ const toggleStatus = (membership) => {
     <AuthenticatedLayout>
         <template #header>
             <div>
-                <h2 class="text-2xl font-bold leading-tight text-slate-900">Usuarios del comercio</h2>
-                <p class="mt-1 text-sm text-slate-500">
-                    Multi-tenant: estos usuarios solo pertenecen al comercio activo.
-                </p>
+                <h2 class="text-2xl font-bold leading-tight text-slate-100">Usuarios del comercio</h2>
+                <p class="mt-1 text-sm text-slate-300">Gestiona administradores y staff del comercio actual.</p>
             </div>
         </template>
 
         <div class="grid gap-6">
             <section class="grid gap-4 md:grid-cols-3">
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs uppercase tracking-wider text-slate-500">Usuarios activos</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-900">{{ activeUsers }}</p>
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Usuarios activos</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ activeUsers }}</p>
                 </article>
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs uppercase tracking-wider text-slate-500">Usuarios inactivos</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-900">{{ inactiveUsers }}</p>
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Usuarios inactivos</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ inactiveUsers }}</p>
                 </article>
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs uppercase tracking-wider text-slate-500">Total</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-900">{{ users.length }}</p>
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Total</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ totalUsers }}</p>
                 </article>
             </section>
 
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 class="text-base font-semibold text-slate-900">Alta de usuario interno</h3>
-                <p class="mt-1 text-sm text-slate-500">
-                    Crea cajeros, vendedores o supervisores para este tenant.
-                </p>
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                <h3 class="text-base font-semibold text-slate-100">Alta de usuario interno</h3>
+                <p class="mt-1 text-sm text-slate-300">Crea cuentas internas con acceso al comercio actual.</p>
 
                 <form class="mt-4 grid gap-3 md:grid-cols-3" @submit.prevent="submit">
                     <input
                         v-model="form.name"
                         type="text"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-slate-300 bg-white text-sm text-slate-900"
                         placeholder="Nombre"
                     />
                     <input
                         v-model="form.email"
                         type="email"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-slate-300 bg-white text-sm text-slate-900"
                         placeholder="Email"
                     />
-                    <select v-model="form.status" class="rounded-xl border-slate-300 text-sm">
-                        <option value="active">Activo</option>
-                        <option value="inactive">Inactivo</option>
+                    <select v-model="form.role" class="rounded-xl border-slate-300 bg-white text-sm text-slate-900">
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
                     </select>
                     <input
                         v-model="form.password"
                         type="password"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-slate-300 bg-white text-sm text-slate-900"
                         placeholder="Password"
                     />
                     <input
                         v-model="form.password_confirmation"
                         type="password"
-                        class="rounded-xl border-slate-300 text-sm"
+                        class="rounded-xl border-slate-300 bg-white text-sm text-slate-900"
                         placeholder="Confirmar password"
                     />
-                    <select v-model="form.default_branch_id" class="rounded-xl border-slate-300 text-sm">
-                        <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-                            {{ branch.name }}
-                        </option>
-                    </select>
-                    <select v-model="form.role_id" class="rounded-xl border-slate-300 text-sm md:col-span-2">
-                        <option value="">Sin rol</option>
-                        <option v-for="role in roles" :key="role.id" :value="role.id">
-                            {{ role.name }}
-                        </option>
-                    </select>
+                    <label class="flex items-center gap-2 rounded-xl border border-cyan-100/20 px-3 py-2 text-sm text-slate-200">
+                        <input v-model="form.is_active" type="checkbox" class="rounded border-slate-300 text-cyan-300 focus:ring-cyan-300" />
+                        Usuario activo
+                    </label>
                     <button
                         type="submit"
-                        class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                        class="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-cyan-200 md:col-span-3"
                         :disabled="form.processing"
                     >
                         Crear usuario
@@ -130,72 +112,53 @@ const toggleStatus = (membership) => {
                 </form>
             </section>
 
-            <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-base font-semibold text-slate-900">Usuarios del tenant</h3>
-                    <p class="text-xs text-slate-500">Administra acceso por estado y rol.</p>
+                    <h3 class="text-base font-semibold text-slate-100">Usuarios registrados</h3>
+                    <p class="text-xs text-slate-300">{{ page.props.business?.name }}</p>
                 </div>
 
-                <p
-                    v-if="page.props.flash?.success || page.props.flash?.error"
-                    class="mt-3 rounded-lg px-3 py-2 text-sm"
-                    :class="page.props.flash?.error ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'"
-                >
-                    {{ page.props.flash?.error ?? page.props.flash?.success }}
-                </p>
-
-                <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
-                    <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
+                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20">
+                    <table class="min-w-full divide-y divide-cyan-100/15 text-sm">
+                        <thead class="bg-slate-950/45">
                             <tr>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Nombre</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Email</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Sucursal</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Rol</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500">Estado</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-500"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300">Nombre</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300">Email</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300">Rol</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300">Estado</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300">Ultimo acceso</th>
+                                <th class="px-3 py-2 text-right font-medium text-slate-300"></th>
                             </tr>
                         </thead>
-                        <tbody v-if="users.length" class="divide-y divide-slate-100 bg-white">
-                            <tr v-for="membership in users" :key="membership.membership_id">
-                                <td class="px-3 py-2 font-medium text-slate-800">
-                                    {{ membership.name }}
-                                    <span v-if="membership.is_owner" class="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                                        Owner
-                                    </span>
-                                </td>
-                                <td class="px-3 py-2">{{ membership.email }}</td>
-                                <td class="px-3 py-2">{{ membership.branch ?? '-' }}</td>
-                                <td class="px-3 py-2">
-                                    <span v-if="membership.roles.length">
-                                        {{ membership.roles.map((role) => role.name).join(', ') }}
-                                    </span>
-                                    <span v-else>-</span>
-                                </td>
+                        <tbody v-if="users.length" class="divide-y divide-cyan-100/10 bg-slate-900/25">
+                            <tr v-for="user in users" :key="user.id">
+                                <td class="px-3 py-2 font-medium text-slate-100">{{ user.name }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ user.email }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ user.role === 'admin' ? 'Admin' : 'Staff' }}</td>
                                 <td class="px-3 py-2">
                                     <span
                                         class="rounded-full px-2 py-1 text-xs font-semibold"
-                                        :class="membership.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'"
+                                        :class="user.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'"
                                     >
-                                        {{ membership.status === 'active' ? 'Activo' : 'Inactivo' }}
+                                        {{ user.is_active ? 'Activo' : 'Inactivo' }}
                                     </span>
                                 </td>
+                                <td class="px-3 py-2 text-slate-300">{{ user.last_login_at ?? 'Sin ingreso' }}</td>
                                 <td class="px-3 py-2 text-right">
                                     <button
                                         type="button"
-                                        class="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                                        :disabled="membership.is_owner"
-                                        @click="toggleStatus(membership)"
+                                        class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800/60"
+                                        @click="toggleStatus(user)"
                                     >
-                                        {{ membership.status === 'active' ? 'Desactivar' : 'Activar' }}
+                                        {{ user.is_active ? 'Desactivar' : 'Activar' }}
                                     </button>
                                 </td>
                             </tr>
                         </tbody>
                         <tbody v-else>
                             <tr>
-                                <td colspan="6" class="px-3 py-6 text-center text-slate-400">
-                                    No hay usuarios asociados a este tenant.
+                                <td colspan="6" class="px-3 py-6 text-center text-slate-300">
+                                    No hay usuarios internos cargados para este comercio.
                                 </td>
                             </tr>
                         </tbody>

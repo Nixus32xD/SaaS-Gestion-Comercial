@@ -16,6 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseService
 {
+    public function __construct(private readonly DocumentNumberService $documentNumberService)
+    {
+    }
+
     /**
      * @param array<string, mixed> $payload
      */
@@ -52,6 +56,7 @@ class PurchaseService
             $products = Product::query()
                 ->forBusiness($business->id)
                 ->whereIn('id', $existingProductIds)
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
@@ -124,7 +129,7 @@ class PurchaseService
                 'business_id' => $business->id,
                 'user_id' => $user->id,
                 'supplier_id' => $supplier?->id,
-                'purchase_number' => $this->nextPurchaseNumber($business->id),
+                'purchase_number' => $this->documentNumberService->nextPurchaseNumber($business->id),
                 'subtotal' => $subtotal,
                 'total' => $subtotal,
                 'notes' => $payload['notes'] ?? null,
@@ -138,6 +143,7 @@ class PurchaseService
                 $after = round($before + (float) $line['quantity'], 3);
 
                 $purchase->items()->create([
+                    'business_id' => $business->id,
                     'product_id' => $product->id,
                     'product_name' => $line['product_name'],
                     'quantity' => $line['quantity'],
@@ -166,15 +172,6 @@ class PurchaseService
 
             return $purchase->load(['items', 'supplier', 'user']);
         });
-    }
-
-    private function nextPurchaseNumber(int $businessId): string
-    {
-        $lastId = Purchase::query()
-            ->forBusiness($businessId)
-            ->max('id');
-
-        return 'P-'.str_pad((string) ((int) $lastId + 1), 6, '0', STR_PAD_LEFT);
     }
 
     private function buildUniqueSlug(int $businessId, string $name): string

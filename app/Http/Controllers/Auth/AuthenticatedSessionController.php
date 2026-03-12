@@ -40,7 +40,7 @@ class AuthenticatedSessionController extends Controller
                 'last_login_at' => now(),
             ])->save();
 
-            if ($user->isBusinessAdmin()) {
+            if ($user->isBusinessUser()) {
                 $business = $user->business;
 
                 if ($business === null || ! $business->is_active) {

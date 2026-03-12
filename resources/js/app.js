@@ -7,13 +7,23 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const pageModules = import.meta.glob([
+    './Pages/**/*.vue',
+    '!./Pages/Auth/Register.vue',
+    '!./Pages/Catalog/**/*.vue',
+    '!./Pages/Dashboard.vue',
+    '!./Pages/Inventory/**/*.vue',
+    '!./Pages/Pos/**/*.vue',
+    '!./Pages/Purchases/Dashboard.vue',
+    '!./Pages/Purchases/Workbench.vue',
+]);
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.vue`,
-            import.meta.glob('./Pages/**/*.vue'),
+            pageModules,
         ),
     setup({ el, App, props, plugin }) {
         return createApp({ render: () => h(App, props) })

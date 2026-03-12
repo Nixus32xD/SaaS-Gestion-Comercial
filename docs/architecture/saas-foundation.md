@@ -1,4 +1,5 @@
-# SaaS Comercial - Arquitectura Base (Fase 1)
+# Documento Archivado
+> Referencia historica. La arquitectura vigente esta en `docs/architecture/business-first-mvp.md`.
 
 ## Objetivo
 

@@ -43,13 +43,12 @@ class DashboardController extends Controller
 
         $topProducts = SaleItem::query()
             ->select([
-                'sale_items.product_id',
-                'sale_items.product_name',
-                DB::raw('SUM(sale_items.quantity) as sold_quantity'),
+                'product_id',
+                'product_name',
+                DB::raw('SUM(quantity) as sold_quantity'),
             ])
-            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-            ->where('sales.business_id', $business->id)
-            ->groupBy('sale_items.product_id', 'sale_items.product_name')
+            ->forBusiness($business->id)
+            ->groupBy('product_id', 'product_name')
             ->orderByDesc('sold_quantity')
             ->limit(8)
             ->get();

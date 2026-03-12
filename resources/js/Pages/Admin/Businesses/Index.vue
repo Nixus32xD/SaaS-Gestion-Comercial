@@ -34,8 +34,8 @@ const filteredBusinesses = computed(() => {
         <template #header>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Comercios</h2>
-                    <p class="mt-1 text-sm text-slate-500">Alta, edicion y estado de comercios.</p>
+                    <h2 class="text-2xl font-bold text-slate-100">Comercios</h2>
+                    <p class="mt-1 text-sm text-slate-300/80">Alta, edicion y estado de comercios.</p>
                 </div>
                 <Link
                     :href="route('admin.businesses.create')"
@@ -46,39 +46,39 @@ const filteredBusinesses = computed(() => {
             </div>
         </template>
 
-        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
             <div class="flex flex-wrap items-center justify-between gap-2">
-                <h3 class="text-base font-semibold text-slate-900">Listado</h3>
+                <h3 class="text-base font-semibold text-slate-100">Listado</h3>
                 <input
                     v-model="search"
                     type="text"
-                    class="rounded-xl border-slate-300 text-sm"
+                    class="rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400"
                     placeholder="Buscar por nombre, slug o email"
                 >
             </div>
 
-            <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 app-table-wrap">
+            <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50">
+                    <thead class="bg-slate-950/35">
                         <tr>
-                            <th class="px-3 py-2 text-left font-medium text-slate-500">Comercio</th>
-                            <th class="px-3 py-2 text-left font-medium text-slate-500">Admin inicial</th>
-                            <th class="px-3 py-2 text-left font-medium text-slate-500">Estado</th>
-                            <th class="px-3 py-2 text-left font-medium text-slate-500">Productos</th>
-                            <th class="px-3 py-2 text-left font-medium text-slate-500">Proveedores</th>
-                            <th class="px-3 py-2 text-left font-medium text-slate-500"></th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Comercio</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Admin inicial</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Estado</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Productos</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Proveedores</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                         </tr>
                     </thead>
                     <tbody v-if="filteredBusinesses.length" class="divide-y divide-slate-100">
                         <tr v-for="business in filteredBusinesses" :key="business.id">
                             <td class="px-3 py-2">
-                                <p class="font-semibold text-slate-900">{{ business.name }}</p>
-                                <p class="text-xs text-slate-500">{{ business.slug }}</p>
-                                <p class="text-xs text-slate-500">{{ business.email || '-' }}</p>
+                                <p class="font-semibold text-slate-100">{{ business.name }}</p>
+                                <p class="text-xs text-slate-300/80">{{ business.slug }}</p>
+                                <p class="text-xs text-slate-300/80">{{ business.email || '-' }}</p>
                             </td>
                             <td class="px-3 py-2">
-                                <p class="font-medium text-slate-800">{{ business.admin_user?.name || '-' }}</p>
-                                <p class="text-xs text-slate-500">{{ business.admin_user?.email || '-' }}</p>
+                                <p class="font-medium text-slate-200">{{ business.admin_user?.name || '-' }}</p>
+                                <p class="text-xs text-slate-300/80">{{ business.admin_user?.email || '-' }}</p>
                             </td>
                             <td class="px-3 py-2">
                                 <span
@@ -88,12 +88,12 @@ const filteredBusinesses = computed(() => {
                                     {{ business.is_active ? 'Activo' : 'Inactivo' }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2">{{ business.products_count }}</td>
-                            <td class="px-3 py-2">{{ business.suppliers_count }}</td>
+                            <td class="px-3 py-2 text-slate-200">{{ business.products_count }}</td>
+                            <td class="px-3 py-2 text-slate-200">{{ business.suppliers_count }}</td>
                             <td class="px-3 py-2 text-right">
                                 <Link
                                     :href="route('admin.businesses.edit', business.id)"
-                                    class="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70"
                                 >
                                     Editar
                                 </Link>

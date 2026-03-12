@@ -4,10 +4,7 @@ use App\Models\Business;
 use App\Models\User;
 
 test('authenticated admin without business can not access dashboard', function () {
-    $user = User::factory()->create([
-        'business_id' => null,
-        'role' => 'admin',
-    ]);
+    $user = User::factory()->businessAdmin()->create();
 
     $response = $this
         ->actingAs($user)
@@ -21,10 +18,7 @@ test('authenticated admin with active business can access dashboard', function (
         'is_active' => true,
     ]);
 
-    $user = User::factory()->create([
-        'business_id' => $business->id,
-        'role' => 'admin',
-    ]);
+    $user = User::factory()->businessAdmin($business->id)->create();
 
     $response = $this
         ->actingAs($user)
@@ -41,4 +35,18 @@ test('superadmin can not access business dashboard', function () {
         ->get('/dashboard');
 
     $response->assertForbidden();
+});
+
+test('staff with active business can access dashboard', function () {
+    $business = Business::factory()->create([
+        'is_active' => true,
+    ]);
+
+    $user = User::factory()->staff($business->id)->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->get('/dashboard');
+
+    $response->assertOk();
 });

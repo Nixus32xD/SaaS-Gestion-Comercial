@@ -29,7 +29,7 @@ const submit = () => {
     <div class="login-bg min-h-screen text-slate-100">
         <div class="mx-auto grid min-h-screen w-full max-w-6xl grid-cols-1 items-center gap-8 px-6 py-10 lg:grid-cols-2">
             <section class="entry hidden rounded-3xl border border-cyan-200/20 bg-slate-900/30 p-8 lg:block">
-                <p class="title text-xs uppercase tracking-[0.3em] text-cyan-200/80">Gestor Comercial SaaS</p>
+                <p class="title text-xs uppercase tracking-[0.3em] text-cyan-200/80">Gestor Comercial</p>
                 <h1 class="title mt-4 text-4xl font-bold leading-tight">
                     Controla ventas, compras y stock desde un solo panel
                 </h1>

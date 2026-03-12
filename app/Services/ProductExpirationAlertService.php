@@ -15,9 +15,7 @@ class ProductExpirationAlertService
         $today = now()->startOfDay();
 
         return PurchaseItem::query()
-            ->select('purchase_items.*')
-            ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
-            ->where('purchases.business_id', $businessId)
+            ->forBusiness($businessId)
             ->whereNotNull('purchase_items.expires_at')
             ->orderBy('purchase_items.expires_at')
             ->orderBy('purchase_items.id')

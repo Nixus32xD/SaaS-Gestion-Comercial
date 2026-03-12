@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -78,5 +79,24 @@ class User extends Authenticatable
     public function isBusinessAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function isBusinessStaff(): bool
+    {
+        return $this->role === 'staff';
+    }
+
+    public function isBusinessUser(): bool
+    {
+        return in_array($this->role, ['admin', 'staff'], true);
+    }
+
+    /**
+     * @param Builder<self> $query
+     * @return Builder<self>
+     */
+    public function scopeForBusiness(Builder $query, int $businessId): Builder
+    {
+        return $query->where('business_id', $businessId);
     }
 }

@@ -2,18 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SaleItem extends Model
 {
+    use BelongsToBusiness;
     use HasFactory;
 
     /**
      * @var list<string>
      */
     protected $fillable = [
+        'business_id',
         'sale_id',
         'product_id',
         'product_name',
@@ -50,4 +53,3 @@ class SaleItem extends Model
         return $this->belongsTo(Product::class);
     }
 }
-

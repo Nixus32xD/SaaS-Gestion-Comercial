@@ -7,6 +7,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchases\PurchaseController;
 use App\Http\Controllers\Sales\SaleController;
 use App\Http\Controllers\Suppliers\SupplierController;
+use App\Http\Controllers\Users\BusinessUserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -51,6 +52,12 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/purchases/create', [PurchaseController::class, 'create'])->name('purchases.create');
     Route::post('/purchases', [PurchaseController::class, 'store'])->name('purchases.store');
     Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
+});
+
+Route::middleware(['auth', 'business', 'business.admin'])->group(function (): void {
+    Route::get('/users', [BusinessUserController::class, 'index'])->name('users.index');
+    Route::post('/users', [BusinessUserController::class, 'store'])->name('users.store');
+    Route::patch('/users/{user}/status', [BusinessUserController::class, 'updateStatus'])->name('users.status');
 });
 
 Route::middleware('auth')->group(function () {

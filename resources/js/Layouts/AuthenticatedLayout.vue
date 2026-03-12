@@ -8,6 +8,7 @@ const sidebarOpen = ref(false);
 const page = usePage();
 
 const isSuperAdmin = computed(() => Boolean(page.props.auth?.is_super_admin));
+const canManageUsers = computed(() => page.props.auth?.role === 'admin');
 
 const navigation = computed(() => {
     if (isSuperAdmin.value) {
@@ -23,6 +24,7 @@ const navigation = computed(() => {
         { label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' },
         { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },
         { label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' },
+        ...(canManageUsers.value ? [{ label: 'Usuarios', route: 'users.index', pattern: 'users.*', icon: 'US' }] : []),
         { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
     ];
 });
@@ -58,7 +60,7 @@ const closeSidebar = () => {
                 <ApplicationLogo class="h-9 w-9 fill-current text-cyan-300" />
                 <div>
                     <p class="text-sm font-semibold tracking-wide text-white">Gestor Comercial</p>
-                    <p class="text-xs text-cyan-100/70">SaaS Multi Comercio</p>
+                    <p class="text-xs text-cyan-100/70">Operacion por comercio</p>
                 </div>
             </Link>
 
@@ -66,7 +68,7 @@ const closeSidebar = () => {
                 <p class="text-xs uppercase tracking-wider text-cyan-100/70">Perfil</p>
                 <p class="mt-1 truncate text-sm font-semibold text-white">{{ $page.props.auth.user?.name }}</p>
                 <p class="mt-2 text-xs uppercase tracking-wider text-cyan-100/70">Rol</p>
-                <p class="mt-1 truncate text-sm text-slate-200">{{ isSuperAdmin ? 'Superadmin' : 'Admin comercio' }}</p>
+                <p class="mt-1 truncate text-sm text-slate-200">{{ isSuperAdmin ? 'Superadmin' : (page.props.auth?.role === 'staff' ? 'Staff' : 'Admin comercio') }}</p>
                 <template v-if="!isSuperAdmin">
                     <p class="mt-2 text-xs uppercase tracking-wider text-cyan-100/70">Comercio</p>
                     <p class="mt-1 truncate text-sm text-slate-200">{{ $page.props.business?.name ?? 'Sin comercio' }}</p>
@@ -132,20 +134,6 @@ const closeSidebar = () => {
                     :class="$page.props.flash?.error ? 'border-rose-200/45 bg-rose-400/15 text-rose-100' : 'border-emerald-200/45 bg-emerald-400/15 text-emerald-100'"
                 >
                     {{ $page.props.flash?.error || $page.props.flash?.success }}
-                </section>
-                <section
-                    v-if="$page.props.expiration_alerts?.length"
-                    class="mb-6 rounded-2xl border border-amber-200/40 bg-amber-300/12 p-4 text-sm text-amber-100"
-                >
-                    <p class="font-semibold">Alertas de vencimiento ({{ $page.props.expiration_alerts.length }})</p>
-                    <ul class="mt-2 space-y-1">
-                        <li v-for="alert in $page.props.expiration_alerts" :key="alert.purchase_item_id">
-                            {{ alert.product_name }} - vence {{ alert.expires_at }}
-                            <span class="font-medium">
-                                ({{ alert.status === 'expired' ? 'vencido' : `faltan ${alert.days_remaining} dias` }})
-                            </span>
-                        </li>
-                    </ul>
                 </section>
                 <section
                     v-if="$page.props.errors && Object.keys($page.props.errors).length"

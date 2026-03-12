@@ -13,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class SaleService
 {
+    public function __construct(private readonly DocumentNumberService $documentNumberService)
+    {
+    }
+
     /**
      * @param array<string, mixed> $payload
      */
@@ -26,6 +30,7 @@ class SaleService
             $products = Product::query()
                 ->forBusiness($business->id)
                 ->whereIn('id', $productIds)
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
@@ -85,7 +90,7 @@ class SaleService
             $sale = Sale::query()->create([
                 'business_id' => $business->id,
                 'user_id' => $user->id,
-                'sale_number' => $this->nextSaleNumber($business->id),
+                'sale_number' => $this->documentNumberService->nextSaleNumber($business->id),
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'total' => $total,
@@ -111,6 +116,7 @@ class SaleService
                 $stocks->put($productId, $after);
 
                 $sale->items()->create([
+                    'business_id' => $business->id,
                     'product_id' => $productId,
                     'product_name' => $lineItem['product_name'],
                     'quantity' => $lineItem['quantity'],
@@ -139,15 +145,6 @@ class SaleService
 
             return $sale->load(['items', 'user']);
         });
-    }
-
-    private function nextSaleNumber(int $businessId): string
-    {
-        $lastId = Sale::query()
-            ->forBusiness($businessId)
-            ->max('id');
-
-        return 'S-'.str_pad((string) ((int) $lastId + 1), 6, '0', STR_PAD_LEFT);
     }
 
     private function resolveDateTimeValue(mixed $value): mixed

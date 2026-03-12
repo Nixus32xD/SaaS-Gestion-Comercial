@@ -23,10 +23,20 @@ test('superadmin can authenticate and is redirected to admin panel', function ()
 
 test('business admin can authenticate and is redirected to dashboard', function () {
     $business = Business::factory()->create();
-    $user = User::factory()->create([
-        'business_id' => $business->id,
-        'role' => 'admin',
+    $user = User::factory()->businessAdmin($business->id)->create();
+
+    $response = $this->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
     ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('dashboard', absolute: false));
+});
+
+test('business staff can authenticate and is redirected to dashboard', function () {
+    $business = Business::factory()->create();
+    $user = User::factory()->staff($business->id)->create();
 
     $response = $this->post('/login', [
         'email' => $user->email,
@@ -55,4 +65,33 @@ test('users can logout', function () {
 
     $this->assertGuest();
     $response->assertRedirect('/');
+});
+
+test('inactive users can not authenticate', function () {
+    $user = User::factory()->create([
+        'is_active' => false,
+    ]);
+
+    $response = $this->from('/login')->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertGuest();
+    $response->assertSessionHasErrors('email');
+});
+
+test('users from inactive business can not authenticate', function () {
+    $business = Business::factory()->create([
+        'is_active' => false,
+    ]);
+    $user = User::factory()->businessAdmin($business->id)->create();
+
+    $response = $this->from('/login')->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertGuest();
+    $response->assertSessionHasErrors('email');
 });

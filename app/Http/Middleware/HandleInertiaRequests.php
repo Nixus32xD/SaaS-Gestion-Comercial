@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\ProductExpirationAlertService;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -33,22 +32,14 @@ class HandleInertiaRequests extends Middleware
     {
         $business = app(CurrentBusiness::class)->get();
         $user = $request->user();
-        $expirationAlerts = [];
 
-        if ($business === null && $user?->isBusinessAdmin()) {
+        if ($business === null && $user?->isBusinessUser()) {
             $business = $user->business;
             if ($business?->is_active) {
                 app(CurrentBusiness::class)->set($business);
             } else {
                 $business = null;
             }
-        }
-
-        if ($business !== null) {
-            $expirationAlerts = app(ProductExpirationAlertService::class)
-                ->listForBusiness($business->id, 8)
-                ->values()
-                ->all();
         }
 
         return [
@@ -68,7 +59,6 @@ class HandleInertiaRequests extends Middleware
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
             ],
-            'expiration_alerts' => $expirationAlerts,
         ];
     }
 }

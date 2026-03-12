@@ -105,7 +105,7 @@ defineProps({
 
                     <div class="mt-4 rounded-2xl bg-cyan-300/15 p-5 ring-1 ring-cyan-100/30">
                         <p class="text-sm text-cyan-100/90">Mensual</p>
-                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 30.000</p>
+                        <p class="title mt-1 text-2xl font-extrabold text-white">ARS 20.000</p>
                         <p class="mt-2 text-xs text-slate-200/90">Mantenimiento, soporte y acompanamiento operativo.</p>
                     </div>
 
@@ -122,7 +122,7 @@ defineProps({
                         <ul class="mt-2 space-y-1 text-xs text-slate-200/90">
                             <li class="flex items-start gap-2"><span class="dot" />Vencimientos de productos.</li>
                             <li class="flex items-start gap-2"><span class="dot" />Notificaciones via mail.</li>
-                            <li class="flex items-start gap-2"><span class="dot" />Soporte multi sucursal.</li>
+                            <li class="flex items-start gap-2"><span class="dot" />Usuarios internos del comercio.</li>
                         </ul>
                     </div>
                 </section>

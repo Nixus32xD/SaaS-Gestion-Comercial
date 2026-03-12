@@ -52,4 +52,22 @@ class UserFactory extends Factory
             'role' => 'superadmin',
         ]);
     }
+
+    public function businessAdmin(?int $businessId = null): static
+    {
+        return $this->state(fn (): array => [
+            'business_id' => $businessId,
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
+    }
+
+    public function staff(?int $businessId = null): static
+    {
+        return $this->state(fn (): array => [
+            'business_id' => $businessId,
+            'role' => 'staff',
+            'is_active' => true,
+        ]);
+    }
 }
