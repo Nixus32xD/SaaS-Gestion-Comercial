@@ -9,6 +9,7 @@ use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Services\PurchaseService;
 use App\Support\CurrentBusiness;
+use App\Support\ProductMeasurement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -82,6 +83,11 @@ class PurchaseController extends Controller
                     'barcode' => $product->barcode,
                     'sku' => $product->sku,
                     'unit_type' => $product->unit_type,
+                    'weight_unit' => $product->weight_unit,
+                    'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
+                    'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
+                    'quantity_step' => ProductMeasurement::quantityStep($product->unit_type, $product->weight_unit),
+                    'quantity_min' => ProductMeasurement::quantityMin($product->unit_type, $product->weight_unit),
                     'stock' => (float) $product->stock,
                     'cost_price' => (float) $product->cost_price,
                     'sale_price' => (float) $product->sale_price,
@@ -132,6 +138,8 @@ class PurchaseController extends Controller
                     'unit_cost' => (float) $item->unit_cost,
                     'subtotal' => (float) $item->subtotal,
                     'expires_at' => $item->expires_at?->format('Y-m-d'),
+                    'quantity_label' => ProductMeasurement::quantityLabel($item->product?->unit_type, $item->product?->weight_unit),
+                    'price_label' => ProductMeasurement::priceLabel($item->product?->unit_type, $item->product?->weight_unit),
                 ]),
             ],
         ]);

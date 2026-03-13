@@ -23,6 +23,9 @@ class StoreProductRequest extends FormRequest
             'description' => trim((string) $this->input('description')),
             'barcode' => trim((string) $this->input('barcode')) ?: null,
             'sku' => trim((string) $this->input('sku')) ?: null,
+            'weight_unit' => $this->filled('weight_unit')
+                ? trim((string) $this->input('weight_unit'))
+                : null,
         ]);
     }
 
@@ -58,6 +61,11 @@ class StoreProductRequest extends FormRequest
                     ->where(fn ($query) => $query->where('business_id', $businessId)),
             ],
             'unit_type' => ['required', Rule::in(['unit', 'weight'])],
+            'weight_unit' => [
+                Rule::requiredIf(fn () => $this->input('unit_type') === 'weight'),
+                'nullable',
+                Rule::in(['kg', 'g']),
+            ],
             'sale_price' => ['required', 'numeric', 'gte:0'],
             'cost_price' => ['required', 'numeric', 'gte:0'],
             'stock' => ['nullable', 'numeric', 'gte:0'],

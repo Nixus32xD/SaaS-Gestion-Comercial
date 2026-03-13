@@ -46,6 +46,7 @@ class StorePurchaseRequest extends FormRequest
             'items.*.product.barcode' => ['nullable', 'string', 'max:120'],
             'items.*.product.sku' => ['nullable', 'string', 'max:120'],
             'items.*.product.unit_type' => ['nullable', 'in:unit,weight'],
+            'items.*.product.weight_unit' => ['nullable', 'in:kg,g'],
             'items.*.product.sale_price' => ['nullable', 'numeric', 'gte:0'],
             'items.*.product.min_stock' => ['nullable', 'numeric', 'gte:0'],
             'items.*.product.shelf_life_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],

@@ -72,12 +72,12 @@ const filter = () => {
                                 <p class="text-xs text-slate-300/80">{{ product.supplier || 'Sin proveedor' }}</p>
                             </td>
                             <td class="px-3 py-2 text-slate-300">{{ product.barcode || product.sku || '-' }}</td>
-                            <td class="px-3 py-2">{{ product.unit_type === 'weight' ? 'Peso' : 'Unidad' }}</td>
+                            <td class="px-3 py-2">{{ product.type_label }}</td>
                             <td class="px-3 py-2">
-                                {{ product.stock }}
+                                {{ product.stock }} {{ product.quantity_label }}
                                 <span v-if="product.has_low_stock" class="ml-1 rounded border border-rose-300/40 bg-rose-400/15 px-1.5 py-0.5 text-xs font-semibold text-rose-100">Bajo</span>
                             </td>
-                            <td class="px-3 py-2">{{ money(product.sale_price) }}</td>
+                            <td class="px-3 py-2">{{ money(product.sale_price) }} <span class="text-xs text-slate-400">{{ product.price_label }}</span></td>
                             <td class="px-3 py-2 text-right">
                                 <Link :href="route('products.edit', product.id)" class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">
                                     Editar

@@ -54,8 +54,8 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="item in purchase.items" :key="item.id">
                                 <td class="px-3 py-2 font-semibold text-slate-100">{{ item.product_name }}</td>
-                                <td class="px-3 py-2">{{ item.quantity }}</td>
-                                <td class="px-3 py-2">{{ money(item.unit_cost) }}</td>
+                                <td class="px-3 py-2">{{ item.quantity }} <span class="text-xs text-slate-400">{{ item.quantity_label }}</span></td>
+                                <td class="px-3 py-2">{{ money(item.unit_cost) }} <span class="text-xs text-slate-400">{{ item.price_label }}</span></td>
                                 <td class="px-3 py-2">{{ item.expires_at || '-' }}</td>
                                 <td class="px-3 py-2">{{ money(item.subtotal) }}</td>
                             </tr>

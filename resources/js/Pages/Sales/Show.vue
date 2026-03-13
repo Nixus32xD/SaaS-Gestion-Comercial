@@ -14,6 +14,10 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
 
+const paymentMethodLabel = computed(() => (
+    props.sale.payment_method === 'transfer' ? 'Transferencia' : 'Efectivo'
+));
+
 const redirectSeconds = ref(5);
 const showAutoBackMessage = computed(() => props.auto_back === true);
 
@@ -67,9 +71,12 @@ onBeforeUnmount(() => {
 
                 <div class="grid gap-2 text-sm text-slate-300">
                     <p>Vendedor: <strong>{{ sale.user || '-' }}</strong></p>
+                    <p>Medio de pago: <strong>{{ paymentMethodLabel }}</strong></p>
                     <p>Subtotal: <strong>{{ money(sale.subtotal) }}</strong></p>
                     <p>Descuento: <strong>{{ money(sale.discount) }}</strong></p>
                     <p>Total: <strong>{{ money(sale.total) }}</strong></p>
+                    <p v-if="sale.payment_method === 'cash'">Recibido: <strong>{{ money(sale.amount_received) }}</strong></p>
+                    <p v-if="sale.payment_method === 'cash'">Vuelto: <strong>{{ money(sale.change_amount) }}</strong></p>
                     <p>Notas: <strong>{{ sale.notes || '-' }}</strong></p>
                 </div>
             </section>
@@ -89,8 +96,8 @@ onBeforeUnmount(() => {
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="item in sale.items" :key="item.id">
                                 <td class="px-3 py-2 font-semibold text-slate-100">{{ item.product_name }}</td>
-                                <td class="px-3 py-2">{{ item.quantity }}</td>
-                                <td class="px-3 py-2">{{ money(item.unit_price) }}</td>
+                                <td class="px-3 py-2">{{ item.quantity }} <span class="text-xs text-slate-400">{{ item.quantity_label }}</span></td>
+                                <td class="px-3 py-2">{{ money(item.unit_price) }} <span class="text-xs text-slate-400">{{ item.price_label }}</span></td>
                                 <td class="px-3 py-2">{{ money(item.subtotal) }}</td>
                             </tr>
                         </tbody>

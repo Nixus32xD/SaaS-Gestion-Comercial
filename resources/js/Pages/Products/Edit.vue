@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -16,6 +16,7 @@ const form = useForm({
     barcode: props.product.barcode || '',
     sku: props.product.sku || '',
     unit_type: props.product.unit_type,
+    weight_unit: props.product.weight_unit || 'kg',
     sale_price: Number(props.product.sale_price),
     cost_price: Number(props.product.cost_price),
     stock: Number(props.product.stock),
@@ -58,6 +59,23 @@ const toShelfLifeDays = (dateValue) => {
 };
 
 const shelfLifeDate = ref(shelfLifeDaysToDate(props.product.shelf_life_days));
+const isWeightProduct = computed(() => form.unit_type === 'weight');
+const measurementUnitLabel = computed(() => (form.weight_unit === 'g' ? 'g' : 'kg'));
+const priceLabel = computed(() => {
+    if (!isWeightProduct.value) return 'Precio de venta';
+    return form.weight_unit === 'g' ? 'Precio de venta por 100 g' : 'Precio de venta por kg';
+});
+const costLabel = computed(() => {
+    if (!isWeightProduct.value) return 'Precio de costo';
+    return form.weight_unit === 'g' ? 'Costo por 100 g' : 'Costo por kg';
+});
+const stockLabel = computed(() => (
+    isWeightProduct.value ? `Stock actual (${measurementUnitLabel.value})` : 'Stock actual'
+));
+const minStockLabel = computed(() => (
+    isWeightProduct.value ? `Stock minimo (${measurementUnitLabel.value})` : 'Stock minimo'
+));
+const quantityStep = computed(() => (isWeightProduct.value && form.weight_unit === 'kg' ? '0.001' : '1'));
 
 const submit = () => {
     form.shelf_life_days = toShelfLifeDays(shelfLifeDate.value);
@@ -81,25 +99,71 @@ const submit = () => {
 
         <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm" @submit.prevent="submit">
             <div class="grid gap-3 md:grid-cols-2">
-                <input v-model="form.name" type="text" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Nombre" />
-                <input v-model="form.slug" type="text" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Slug" />
-                <select v-model="form.supplier_id" class="rounded-xl border-cyan-100/25 text-sm">
-                    <option value="">Sin proveedor</option>
-                    <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
-                </select>
-                <select v-model="form.unit_type" class="rounded-xl border-cyan-100/25 text-sm">
-                    <option value="unit">Unidad</option>
-                    <option value="weight">Peso</option>
-                </select>
-                <input v-model="form.barcode" type="text" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Codigo de barras" />
-                <input v-model="form.sku" type="text" class="rounded-xl border-cyan-100/25 text-sm" placeholder="SKU" />
-                <input v-model.number="form.sale_price" type="number" min="0" step="0.01" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Precio venta" />
-                <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Precio costo" />
-                <input v-model.number="form.stock" type="number" min="0" step="0.001" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Stock" />
-                <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Stock minimo" />
-                <input v-model="shelfLifeDate" type="date" class="rounded-xl border-cyan-100/25 text-sm" />
-                <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Alerta de vencimiento (dias)" />
-                <textarea v-model="form.description" rows="3" class="rounded-xl border-cyan-100/25 text-sm md:col-span-2" placeholder="Descripcion" />
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Nombre</label>
+                    <input v-model="form.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Nombre del producto" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Slug</label>
+                    <input v-model="form.slug" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Slug (opcional)" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Proveedor</label>
+                    <select v-model="form.supplier_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                        <option value="">Sin proveedor</option>
+                        <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Tipo de unidad</label>
+                    <select v-model="form.unit_type" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                        <option value="unit">Unidad</option>
+                        <option value="weight">Peso</option>
+                    </select>
+                </div>
+                <div v-if="isWeightProduct" class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Gestion por peso</label>
+                    <select v-model="form.weight_unit" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                        <option value="kg">Kilos</option>
+                        <option value="g">Gramos</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Codigo de barras</label>
+                    <input v-model="form.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">SKU</label>
+                    <input v-model="form.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">{{ priceLabel }}</label>
+                    <input v-model.number="form.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">{{ costLabel }}</label>
+                    <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">{{ stockLabel }}</label>
+                    <input v-model.number="form.stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">{{ minStockLabel }}</label>
+                    <input v-model.number="form.min_stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Fecha de vencimiento (referencia)</label>
+                    <input v-model="shelfLifeDate" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Alerta antes de vencer (dias)</label>
+                    <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                </div>
+                <div class="space-y-1 md:col-span-2">
+                    <label class="text-sm font-medium text-slate-300">Descripcion</label>
+                    <textarea v-model="form.description" rows="3" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Descripcion opcional" />
+                </div>
             </div>
 
             <label class="mt-4 inline-flex items-center gap-2 text-sm text-slate-300">

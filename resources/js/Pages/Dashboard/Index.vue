@@ -172,7 +172,7 @@ const trendLabelIndexes = computed(() => {
                         <li v-for="item in top_sold_products" :key="`${item.product_id}-${item.product_name}`">
                             <div class="mb-1 flex items-center justify-between gap-2">
                                 <span class="truncate font-medium text-slate-100">{{ item.product_name }}</span>
-                                <span class="text-xs text-slate-300">{{ item.sold_quantity }} u</span>
+                                <span class="text-xs text-slate-300">{{ item.sold_quantity }} {{ item.sold_quantity_label }}</span>
                             </div>
                             <div class="h-2.5 rounded-full bg-slate-800">
                                 <div class="h-2.5 rounded-full bg-indigo-500" :style="{ width: topSoldWidth(item.sold_quantity) }"></div>

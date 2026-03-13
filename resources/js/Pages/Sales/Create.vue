@@ -27,6 +27,8 @@ const nowLocalDateTime = () => {
 };
 
 const form = useForm({
+    payment_method: 'cash',
+    amount_received: '',
     sold_at: nowLocalDateTime(),
     discount: 0,
     notes: '',
@@ -190,8 +192,62 @@ const removeItem = (index) => {
     form.items.splice(index, 1);
 };
 
-const subtotal = computed(() => form.items.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_price)), 0));
+const getProductMeta = (product) => ({
+    quantityLabel: product?.quantity_label || 'un',
+    priceLabel: product?.price_label || 'por unidad',
+    quantityStep: product?.quantity_step || '1',
+    quantityMin: product?.quantity_min || '1',
+    isGrams: product?.unit_type === 'weight' && product?.weight_unit === 'g',
+});
+
+const getDisplayedStock = (product) => {
+    const meta = getProductMeta(product);
+
+    if (meta.isGrams) {
+        return {
+            value: Number((Number(product?.stock || 0) / 1000).toFixed(3)),
+            label: 'kg',
+        };
+    }
+
+    return {
+        value: Number(product?.stock || 0),
+        label: meta.quantityLabel,
+    };
+};
+
+const activeProductMeta = computed(() => getProductMeta(activeProduct.value));
+
+const getLineSubtotal = (item) => {
+    const product = props.products.find((entry) => entry.id === item.product_id);
+    const meta = getProductMeta(product);
+
+    if (meta.isGrams) {
+        return Number((((Number(item.quantity) * Number(item.unit_price)) / 100)).toFixed(2));
+    }
+
+    return Number((Number(item.quantity) * Number(item.unit_price)).toFixed(2));
+};
+
+const subtotal = computed(() => form.items.reduce((acc, item) => acc + getLineSubtotal(item), 0));
 const total = computed(() => Math.max(0, subtotal.value - Number(form.discount || 0)));
+const isCashPayment = computed(() => form.payment_method === 'cash');
+const amountReceived = computed(() => Number(form.amount_received || 0));
+const remaining = computed(() => (
+    isCashPayment.value
+        ? Math.max(0, Number((total.value - amountReceived.value).toFixed(2)))
+        : 0
+));
+const changeAmount = computed(() => (
+    isCashPayment.value
+        ? Math.max(0, Number((amountReceived.value - total.value).toFixed(2)))
+        : 0
+));
+const canSubmit = computed(() => (
+    form.items.length > 0
+    && !form.processing
+    && (!isCashPayment.value || remaining.value === 0)
+));
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -199,12 +255,29 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
 
+const applyQuickAmount = (mode, amount = 0) => {
+    if (!isCashPayment.value) return;
+
+    if (mode === 'exact') {
+        form.amount_received = total.value.toFixed(2);
+        return;
+    }
+
+    if (mode === 'clear') {
+        form.amount_received = '';
+        return;
+    }
+
+    const nextAmount = Number((amountReceived.value + amount).toFixed(2));
+    form.amount_received = nextAmount.toFixed(2);
+};
+
 const submit = () => {
     form.post(route('sales.store'));
 };
 
 const submitIfReady = () => {
-    if (!form.items.length || form.processing) return;
+    if (!canSubmit.value) return;
     submit();
 };
 
@@ -251,7 +324,7 @@ onBeforeUnmount(() => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Nueva venta</h2>
                     <p class="mt-1 text-sm text-slate-300/80">Carga rapida por nombre o lector de codigo.</p>
@@ -264,11 +337,11 @@ onBeforeUnmount(() => {
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
                     <p class="font-semibold">Atajos</p>
-                    <p>F2: foco en buscador | F4: foco en cantidad | Alt+A: agregar producto | Ctrl+Enter: confirmar venta | Esc: limpiar busqueda</p>
+                    <p class="leading-relaxed">F2: foco en buscador | F4: foco en cantidad | Alt+A: agregar producto | Ctrl+Enter: confirmar venta | Esc: limpiar busqueda</p>
                 </div>
 
-                <div class="mt-4 grid gap-3 md:grid-cols-4">
-                    <div class="md:col-span-2">
+                <div class="mt-4 grid gap-3 lg:grid-cols-4">
+                    <div class="lg:col-span-2">
                         <label for="product-search" class="mb-1 block text-sm font-medium text-slate-300">Producto (nombre, barcode o SKU)</label>
                         <input
                             id="product-search"
@@ -285,14 +358,14 @@ onBeforeUnmount(() => {
                         >
                     </div>
                     <div>
-                        <label for="product-qty" class="mb-1 block text-sm font-medium text-slate-300">Cantidad</label>
+                        <label for="product-qty" class="mb-1 block text-sm font-medium text-slate-300">Cantidad <span class="text-xs text-slate-400">({{ activeProductMeta.quantityLabel }})</span></label>
                         <input
                             id="product-qty"
                             ref="quantityInput"
                             v-model.number="state.quantity"
                             type="number"
-                            min="0.001"
-                            step="0.001"
+                            :min="activeProductMeta.quantityMin"
+                            :step="activeProductMeta.quantityStep"
                             class="w-full rounded-xl border-cyan-100/25 text-sm"
                         >
                     </div>
@@ -314,25 +387,41 @@ onBeforeUnmount(() => {
                         <li v-for="(product, index) in filteredProducts" :key="product.id">
                             <button
                                 type="button"
-                                class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-800/70"
+                                class="flex w-full flex-col items-start gap-1 px-3 py-2 text-left hover:bg-slate-800/70 sm:flex-row sm:items-center sm:justify-between"
                                 :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-cyan-400/15' : ''"
                                 role="option"
                                 :aria-selected="product.id === state.activeProductId || index === state.highlightedIndex ? 'true' : 'false'"
                                 @click="selectProduct(product)"
                                 @dblclick="addProductToCart(product, 'manual')"
                             >
-                                <span>
+                                <span class="min-w-0">
                                     <span class="font-semibold text-slate-100">{{ product.name }}</span>
                                     <span class="ml-2 text-xs text-slate-300/80">{{ product.barcode || product.sku || 'sin codigo' }}</span>
                                 </span>
-                                <span class="text-xs text-slate-300">stock {{ product.stock }} - {{ money(product.sale_price) }}</span>
+                                <span class="text-xs text-slate-300">stock {{ getDisplayedStock(product).value }} {{ getDisplayedStock(product).label }} - {{ money(product.sale_price) }} {{ product.price_label }}</span>
                             </button>
                         </li>
                     </ul>
                     <p v-else class="px-3 py-4 text-sm text-slate-400">Sin resultados para la busqueda actual.</p>
                 </div>
 
-                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                <div v-if="form.items.length" class="mt-4 grid gap-3 md:hidden">
+                    <article v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
+                                <p class="mt-1 text-xs text-slate-400">
+                                    {{ item.quantity }} {{ getProductMeta(props.products.find((product) => product.id === item.product_id)).quantityLabel }}
+                                    · {{ money(item.unit_price) }} {{ getProductMeta(props.products.find((product) => product.id === item.product_id)).priceLabel }}
+                                </p>
+                            </div>
+                            <button type="button" class="shrink-0 rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
+                        </div>
+                        <p class="mt-3 text-sm">Subtotal: <strong class="text-slate-100">{{ money(getLineSubtotal(item)) }}</strong></p>
+                    </article>
+                </div>
+
+                <div class="mt-4 hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>
@@ -346,9 +435,15 @@ onBeforeUnmount(() => {
                         <tbody v-if="form.items.length" class="divide-y divide-slate-100">
                             <tr v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`">
                                 <td class="px-3 py-2 font-semibold text-slate-100">{{ item.product_name }}</td>
-                                <td class="px-3 py-2">{{ item.quantity }}</td>
-                                <td class="px-3 py-2">{{ money(item.unit_price) }}</td>
-                                <td class="px-3 py-2">{{ money(Number(item.quantity) * Number(item.unit_price)) }}</td>
+                                <td class="px-3 py-2">
+                                    {{ item.quantity }}
+                                    <span class="text-xs text-slate-400">{{ getProductMeta(props.products.find((product) => product.id === item.product_id)).quantityLabel }}</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {{ money(item.unit_price) }}
+                                    <span class="text-xs text-slate-400">{{ getProductMeta(props.products.find((product) => product.id === item.product_id)).priceLabel }}</span>
+                                </td>
+                                <td class="px-3 py-2">{{ money(getLineSubtotal(item)) }}</td>
                                 <td class="px-3 py-2 text-right">
                                     <button type="button" class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
                                 </td>
@@ -364,26 +459,86 @@ onBeforeUnmount(() => {
             </section>
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
-                <div class="grid gap-3 md:grid-cols-3">
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <div>
                         <label for="sold-at" class="mb-1 block text-sm font-medium text-slate-300">Fecha y hora</label>
-                        <input id="sold-at" v-model="form.sold_at" type="datetime-local" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                        <input id="sold-at" v-model="form.sold_at" type="datetime-local" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
                     </div>
                     <div>
                         <label for="discount" class="mb-1 block text-sm font-medium text-slate-300">Descuento</label>
-                        <input id="discount" v-model.number="form.discount" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.00" />
+                        <input id="discount" v-model.number="form.discount" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="0.00" />
                     </div>
                     <div>
                         <label for="notes" class="mb-1 block text-sm font-medium text-slate-300">Notas</label>
-                        <input id="notes" v-model="form.notes" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Observaciones" />
+                        <input id="notes" v-model="form.notes" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Observaciones" />
                     </div>
                 </div>
-                <div class="mt-4 rounded-xl bg-slate-950/35 p-3 text-sm text-slate-300">
-                    <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
-                    <p>Total: <strong>{{ money(total) }}</strong></p>
+
+                <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                    <div>
+                        <label for="payment-method" class="mb-1 block text-sm font-medium text-slate-300">Medio de pago</label>
+                        <select
+                            id="payment-method"
+                            v-model="form.payment_method"
+                            class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                        >
+                            <option value="cash">Efectivo</option>
+                            <option value="transfer">Transferencia</option>
+                        </select>
+
+                        <div v-if="isCashPayment" class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                            <div class="grid gap-3">
+                                <div>
+                                    <label for="amount-received" class="mb-1 block text-sm font-medium text-slate-300">Monto recibido</label>
+                                    <input
+                                        id="amount-received"
+                                        v-model="form.amount_received"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                        placeholder="0.00"
+                                    >
+                                    <p v-if="form.errors.amount_received" class="mt-1 text-xs text-rose-300">
+                                        {{ form.errors.amount_received }}
+                                    </p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('exact')">Exacto</button>
+                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 100)">+100</button>
+                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 500)">+500</button>
+                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 1000)">+1000</button>
+                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 2000)">+2000</button>
+                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 5000)">+5000</button>
+                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 10000)">+10000</button>
+                                    <button type="button" class="rounded-lg border border-rose-300/45 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="applyQuickAmount('clear')">Limpiar</button>
+                                </div>
+                                <p v-if="remaining > 0" class="text-xs font-medium text-amber-300">
+                                    Faltan {{ money(remaining) }} para completar el cobro.
+                                </p>
+                                <p v-else class="text-xs font-medium text-emerald-300">
+                                    Vuelto calculado: {{ money(changeAmount) }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <p v-else class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
+                            En transferencia no hace falta calcular vuelto.
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
+                        <p>Descuento: <strong>{{ money(form.discount) }}</strong></p>
+                        <p class="mt-2 text-base text-slate-100">Total: <strong>{{ money(total) }}</strong></p>
+                        <template v-if="isCashPayment">
+                            <p class="mt-2">Recibido: <strong>{{ money(amountReceived) }}</strong></p>
+                            <p>Vuelto: <strong>{{ money(changeAmount) }}</strong></p>
+                        </template>
+                    </div>
                 </div>
                 <div class="mt-4 flex justify-end">
-                    <button type="button" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing || !form.items.length" @click="submitIfReady">
+                    <button type="button" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50 sm:w-auto" :disabled="!canSubmit" @click="submitIfReady">
                         Confirmar venta
                     </button>
                 </div>

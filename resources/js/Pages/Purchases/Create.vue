@@ -22,6 +22,7 @@ const state = reactive({
         barcode: '',
         sku: '',
         unit_type: 'unit',
+        weight_unit: 'kg',
         sale_price: 0,
         min_stock: 0,
         expiry_alert_days: 15,
@@ -90,7 +91,41 @@ const activeProduct = computed(() => {
     return filteredProducts.value[state.highlightedIndex] || null;
 });
 
-const total = computed(() => form.items.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_cost)), 0));
+const measurementMeta = (product) => ({
+    quantityLabel: product?.quantity_label || (product?.unit_type === 'weight' ? (product?.weight_unit === 'g' ? 'g' : 'kg') : 'un'),
+    priceLabel: product?.price_label || (product?.unit_type === 'weight' ? (product?.weight_unit === 'g' ? 'por 100 g' : 'por kg') : 'por unidad'),
+    quantityStep: product?.quantity_step || (product?.unit_type === 'weight' && product?.weight_unit === 'kg' ? '0.001' : '1'),
+    quantityMin: product?.quantity_min || (product?.unit_type === 'weight' && product?.weight_unit === 'kg' ? '0.001' : '1'),
+    isGrams: product?.unit_type === 'weight' && product?.weight_unit === 'g',
+});
+
+const activeMeasurement = computed(() => {
+    if (state.mode === 'new') {
+        return measurementMeta(state.new_product);
+    }
+
+    return measurementMeta(activeProduct.value);
+});
+
+const itemMeta = (item) => {
+    if (item.product_id) {
+        return measurementMeta(props.products.find((product) => product.id === Number(item.product_id)));
+    }
+
+    return measurementMeta(item.product);
+};
+
+const lineSubtotal = (item) => {
+    const meta = itemMeta(item);
+
+    if (meta.isGrams) {
+        return Number((((Number(item.quantity) * Number(item.unit_cost)) / 100)).toFixed(2));
+    }
+
+    return Number((Number(item.quantity) * Number(item.unit_cost)).toFixed(2));
+};
+
+const total = computed(() => form.items.reduce((acc, item) => acc + lineSubtotal(item), 0));
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -231,6 +266,7 @@ const addNewProductItem = () => {
             unit_type: state.new_product.unit_type,
             sale_price: Number(Number(state.new_product.sale_price || 0).toFixed(2)),
             min_stock: Number(Number(state.new_product.min_stock || 0).toFixed(3)),
+            weight_unit: state.new_product.unit_type === 'weight' ? state.new_product.weight_unit : null,
             shelf_life_days: shelfLifeDays,
             expiry_alert_days: Number(state.new_product.expiry_alert_days || 15),
         },
@@ -241,6 +277,7 @@ const addNewProductItem = () => {
         barcode: '',
         sku: '',
         unit_type: 'unit',
+        weight_unit: 'kg',
         sale_price: 0,
         min_stock: 0,
         expiry_alert_days: 15,
@@ -423,7 +460,7 @@ onBeforeUnmount(() => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Nueva compra</h2>
                     <p class="mt-1 text-sm text-slate-300/80">Carga rapida por lector de codigo o busqueda manual.</p>
@@ -436,10 +473,10 @@ onBeforeUnmount(() => {
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
                     <p class="font-semibold">Atajos</p>
-                    <p>F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
+                    <p class="leading-relaxed">F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
                 </div>
 
-                <div class="mt-4 grid gap-3 md:grid-cols-4">
+                <div class="mt-4 grid gap-3 lg:grid-cols-3">
                     <div>
                         <label for="supplier_id" class="mb-1 block text-sm font-medium text-slate-300">Proveedor</label>
                         <select id="supplier_id" v-model="form.supplier_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
@@ -460,11 +497,11 @@ onBeforeUnmount(() => {
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <div class="flex flex-wrap items-center gap-4">
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <label class="inline-flex w-full items-center gap-2 text-sm text-slate-300 sm:w-auto">
                         <input :checked="state.mode === 'existing'" type="radio" class="border-cyan-100/25" @change="setMode('existing')">
                         Usar producto existente
                     </label>
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <label class="inline-flex w-full items-center gap-2 text-sm text-slate-300 sm:w-auto">
                         <input :checked="state.mode === 'new'" type="radio" class="border-cyan-100/25" @change="setMode('new')">
                         Crear producto nuevo
                     </label>
@@ -491,18 +528,18 @@ onBeforeUnmount(() => {
                             <li v-for="(product, index) in filteredProducts" :key="product.id">
                                 <button
                                     type="button"
-                                    class="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-slate-800/70"
+                                    class="flex w-full flex-col items-start gap-1 px-3 py-2 text-left hover:bg-slate-800/70 sm:flex-row sm:items-center sm:justify-between"
                                     :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-cyan-400/15' : ''"
                                     role="option"
                                     :aria-selected="product.id === state.activeProductId || index === state.highlightedIndex ? 'true' : 'false'"
                                     @click="selectProduct(product)"
                                     @dblclick="addExistingProduct(product, 'manual')"
                                 >
-                                    <span>
+                                    <span class="min-w-0">
                                         <span class="font-semibold text-slate-100">{{ product.name }}</span>
                                         <span class="ml-2 text-xs text-slate-300/80">{{ product.barcode || product.sku || 'sin codigo' }}</span>
                                     </span>
-                                    <span class="text-xs text-slate-300">stock {{ product.stock }} - costo {{ money(product.cost_price) }}</span>
+                                    <span class="text-xs text-slate-300">stock {{ product.stock }} {{ product.quantity_label }} - costo {{ money(product.cost_price) }} {{ product.price_label }}</span>
                                 </button>
                             </li>
                         </ul>
@@ -510,7 +547,7 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <div v-else class="mt-4 grid gap-3 md:grid-cols-3">
+                <div v-else class="mt-4 grid gap-3 lg:grid-cols-3">
                     <div>
                         <label for="new_product_name" class="mb-1 block text-sm font-medium text-slate-300">Nombre del producto</label>
                         <input id="new_product_name" ref="newNameInput" v-model="state.new_product.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Ej: Yerba 1kg" />
@@ -530,13 +567,24 @@ onBeforeUnmount(() => {
                             <option value="weight">Peso</option>
                         </select>
                     </div>
+                    <div v-if="state.new_product.unit_type === 'weight'">
+                        <label for="new_product_weight_unit" class="mb-1 block text-sm font-medium text-slate-300">Gestion por peso</label>
+                        <select id="new_product_weight_unit" v-model="state.new_product.weight_unit" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                            <option value="kg">Kilos</option>
+                            <option value="g">Gramos</option>
+                        </select>
+                    </div>
                     <div>
-                        <label for="new_product_sale_price" class="mb-1 block text-sm font-medium text-slate-300">Precio de venta sugerido</label>
+                        <label for="new_product_sale_price" class="mb-1 block text-sm font-medium text-slate-300">
+                            {{ state.new_product.unit_type === 'weight' ? (state.new_product.weight_unit === 'g' ? 'Precio de venta sugerido por 100 g' : 'Precio de venta sugerido por kg') : 'Precio de venta sugerido' }}
+                        </label>
                         <input id="new_product_sale_price" v-model.number="state.new_product.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.00" />
                     </div>
                     <div>
-                        <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-300">Stock minimo</label>
-                        <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.000" />
+                        <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-300">
+                            {{ state.new_product.unit_type === 'weight' ? `Stock minimo (${state.new_product.weight_unit === 'g' ? 'g' : 'kg'})` : 'Stock minimo' }}
+                        </label>
+                        <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" :step="state.new_product.unit_type === 'weight' && state.new_product.weight_unit === 'kg' ? '0.001' : '1'" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0" />
                     </div>
                     <div>
                         <label for="new_product_expiry_alert_days" class="mb-1 block text-sm font-medium text-slate-300">Alerta vencimiento (dias)</label>
@@ -544,13 +592,13 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                <div class="mt-4 grid gap-3 lg:grid-cols-4">
                     <div>
-                        <label for="purchase_quantity" class="mb-1 block text-sm font-medium text-slate-300">Cantidad</label>
-                        <input id="purchase_quantity" ref="quantityInput" v-model.number="state.quantity" type="number" min="0.001" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                        <label for="purchase_quantity" class="mb-1 block text-sm font-medium text-slate-300">Cantidad <span class="text-xs text-slate-400">({{ activeMeasurement.quantityLabel }})</span></label>
+                        <input id="purchase_quantity" ref="quantityInput" v-model.number="state.quantity" type="number" :min="activeMeasurement.quantityMin" :step="activeMeasurement.quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
-                        <label for="purchase_unit_cost" class="mb-1 block text-sm font-medium text-slate-300">Costo unitario</label>
+                        <label for="purchase_unit_cost" class="mb-1 block text-sm font-medium text-slate-300">Costo unitario <span class="text-xs text-slate-400">{{ activeMeasurement.priceLabel }}</span></label>
                         <input id="purchase_unit_cost" ref="unitCostInput" v-model.number="state.unit_cost" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
@@ -566,7 +614,24 @@ onBeforeUnmount(() => {
 
                 <p class="mt-2 text-xs text-slate-300/80" aria-live="polite">{{ state.helperMessage }}</p>
 
-                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                <div v-if="form.items.length" class="mt-4 grid gap-3 md:hidden">
+                    <article v-for="(item, index) in form.items" :key="`${item.product_id || 'new'}-${index}`" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="font-semibold text-slate-100">{{ itemLabel(item) }}</p>
+                                <p class="mt-1 text-xs text-slate-400">
+                                    {{ item.quantity }} {{ itemMeta(item).quantityLabel }}
+                                    · {{ money(item.unit_cost) }} {{ itemMeta(item).priceLabel }}
+                                </p>
+                                <p class="mt-1 text-xs text-slate-400">Vence: {{ item.expires_at || '-' }}</p>
+                            </div>
+                            <button type="button" class="shrink-0 rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
+                        </div>
+                        <p class="mt-3 text-sm">Subtotal: <strong class="text-slate-100">{{ money(lineSubtotal(item)) }}</strong></p>
+                    </article>
+                </div>
+
+                <div class="mt-4 hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>
@@ -581,10 +646,10 @@ onBeforeUnmount(() => {
                         <tbody v-if="form.items.length" class="divide-y divide-slate-100">
                             <tr v-for="(item, index) in form.items" :key="`${item.product_id || 'new'}-${index}`">
                                 <td class="px-3 py-2 font-semibold text-slate-100">{{ itemLabel(item) }}</td>
-                                <td class="px-3 py-2">{{ item.quantity }}</td>
-                                <td class="px-3 py-2">{{ money(item.unit_cost) }}</td>
+                                <td class="px-3 py-2">{{ item.quantity }} <span class="text-xs text-slate-400">{{ itemMeta(item).quantityLabel }}</span></td>
+                                <td class="px-3 py-2">{{ money(item.unit_cost) }} <span class="text-xs text-slate-400">{{ itemMeta(item).priceLabel }}</span></td>
                                 <td class="px-3 py-2">{{ item.expires_at || '-' }}</td>
-                                <td class="px-3 py-2">{{ money(Number(item.quantity) * Number(item.unit_cost)) }}</td>
+                                <td class="px-3 py-2">{{ money(lineSubtotal(item)) }}</td>
                                 <td class="px-3 py-2 text-right">
                                     <button type="button" class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
                                 </td>
@@ -602,7 +667,7 @@ onBeforeUnmount(() => {
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <p class="text-sm text-slate-300">Total: <strong>{{ money(total) }}</strong></p>
                 <div class="mt-4 flex justify-end">
-                    <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing || !form.items.length">
+                    <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 sm:w-auto" :disabled="form.processing || !form.items.length">
                         Confirmar compra
                     </button>
                 </div>

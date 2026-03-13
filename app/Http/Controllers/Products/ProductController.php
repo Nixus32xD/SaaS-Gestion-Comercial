@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Support\CurrentBusiness;
+use App\Support\ProductMeasurement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -45,6 +46,10 @@ class ProductController extends Controller
                 'barcode' => $product->barcode,
                 'sku' => $product->sku,
                 'unit_type' => $product->unit_type,
+                'weight_unit' => $product->weight_unit,
+                'type_label' => ProductMeasurement::typeLabel($product->unit_type, $product->weight_unit),
+                'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
+                'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
                 'sale_price' => (float) $product->sale_price,
                 'cost_price' => (float) $product->cost_price,
                 'stock' => (float) $product->stock,
@@ -97,6 +102,7 @@ class ProductController extends Controller
             'barcode' => $data['barcode'] ?: null,
             'sku' => $data['sku'] ?: null,
             'unit_type' => $data['unit_type'],
+            'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
             'sale_price' => $data['sale_price'],
             'cost_price' => $data['cost_price'],
             'stock' => $initialStock,
@@ -142,6 +148,7 @@ class ProductController extends Controller
                 'barcode' => $product->barcode,
                 'sku' => $product->sku,
                 'unit_type' => $product->unit_type,
+                'weight_unit' => $product->weight_unit,
                 'sale_price' => (float) $product->sale_price,
                 'cost_price' => (float) $product->cost_price,
                 'stock' => (float) $product->stock,
@@ -180,6 +187,7 @@ class ProductController extends Controller
             'barcode' => $data['barcode'] ?: null,
             'sku' => $data['sku'] ?: null,
             'unit_type' => $data['unit_type'],
+            'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
             'sale_price' => $data['sale_price'],
             'cost_price' => $data['cost_price'],
             'stock' => $newStock,

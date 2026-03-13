@@ -43,12 +43,23 @@ class DashboardController extends Controller
 
         $topProducts = SaleItem::query()
             ->select([
-                'product_id',
-                'product_name',
-                DB::raw('SUM(quantity) as sold_quantity'),
+                'sale_items.product_id',
+                'sale_items.product_name',
+                'products.unit_type',
+                'products.weight_unit',
+                DB::raw("
+                    SUM(
+                        CASE
+                            WHEN products.unit_type = 'weight' AND products.weight_unit = 'g'
+                                THEN sale_items.quantity / 1000
+                            ELSE sale_items.quantity
+                        END
+                    ) as sold_quantity
+                "),
             ])
+            ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
             ->forBusiness($business->id)
-            ->groupBy('product_id', 'product_name')
+            ->groupBy('sale_items.product_id', 'sale_items.product_name', 'products.unit_type', 'products.weight_unit')
             ->orderByDesc('sold_quantity')
             ->limit(8)
             ->get();
@@ -113,7 +124,8 @@ class DashboardController extends Controller
             'top_sold_products' => $topProducts->map(fn ($row) => [
                 'product_id' => $row->product_id,
                 'product_name' => $row->product_name,
-                'sold_quantity' => (float) $row->sold_quantity,
+                'sold_quantity' => round((float) $row->sold_quantity, 3),
+                'sold_quantity_label' => $row->unit_type === 'weight' ? 'kg' : 'u',
             ]),
             'latest_sales' => $latestSales->map(fn (Sale $sale) => [
                 'id' => $sale->id,

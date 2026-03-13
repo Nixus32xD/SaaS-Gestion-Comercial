@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -15,6 +15,7 @@ const form = useForm({
     barcode: '',
     sku: '',
     unit_type: 'unit',
+    weight_unit: 'kg',
     sale_price: 0,
     cost_price: 0,
     stock: 0,
@@ -25,6 +26,23 @@ const form = useForm({
 });
 
 const shelfLifeDate = ref('');
+const isWeightProduct = computed(() => form.unit_type === 'weight');
+const measurementUnitLabel = computed(() => (form.weight_unit === 'g' ? 'g' : 'kg'));
+const priceLabel = computed(() => {
+    if (!isWeightProduct.value) return 'Precio de venta';
+    return form.weight_unit === 'g' ? 'Precio de venta por 100 g' : 'Precio de venta por kg';
+});
+const costLabel = computed(() => {
+    if (!isWeightProduct.value) return 'Precio de costo';
+    return form.weight_unit === 'g' ? 'Costo por 100 g' : 'Costo por kg';
+});
+const stockLabel = computed(() => (
+    isWeightProduct.value ? `Stock inicial (${measurementUnitLabel.value})` : 'Stock inicial'
+));
+const minStockLabel = computed(() => (
+    isWeightProduct.value ? `Stock minimo (${measurementUnitLabel.value})` : 'Stock minimo'
+));
+const quantityStep = computed(() => (isWeightProduct.value && form.weight_unit === 'kg' ? '0.001' : '1'));
 
 const toShelfLifeDays = (dateValue) => {
     if (!dateValue) return '';
@@ -83,6 +101,13 @@ const submit = () => {
                         <option value="weight">Peso</option>
                     </select>
                 </div>
+                <div v-if="isWeightProduct" class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Gestion por peso</label>
+                    <select v-model="form.weight_unit" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                        <option value="kg">Kilos</option>
+                        <option value="g">Gramos</option>
+                    </select>
+                </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-300">Codigo de barras</label>
                     <input v-model="form.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
@@ -92,20 +117,20 @@ const submit = () => {
                     <input v-model="form.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Precio de venta</label>
+                    <label class="text-sm font-medium text-slate-300">{{ priceLabel }}</label>
                     <input v-model.number="form.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Precio de costo</label>
+                    <label class="text-sm font-medium text-slate-300">{{ costLabel }}</label>
                     <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Stock inicial</label>
-                    <input v-model.number="form.stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                    <label class="text-sm font-medium text-slate-300">{{ stockLabel }}</label>
+                    <input v-model.number="form.stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Stock minimo</label>
-                    <input v-model.number="form.min_stock" type="number" min="0" step="0.001" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                    <label class="text-sm font-medium text-slate-300">{{ minStockLabel }}</label>
+                    <input v-model.number="form.min_stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-300">Fecha de vencimiento (referencia)</label>

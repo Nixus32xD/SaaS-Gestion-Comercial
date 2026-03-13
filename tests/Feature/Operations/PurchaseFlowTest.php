@@ -106,3 +106,45 @@ test('purchase numbering is sequential per business', function () {
     expect(Purchase::query()->forBusiness($businessB->id)->orderBy('id')->pluck('purchase_number')->all())
         ->toBe(['P-000001']);
 });
+
+test('gram-based weighted purchase calculates subtotal and stock correctly', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $supplier = Supplier::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Proveedor gramos',
+    ]);
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'supplier_id' => $supplier->id,
+        'name' => 'Jamon',
+        'slug' => 'jamon',
+        'unit_type' => 'weight',
+        'weight_unit' => 'g',
+        'sale_price' => 2200,
+        'cost_price' => 1200,
+        'stock' => 500,
+        'min_stock' => 100,
+        'is_active' => true,
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/purchases', [
+            'supplier_id' => $supplier->id,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1000,
+                    'unit_cost' => 1200,
+                ],
+            ],
+        ])
+        ->assertRedirect();
+
+    $purchase = Purchase::query()->firstOrFail();
+
+    expect((float) $purchase->subtotal)->toBe(12000.0);
+    expect((float) $purchase->total)->toBe(12000.0);
+    expect($product->fresh()->stock)->toBe('1500.000');
+});

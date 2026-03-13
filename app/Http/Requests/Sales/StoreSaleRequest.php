@@ -22,6 +22,8 @@ class StoreSaleRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'payment_method' => ['nullable', 'in:cash,transfer'],
+            'amount_received' => ['nullable', 'numeric', 'gte:0'],
             'discount' => ['nullable', 'numeric', 'gte:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'sold_at' => ['nullable', 'date'],
@@ -31,5 +33,16 @@ class StoreSaleRequest extends FormRequest
             'items.*.unit_price' => ['nullable', 'numeric', 'gte:0'],
         ];
     }
-}
 
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'payment_method' => $this->filled('payment_method')
+                ? (string) $this->input('payment_method')
+                : null,
+            'amount_received' => $this->filled('amount_received')
+                ? $this->input('amount_received')
+                : null,
+        ]);
+    }
+}

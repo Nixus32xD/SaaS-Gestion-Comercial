@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Support\ProductMeasurement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -55,7 +56,12 @@ class SaleService
                 $unitPrice = array_key_exists('unit_price', $item)
                     ? round((float) $item['unit_price'], 2)
                     : round((float) $product->sale_price, 2);
-                $subtotal = round($quantity * $unitPrice, 2);
+                $subtotal = ProductMeasurement::calculateSubtotal(
+                    $quantity,
+                    $unitPrice,
+                    $product->unit_type,
+                    $product->weight_unit
+                );
 
                 return [
                     'product_id' => $product->id,
@@ -86,11 +92,20 @@ class SaleService
             $subtotal = round((float) $lineItems->sum('subtotal'), 2);
             $discount = min(round((float) ($payload['discount'] ?? 0), 2), $subtotal);
             $total = round($subtotal - $discount, 2);
+            $paymentMethod = $this->resolvePaymentMethod($payload['payment_method'] ?? null);
+            [$amountReceived, $changeAmount] = $this->resolvePaymentAmounts(
+                $paymentMethod,
+                $payload['amount_received'] ?? null,
+                $total
+            );
 
             $sale = Sale::query()->create([
                 'business_id' => $business->id,
                 'user_id' => $user->id,
                 'sale_number' => $this->documentNumberService->nextSaleNumber($business->id),
+                'payment_method' => $paymentMethod,
+                'amount_received' => $amountReceived,
+                'change_amount' => $changeAmount,
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'total' => $total,
@@ -158,5 +173,32 @@ class SaleService
         }
 
         return $value;
+    }
+
+    private function resolvePaymentMethod(mixed $value): string
+    {
+        return $value === 'transfer' ? 'transfer' : 'cash';
+    }
+
+    /**
+     * @return array{0: float|null, 1: float|null}
+     */
+    private function resolvePaymentAmounts(string $paymentMethod, mixed $amountReceivedValue, float $total): array
+    {
+        if ($paymentMethod !== 'cash') {
+            return [null, null];
+        }
+
+        $amountReceived = $amountReceivedValue === null || $amountReceivedValue === ''
+            ? $total
+            : round((float) $amountReceivedValue, 2);
+
+        if ($amountReceived < $total) {
+            throw ValidationException::withMessages([
+                'amount_received' => 'El monto recibido no puede ser menor al total de la venta.',
+            ]);
+        }
+
+        return [$amountReceived, round($amountReceived - $total, 2)];
     }
 }

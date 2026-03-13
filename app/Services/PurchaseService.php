@@ -8,6 +8,7 @@ use App\Models\Purchase;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\ProductMeasurement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -97,6 +98,10 @@ class PurchaseService
                         'barcode' => trim((string) data_get($item, 'product.barcode')) ?: null,
                         'sku' => trim((string) data_get($item, 'product.sku')) ?: null,
                         'unit_type' => data_get($item, 'product.unit_type', 'unit'),
+                        'weight_unit' => ProductMeasurement::normalizeWeightUnit(
+                            data_get($item, 'product.unit_type', 'unit'),
+                            data_get($item, 'product.weight_unit')
+                        ),
                         'sale_price' => round((float) data_get($item, 'product.sale_price', $unitCost), 2),
                         'cost_price' => $unitCost,
                         'stock' => 0,
@@ -118,7 +123,12 @@ class PurchaseService
                     'product_name' => $product->name,
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
-                    'subtotal' => round($quantity * $unitCost, 2),
+                    'subtotal' => ProductMeasurement::calculateSubtotal(
+                        $quantity,
+                        $unitCost,
+                        $product->unit_type,
+                        $product->weight_unit
+                    ),
                     'expires_at' => $expiresAt?->toDateString(),
                 ];
             });

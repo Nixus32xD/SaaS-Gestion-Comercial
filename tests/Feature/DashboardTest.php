@@ -4,6 +4,7 @@ use App\Models\Business;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\Supplier;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -86,5 +87,77 @@ test('dashboard only exposes metrics from the authenticated business', function 
             ->where('summary.month_sales', 100)
             ->where('summary.products_count', 1)
             ->where('summary.suppliers_count', 1)
+        );
+});
+
+test('dashboard normalizes gram-based top sold products to kilograms', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    $weightedProduct = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Queso',
+        'slug' => 'queso-dashboard',
+        'unit_type' => 'weight',
+        'weight_unit' => 'g',
+        'sale_price' => 1800,
+        'cost_price' => 1200,
+        'stock' => 5000,
+        'min_stock' => 500,
+        'is_active' => true,
+    ]);
+
+    $unitProduct = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Gaseosa',
+        'slug' => 'gaseosa-dashboard',
+        'unit_type' => 'unit',
+        'sale_price' => 2500,
+        'cost_price' => 1500,
+        'stock' => 20,
+        'min_stock' => 2,
+        'is_active' => true,
+    ]);
+
+    $sale = Sale::query()->create([
+        'business_id' => $business->id,
+        'user_id' => $admin->id,
+        'sale_number' => 'S-300001',
+        'subtotal' => 10000,
+        'discount' => 0,
+        'total' => 10000,
+        'sold_at' => now(),
+    ]);
+
+    SaleItem::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'product_id' => $weightedProduct->id,
+        'product_name' => $weightedProduct->name,
+        'quantity' => 2500,
+        'unit_price' => 1800,
+        'subtotal' => 45000,
+    ]);
+
+    SaleItem::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'product_id' => $unitProduct->id,
+        'product_name' => $unitProduct->name,
+        'quantity' => 8,
+        'unit_price' => 2500,
+        'subtotal' => 20000,
+    ]);
+
+    $this->actingAs($admin)->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Dashboard/Index')
+            ->where('top_sold_products.0.product_name', 'Gaseosa')
+            ->where('top_sold_products.0.sold_quantity', 8)
+            ->where('top_sold_products.0.sold_quantity_label', 'u')
+            ->where('top_sold_products.1.product_name', 'Queso')
+            ->where('top_sold_products.1.sold_quantity', 2.5)
+            ->where('top_sold_products.1.sold_quantity_label', 'kg')
         );
 });

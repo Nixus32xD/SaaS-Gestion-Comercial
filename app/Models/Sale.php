@@ -20,6 +20,9 @@ class Sale extends Model
         'business_id',
         'user_id',
         'sale_number',
+        'payment_method',
+        'amount_received',
+        'change_amount',
         'subtotal',
         'discount',
         'total',
@@ -33,6 +36,9 @@ class Sale extends Model
     protected function casts(): array
     {
         return [
+            'payment_method' => 'string',
+            'amount_received' => 'decimal:2',
+            'change_amount' => 'decimal:2',
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
@@ -56,4 +62,3 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 }
-

@@ -19,6 +19,8 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     currency: 'ARS',
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
+
+const paymentMethodLabel = (value) => (value === 'transfer' ? 'Transferencia' : 'Efectivo');
 </script>
 
 <template>
@@ -53,6 +55,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
                         <tr>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Numero</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Fecha</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Pago</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Items</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Total</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
@@ -62,6 +65,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
                         <tr v-for="sale in sales.data" :key="sale.id">
                             <td class="px-3 py-2 font-semibold text-slate-100">{{ sale.sale_number || `VENTA-${sale.id}` }}</td>
                             <td class="px-3 py-2">{{ sale.sold_at || '-' }}</td>
+                            <td class="px-3 py-2">{{ paymentMethodLabel(sale.payment_method) }}</td>
                             <td class="px-3 py-2">{{ sale.items_count }}</td>
                             <td class="px-3 py-2">{{ money(sale.total) }}</td>
                             <td class="px-3 py-2 text-right">
@@ -71,7 +75,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="5" class="px-3 py-6 text-center text-slate-400">No hay ventas registradas.</td>
+                            <td colspan="6" class="px-3 py-6 text-center text-slate-400">No hay ventas registradas.</td>
                         </tr>
                     </tbody>
                 </table>

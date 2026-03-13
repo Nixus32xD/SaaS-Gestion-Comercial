@@ -27,6 +27,7 @@ class Product extends Model
         'barcode',
         'sku',
         'unit_type',
+        'weight_unit',
         'sale_price',
         'cost_price',
         'stock',
@@ -44,6 +45,7 @@ class Product extends Model
         return [
             'sale_price' => 'decimal:2',
             'cost_price' => 'decimal:2',
+            'weight_unit' => 'string',
             'stock' => 'decimal:3',
             'min_stock' => 'decimal:3',
             'shelf_life_days' => 'int',

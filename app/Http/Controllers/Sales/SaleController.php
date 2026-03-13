@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
+use App\Support\ProductMeasurement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -43,6 +44,7 @@ class SaleController extends Controller
             ->through(fn (Sale $sale) => [
                 'id' => $sale->id,
                 'sale_number' => $sale->sale_number,
+                'payment_method' => $sale->payment_method,
                 'subtotal' => (float) $sale->subtotal,
                 'discount' => (float) $sale->discount,
                 'total' => (float) $sale->total,
@@ -77,6 +79,11 @@ class SaleController extends Controller
                     'barcode' => $product->barcode,
                     'sku' => $product->sku,
                     'unit_type' => $product->unit_type,
+                    'weight_unit' => $product->weight_unit,
+                    'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
+                    'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
+                    'quantity_step' => ProductMeasurement::quantityStep($product->unit_type, $product->weight_unit),
+                    'quantity_min' => ProductMeasurement::quantityMin($product->unit_type, $product->weight_unit),
                     'sale_price' => (float) $product->sale_price,
                     'stock' => (float) $product->stock,
                 ]),
@@ -112,6 +119,9 @@ class SaleController extends Controller
             'sale' => [
                 'id' => $sale->id,
                 'sale_number' => $sale->sale_number,
+                'payment_method' => $sale->payment_method,
+                'amount_received' => (float) ($sale->amount_received ?? 0),
+                'change_amount' => (float) ($sale->change_amount ?? 0),
                 'subtotal' => (float) $sale->subtotal,
                 'discount' => (float) $sale->discount,
                 'total' => (float) $sale->total,
@@ -124,6 +134,8 @@ class SaleController extends Controller
                     'quantity' => (float) $item->quantity,
                     'unit_price' => (float) $item->unit_price,
                     'subtotal' => (float) $item->subtotal,
+                    'quantity_label' => ProductMeasurement::quantityLabel($item->product?->unit_type, $item->product?->weight_unit),
+                    'price_label' => ProductMeasurement::priceLabel($item->product?->unit_type, $item->product?->weight_unit),
                 ]),
             ],
         ]);

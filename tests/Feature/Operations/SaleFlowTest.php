@@ -24,6 +24,8 @@ test('sale decrements stock and stores business on items', function () {
     $response = $this
         ->actingAs($admin)
         ->post('/sales', [
+            'payment_method' => 'cash',
+            'amount_received' => 7000,
             'sold_at' => now()->toDateTimeString(),
             'items' => [
                 [
@@ -43,6 +45,9 @@ test('sale decrements stock and stores business on items', function () {
     $item = SaleItem::query()->firstOrFail();
 
     expect($sale->sale_number)->toBe('S-000001');
+    expect($sale->payment_method)->toBe('cash');
+    expect((float) $sale->amount_received)->toBe(7000.0);
+    expect((float) $sale->change_amount)->toBe(1000.0);
     expect($item->business_id)->toBe($business->id);
 });
 
@@ -77,6 +82,115 @@ test('sale fails when stock is insufficient', function () {
     $response->assertSessionHasErrors('items');
     expect($product->fresh()->stock)->toBe('2.000');
     expect(Sale::query()->count())->toBe(0);
+});
+
+test('cash sale fails when amount received is lower than total', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Yerba',
+        'slug' => 'yerba',
+        'unit_type' => 'unit',
+        'sale_price' => 2500,
+        'cost_price' => 1800,
+        'stock' => 5,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->from('/sales/create')
+        ->post('/sales', [
+            'payment_method' => 'cash',
+            'amount_received' => 1000,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 2500,
+                ],
+            ],
+        ]);
+
+    $response->assertSessionHasErrors('amount_received');
+    expect(Sale::query()->count())->toBe(0);
+});
+
+test('transfer sale stores payment method without cash amounts', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Aceite',
+        'slug' => 'aceite',
+        'unit_type' => 'unit',
+        'sale_price' => 3000,
+        'cost_price' => 2200,
+        'stock' => 8,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/sales', [
+            'payment_method' => 'transfer',
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 3000,
+                ],
+            ],
+        ])
+        ->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+
+    expect($sale->payment_method)->toBe('transfer');
+    expect($sale->amount_received)->toBeNull();
+    expect($sale->change_amount)->toBeNull();
+});
+
+test('gram-based weighted sale calculates subtotal and stock correctly', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Queso',
+        'slug' => 'queso',
+        'unit_type' => 'weight',
+        'weight_unit' => 'g',
+        'sale_price' => 1800,
+        'cost_price' => 1100,
+        'stock' => 1500,
+        'min_stock' => 300,
+        'is_active' => true,
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/sales', [
+            'payment_method' => 'cash',
+            'amount_received' => 5000,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 250,
+                    'unit_price' => 1800,
+                ],
+            ],
+        ])
+        ->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+
+    expect((float) $sale->subtotal)->toBe(4500.0);
+    expect((float) $sale->total)->toBe(4500.0);
+    expect((float) $sale->change_amount)->toBe(500.0);
+    expect($product->fresh()->stock)->toBe('1250.000');
 });
 
 test('sale numbering is sequential per business', function () {
