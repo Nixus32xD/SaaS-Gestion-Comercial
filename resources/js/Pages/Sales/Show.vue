@@ -54,7 +54,7 @@ onBeforeUnmount(() => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Detalle de venta</h2>
                     <p class="mt-1 text-sm text-slate-300/80">{{ sale.sale_number || `Venta #${sale.id}` }} - {{ sale.sold_at }}</p>
@@ -83,7 +83,16 @@ onBeforeUnmount(() => {
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
                 <h3 class="text-base font-semibold text-slate-100">Items</h3>
-                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                <div class="mt-4 grid gap-3 md:hidden">
+                    <article v-for="item in sale.items" :key="item.id" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
+                        <p class="mt-1 text-xs text-slate-400">{{ item.quantity }} {{ item.quantity_label }}</p>
+                        <p class="mt-1 text-xs text-slate-400">{{ money(item.unit_price) }} {{ item.price_label }}</p>
+                        <p class="mt-3 text-sm">Subtotal: <strong class="text-slate-100">{{ money(item.subtotal) }}</strong></p>
+                    </article>
+                </div>
+
+                <div class="mt-4 hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>
