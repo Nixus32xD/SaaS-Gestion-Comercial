@@ -58,10 +58,10 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user?->isSuperAdmin()) {
-            return redirect()->intended(route('admin.businesses.index', absolute: false));
+            return redirect()->route('admin.businesses.index');
         }
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->route('dashboard');
     }
 
     /**
