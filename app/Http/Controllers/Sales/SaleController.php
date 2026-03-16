@@ -9,6 +9,8 @@ use App\Models\Sale;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -67,26 +69,19 @@ class SaleController extends Controller
         abort_if($business === null, 404);
 
         return Inertia::render('Sales/Create', [
-            'products' => Product::query()
-                ->forBusiness($business->id)
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->limit(300)
-                ->get()
-                ->map(fn (Product $product) => [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'barcode' => $product->barcode,
-                    'sku' => $product->sku,
-                    'unit_type' => $product->unit_type,
-                    'weight_unit' => $product->weight_unit,
-                    'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
-                    'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
-                    'quantity_step' => ProductMeasurement::quantityStep($product->unit_type, $product->weight_unit),
-                    'quantity_min' => ProductMeasurement::quantityMin($product->unit_type, $product->weight_unit),
-                    'sale_price' => (float) $product->sale_price,
-                    'stock' => (float) $product->stock,
-                ]),
+            'products' => $this->searchProductsPayload($business->id),
+        ]);
+    }
+
+    public function searchProducts(Request $request, CurrentBusiness $currentBusiness): JsonResponse
+    {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+
+        $search = trim((string) $request->query('search', ''));
+
+        return response()->json([
+            'products' => $this->searchProductsPayload($business->id, $search),
         ]);
     }
 
@@ -139,5 +134,72 @@ class SaleController extends Controller
                 ]),
             ],
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function searchProductsPayload(int $businessId, string $search = ''): array
+    {
+        $limit = $search === '' ? 20 : 30;
+
+        return $this->productSearchQuery($businessId, $search)
+            ->limit($limit)
+            ->get()
+            ->map(fn (Product $product) => $this->mapProduct($product))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return Builder<Product>
+     */
+    private function productSearchQuery(int $businessId, string $search): Builder
+    {
+        $query = Product::query()
+            ->forBusiness($businessId)
+            ->where('is_active', true);
+
+        if ($search === '') {
+            return $query->orderBy('name');
+        }
+
+        return $query
+            ->where(function (Builder $innerQuery) use ($search): void {
+                $innerQuery
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('barcode', 'like', "%{$search}%")
+                    ->orWhere('sku', 'like', "%{$search}%");
+            })
+            ->orderByRaw(
+                "case
+                    when barcode = ? or sku = ? then 0
+                    when name like ? then 1
+                    else 2
+                end",
+                [$search, $search, $search.'%']
+            )
+            ->orderBy('name');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapProduct(Product $product): array
+    {
+        return [
+            'id' => $product->id,
+            'name' => $product->name,
+            'barcode' => $product->barcode,
+            'sku' => $product->sku,
+            'unit_type' => $product->unit_type,
+            'weight_unit' => $product->weight_unit,
+            'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
+            'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
+            'quantity_step' => ProductMeasurement::quantityStep($product->unit_type, $product->weight_unit),
+            'quantity_min' => ProductMeasurement::quantityMin($product->unit_type, $product->weight_unit),
+            'sale_price' => (float) $product->sale_price,
+            'stock' => (float) $product->stock,
+        ];
     }
 }

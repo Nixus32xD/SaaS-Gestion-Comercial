@@ -17,6 +17,10 @@ const state = reactive({
 
 const searchInput = ref(null);
 const quantityInput = ref(null);
+const searchResults = ref([...props.products]);
+const isLoadingProducts = ref(false);
+let searchTimer = null;
+let lastSearchRequestId = 0;
 
 const nowLocalDateTime = () => {
     const date = new Date();
@@ -37,21 +41,7 @@ const form = useForm({
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
-const filteredProducts = computed(() => {
-    const term = normalize(state.search);
-
-    if (term === '') {
-        return props.products.slice(0, 20);
-    }
-
-    return props.products
-        .filter((product) => (
-            normalize(product.name).includes(term)
-            || normalize(product.barcode).includes(term)
-            || normalize(product.sku).includes(term)
-        ))
-        .slice(0, 30);
-});
+const filteredProducts = computed(() => searchResults.value);
 
 const activeProduct = computed(() => {
     if (state.activeProductId !== null) {
@@ -62,13 +52,48 @@ const activeProduct = computed(() => {
     return filteredProducts.value[state.highlightedIndex] || null;
 });
 
-const findExactCodeMatch = (term) => {
+const findExactCodeMatch = (term, products = searchResults.value) => {
     const normalized = normalize(term);
     if (normalized === '') return null;
 
-    return props.products.find((product) => (
+    return products.find((product) => (
         normalize(product.barcode) === normalized || normalize(product.sku) === normalized
     )) || null;
+};
+
+const fetchProducts = async (term = state.search) => {
+    const requestId = ++lastSearchRequestId;
+    isLoadingProducts.value = true;
+
+    try {
+        const { data } = await window.axios.get(route('sales.products.search'), {
+            params: { search: String(term || '').trim() },
+        });
+
+        if (requestId !== lastSearchRequestId) {
+            return searchResults.value;
+        }
+
+        searchResults.value = Array.isArray(data?.products) ? data.products : [];
+        searchResults.value.forEach((product) => {
+            if (!props.products.find((entry) => entry.id === product.id)) {
+                props.products.push(product);
+            }
+        });
+        syncSelection();
+
+        return searchResults.value;
+    } catch (error) {
+        if (requestId === lastSearchRequestId) {
+            state.helperMessage = 'No se pudieron cargar productos en este momento.';
+        }
+
+        return searchResults.value;
+    } finally {
+        if (requestId === lastSearchRequestId) {
+            isLoadingProducts.value = false;
+        }
+    }
 };
 
 const syncSelection = () => {
@@ -88,8 +113,14 @@ const syncSelection = () => {
     state.highlightedIndex = activeIndex >= 0 ? activeIndex : 0;
 };
 
-watch(() => state.search, () => {
-    syncSelection();
+watch(() => state.search, (value) => {
+    if (searchTimer !== null) {
+        window.clearTimeout(searchTimer);
+    }
+
+    searchTimer = window.setTimeout(() => {
+        void fetchProducts(value);
+    }, value.trim() === '' ? 0 : 180);
 });
 
 watch(filteredProducts, () => {
@@ -97,7 +128,10 @@ watch(filteredProducts, () => {
 });
 
 const addProductToCart = (product, source = 'manual') => {
-    if (!product) return;
+    if (!product) {
+        state.helperMessage = 'No hay productos disponibles para agregar con esa busqueda.';
+        return;
+    }
 
     const qty = Number(state.quantity || 0);
     if (qty <= 0) {
@@ -110,11 +144,17 @@ const addProductToCart = (product, source = 'manual') => {
     if (existing) {
         existing.quantity = Number((Number(existing.quantity) + qty).toFixed(3));
     } else {
+        const meta = getProductMeta(product);
+
         form.items.push({
             product_id: product.id,
             product_name: product.name,
             quantity: Number(qty.toFixed(3)),
             unit_price: Number(product.sale_price),
+            unit_type: product.unit_type,
+            weight_unit: product.weight_unit,
+            quantity_label: meta.quantityLabel,
+            price_label: meta.priceLabel,
         });
     }
 
@@ -131,15 +171,20 @@ const addProductToCart = (product, source = 'manual') => {
     });
 };
 
-const handleSearchEnter = () => {
-    const exact = findExactCodeMatch(state.search);
+const handleSearchEnter = async () => {
+    const results = await fetchProducts(state.search);
+    const exact = findExactCodeMatch(state.search, results);
 
     if (exact) {
         addProductToCart(exact, 'scanner');
         return;
     }
 
-    addProductToCart(activeProduct.value, 'manual');
+    const fallback = results.find((product) => product.id === state.activeProductId)
+        || results[state.highlightedIndex]
+        || null;
+
+    addProductToCart(fallback, 'manual');
 };
 
 const handleSearchKeydown = (event) => {
@@ -171,7 +216,7 @@ const handleSearchKeydown = (event) => {
 
     if (event.key === 'Enter') {
         event.preventDefault();
-        handleSearchEnter();
+        void handleSearchEnter();
         return;
     }
 
@@ -219,8 +264,7 @@ const getDisplayedStock = (product) => {
 const activeProductMeta = computed(() => getProductMeta(activeProduct.value));
 
 const getLineSubtotal = (item) => {
-    const product = props.products.find((entry) => entry.id === item.product_id);
-    const meta = getProductMeta(product);
+    const meta = getProductMeta(item);
 
     if (meta.isGrams) {
         return Number((((Number(item.quantity) * Number(item.unit_price)) / 100)).toFixed(2));
@@ -273,7 +317,16 @@ const applyQuickAmount = (mode, amount = 0) => {
 };
 
 const submit = () => {
-    form.post(route('sales.store'));
+    form
+        .transform((data) => ({
+            ...data,
+            items: data.items.map((item) => ({
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+            })),
+        }))
+        .post(route('sales.store'));
 };
 
 const submitIfReady = () => {
@@ -316,6 +369,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     window.removeEventListener('keydown', handleGlobalShortcuts);
+
+    if (searchTimer !== null) {
+        window.clearTimeout(searchTimer);
+    }
 });
 </script>
 
@@ -402,7 +459,9 @@ onBeforeUnmount(() => {
                             </button>
                         </li>
                     </ul>
-                    <p v-else class="px-3 py-4 text-sm text-slate-400">Sin resultados para la busqueda actual.</p>
+                    <p v-else class="px-3 py-4 text-sm text-slate-400">
+                        {{ isLoadingProducts ? 'Buscando productos...' : 'Sin resultados para la busqueda actual.' }}
+                    </p>
                 </div>
 
                 <div v-if="form.items.length" class="mt-4 grid gap-3 md:hidden">
@@ -411,8 +470,8 @@ onBeforeUnmount(() => {
                             <div>
                                 <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
                                 <p class="mt-1 text-xs text-slate-400">
-                                    {{ item.quantity }} {{ getProductMeta(props.products.find((product) => product.id === item.product_id)).quantityLabel }}
-                                    · {{ money(item.unit_price) }} {{ getProductMeta(props.products.find((product) => product.id === item.product_id)).priceLabel }}
+                                    {{ item.quantity }} {{ item.quantity_label }}
+                                    - {{ money(item.unit_price) }} {{ item.price_label }}
                                 </p>
                             </div>
                             <button type="button" class="shrink-0 rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
@@ -437,11 +496,11 @@ onBeforeUnmount(() => {
                                 <td class="px-3 py-2 font-semibold text-slate-100">{{ item.product_name }}</td>
                                 <td class="px-3 py-2">
                                     {{ item.quantity }}
-                                    <span class="text-xs text-slate-400">{{ getProductMeta(props.products.find((product) => product.id === item.product_id)).quantityLabel }}</span>
+                                    <span class="text-xs text-slate-400">{{ item.quantity_label }}</span>
                                 </td>
                                 <td class="px-3 py-2">
                                     {{ money(item.unit_price) }}
-                                    <span class="text-xs text-slate-400">{{ getProductMeta(props.products.find((product) => product.id === item.product_id)).priceLabel }}</span>
+                                    <span class="text-xs text-slate-400">{{ item.price_label }}</span>
                                 </td>
                                 <td class="px-3 py-2">{{ money(getLineSubtotal(item)) }}</td>
                                 <td class="px-3 py-2 text-right">

@@ -68,7 +68,17 @@ class PurchaseService
                 ]);
             }
 
-            $lines = $items->map(function (array $item) use ($products, $business, $supplier, $purchasedAt): array {
+            $seenSkus = [];
+            $seenBarcodes = [];
+
+            $lines = $items->values()->map(function (array $item, int $index) use (
+                $products,
+                $business,
+                $supplier,
+                $purchasedAt,
+                &$seenSkus,
+                &$seenBarcodes
+            ): array {
                 $quantity = round((float) $item['quantity'], 3);
                 $unitCost = round((float) $item['unit_cost'], 2);
                 $productId = data_get($item, 'product_id');
@@ -82,6 +92,14 @@ class PurchaseService
                         ]);
                     }
                 } else {
+                    $this->ensureNewProductIdentityIsAvailable(
+                        $business->id,
+                        $item,
+                        $index,
+                        $seenSkus,
+                        $seenBarcodes
+                    );
+
                     $newName = trim((string) data_get($item, 'product.name'));
                     if ($newName === '') {
                         throw ValidationException::withMessages([
@@ -227,5 +245,74 @@ class PurchaseService
         return Carbon::parse($purchasedAt)
             ->startOfDay()
             ->addDays((int) $product->shelf_life_days);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, bool> $seenSkus
+     * @param array<string, bool> $seenBarcodes
+     */
+    private function ensureNewProductIdentityIsAvailable(
+        int $businessId,
+        array $item,
+        int $index,
+        array &$seenSkus,
+        array &$seenBarcodes
+    ): void {
+        $sku = $this->normalizeIdentityValue(data_get($item, 'product.sku'));
+        $barcode = $this->normalizeIdentityValue(data_get($item, 'product.barcode'));
+
+        if ($sku !== null) {
+            if (isset($seenSkus[$sku])) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.product.sku" => 'El SKU esta repetido en la compra actual.',
+                ]);
+            }
+
+            $skuExists = Product::withTrashed()
+                ->forBusiness($businessId)
+                ->where('sku', $sku)
+                ->exists();
+
+            if ($skuExists) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.product.sku" => 'Ya existe un producto con ese SKU en el comercio.',
+                ]);
+            }
+
+            $seenSkus[$sku] = true;
+        }
+
+        if ($barcode !== null) {
+            if (isset($seenBarcodes[$barcode])) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.product.barcode" => 'El codigo de barras esta repetido en la compra actual.',
+                ]);
+            }
+
+            $barcodeExists = Product::withTrashed()
+                ->forBusiness($businessId)
+                ->where('barcode', $barcode)
+                ->exists();
+
+            if ($barcodeExists) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.product.barcode" => 'Ya existe un producto con ese codigo de barras en el comercio.',
+                ]);
+            }
+
+            $seenBarcodes[$barcode] = true;
+        }
+    }
+
+    private function normalizeIdentityValue(mixed $value): ?string
+    {
+        $normalized = trim((string) $value);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return mb_strtolower($normalized);
     }
 }

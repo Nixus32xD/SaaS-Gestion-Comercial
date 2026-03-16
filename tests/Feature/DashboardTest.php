@@ -3,6 +3,7 @@
 use App\Models\Business;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Supplier;
@@ -159,5 +160,81 @@ test('dashboard normalizes gram-based top sold products to kilograms', function 
             ->where('top_sold_products.1.product_name', 'Queso')
             ->where('top_sold_products.1.sold_quantity', 2.5)
             ->where('top_sold_products.1.sold_quantity_label', 'kg')
+        );
+});
+
+test('dashboard expiration alerts ignore products without available stock', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $supplier = Supplier::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Proveedor alertas',
+    ]);
+
+    $productWithoutStock = Product::query()->create([
+        'business_id' => $business->id,
+        'supplier_id' => $supplier->id,
+        'name' => 'Producto agotado',
+        'slug' => 'producto-agotado',
+        'unit_type' => 'unit',
+        'sale_price' => 100,
+        'cost_price' => 50,
+        'stock' => 0,
+        'min_stock' => 1,
+        'expiry_alert_days' => 10,
+        'is_active' => true,
+    ]);
+
+    $productWithStock = Product::query()->create([
+        'business_id' => $business->id,
+        'supplier_id' => $supplier->id,
+        'name' => 'Producto vigente',
+        'slug' => 'producto-vigente',
+        'unit_type' => 'unit',
+        'sale_price' => 100,
+        'cost_price' => 50,
+        'stock' => 4,
+        'min_stock' => 1,
+        'expiry_alert_days' => 10,
+        'is_active' => true,
+    ]);
+
+    $purchase = Purchase::query()->create([
+        'business_id' => $business->id,
+        'user_id' => $admin->id,
+        'supplier_id' => $supplier->id,
+        'purchase_number' => 'P-900001',
+        'subtotal' => 100,
+        'total' => 100,
+        'purchased_at' => now(),
+    ]);
+
+    PurchaseItem::query()->create([
+        'business_id' => $business->id,
+        'purchase_id' => $purchase->id,
+        'product_id' => $productWithoutStock->id,
+        'product_name' => $productWithoutStock->name,
+        'quantity' => 1,
+        'unit_cost' => 50,
+        'subtotal' => 50,
+        'expires_at' => now()->addDays(2)->toDateString(),
+    ]);
+
+    PurchaseItem::query()->create([
+        'business_id' => $business->id,
+        'purchase_id' => $purchase->id,
+        'product_id' => $productWithStock->id,
+        'product_name' => $productWithStock->name,
+        'quantity' => 1,
+        'unit_cost' => 50,
+        'subtotal' => 50,
+        'expires_at' => now()->addDays(2)->toDateString(),
+    ]);
+
+    $this->actingAs($admin)->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Dashboard/Index')
+            ->where('expiration_alerts.0.product_name', 'Producto vigente')
         );
 });

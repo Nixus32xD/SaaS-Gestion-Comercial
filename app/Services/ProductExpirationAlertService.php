@@ -19,10 +19,14 @@ class ProductExpirationAlertService
             ->whereNotNull('purchase_items.expires_at')
             ->orderBy('purchase_items.expires_at')
             ->orderBy('purchase_items.id')
-            ->with(['product:id,name,expiry_alert_days', 'purchase:id,purchase_number'])
+            ->with(['product:id,name,expiry_alert_days,stock,is_active', 'purchase:id,purchase_number'])
             ->limit(250)
             ->get()
             ->filter(function (PurchaseItem $item) use ($today): bool {
+                if ($item->product === null || ! $item->product->is_active || (float) $item->product->stock <= 0) {
+                    return false;
+                }
+
                 $alertDays = (int) ($item->product?->expiry_alert_days ?? 15);
                 $threshold = $today->copy()->addDays(max($alertDays, 1));
 

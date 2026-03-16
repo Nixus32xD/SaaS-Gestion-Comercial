@@ -148,3 +148,43 @@ test('gram-based weighted purchase calculates subtotal and stock correctly', fun
     expect((float) $purchase->total)->toBe(12000.0);
     expect($product->fresh()->stock)->toBe('1500.000');
 });
+
+test('purchase with new product rejects duplicated sku from the same business', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Producto existente',
+        'slug' => 'producto-existente',
+        'sku' => 'SKU-001',
+        'unit_type' => 'unit',
+        'sale_price' => 100,
+        'cost_price' => 50,
+        'stock' => 3,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->from('/purchases/create')
+        ->post('/purchases', [
+            'items' => [
+                [
+                    'product_id' => null,
+                    'quantity' => 1,
+                    'unit_cost' => 90,
+                    'product' => [
+                        'name' => 'Nuevo producto',
+                        'sku' => 'SKU-001',
+                        'unit_type' => 'unit',
+                        'sale_price' => 130,
+                    ],
+                ],
+            ],
+        ]);
+
+    $response->assertSessionHasErrors('items.0.product.sku');
+    expect(Purchase::query()->count())->toBe(0);
+});
