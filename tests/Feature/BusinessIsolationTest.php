@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Business;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
@@ -47,6 +48,20 @@ test('business lists only include records from the authenticated business', func
         'name' => 'Proveedor ajeno',
     ]);
 
+    Category::query()->create([
+        'business_id' => $businessA->id,
+        'name' => 'Categoria propia',
+        'slug' => 'categoria-propia',
+        'is_active' => true,
+    ]);
+
+    Category::query()->create([
+        'business_id' => $businessB->id,
+        'name' => 'Categoria ajena',
+        'slug' => 'categoria-ajena',
+        'is_active' => true,
+    ]);
+
     $this->actingAs($admin)->get('/products')
         ->assertOk()
         ->assertSee('Producto propio')
@@ -56,6 +71,11 @@ test('business lists only include records from the authenticated business', func
         ->assertOk()
         ->assertSee('Proveedor propio')
         ->assertDontSee('Proveedor ajeno');
+
+    $this->actingAs($admin)->get('/categories')
+        ->assertOk()
+        ->assertSee('Categoria propia')
+        ->assertDontSee('Categoria ajena');
 });
 
 test('admins can not access detail routes from another business', function () {
@@ -82,6 +102,13 @@ test('admins can not access detail routes from another business', function () {
         'name' => 'Proveedor B',
     ]);
 
+    $category = Category::query()->create([
+        'business_id' => $businessB->id,
+        'name' => 'Categoria B',
+        'slug' => 'categoria-b',
+        'is_active' => true,
+    ]);
+
     $sale = Sale::query()->create([
         'business_id' => $businessB->id,
         'user_id' => $foreignAdmin->id,
@@ -103,6 +130,7 @@ test('admins can not access detail routes from another business', function () {
     ]);
 
     $this->actingAs($admin)->get("/products/{$product->id}/edit")->assertForbidden();
+    $this->actingAs($admin)->get("/categories/{$category->id}/edit")->assertForbidden();
     $this->actingAs($admin)->get("/suppliers/{$supplier->id}/edit")->assertForbidden();
     $this->actingAs($admin)->get("/sales/{$sale->id}")->assertForbidden();
     $this->actingAs($admin)->get("/purchases/{$purchase->id}")->assertForbidden();

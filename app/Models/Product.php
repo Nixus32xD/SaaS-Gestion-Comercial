@@ -20,6 +20,7 @@ class Product extends Model
      */
     protected $fillable = [
         'business_id',
+        'category_id',
         'supplier_id',
         'name',
         'slug',
@@ -60,6 +61,14 @@ class Product extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * @return BelongsTo<Category, $this>
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 
     /**

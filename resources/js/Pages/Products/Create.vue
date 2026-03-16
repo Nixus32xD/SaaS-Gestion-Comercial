@@ -4,10 +4,12 @@ import { computed, ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
+    categories: { type: Array, default: () => [] },
     suppliers: { type: Array, default: () => [] },
 });
 
 const form = useForm({
+    category_id: '',
     supplier_id: '',
     name: '',
     slug: '',
@@ -86,6 +88,13 @@ const submit = () => {
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-300">Slug</label>
                     <input v-model="form.slug" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Slug (opcional)" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Categoria</label>
+                    <select v-model="form.category_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                        <option value="">Sin categoria</option>
+                        <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+                    </select>
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-300">Proveedor</label>

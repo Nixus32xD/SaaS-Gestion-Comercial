@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Business;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Supplier;
@@ -88,11 +89,37 @@ class DatabaseSeeder extends Seeder
             $supplierIds[$row['name']] = $supplier->id;
         }
 
+        $categoryRows = [
+            ['name' => 'Bebidas'],
+            ['name' => 'Almacen'],
+            ['name' => 'Fiambreria'],
+            ['name' => 'Ferreteria'],
+        ];
+
+        $categoryIds = [];
+
+        foreach ($categoryRows as $row) {
+            $category = Category::query()->updateOrCreate(
+                [
+                    'business_id' => $business->id,
+                    'slug' => Str::slug($row['name']),
+                ],
+                [
+                    'name' => $row['name'],
+                    'description' => null,
+                    'is_active' => true,
+                ]
+            );
+
+            $categoryIds[$row['name']] = $category->id;
+        }
+
         $products = [
             [
                 'name' => 'Gaseosa cola 2.25L',
                 'barcode' => '779100000001',
                 'sku' => 'BEB-001',
+                'category' => 'Bebidas',
                 'unit_type' => 'unit',
                 'sale_price' => 2500,
                 'cost_price' => 1700,
@@ -104,6 +131,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Yerba 1kg',
                 'barcode' => '779100000002',
                 'sku' => 'ALM-001',
+                'category' => 'Almacen',
                 'unit_type' => 'unit',
                 'sale_price' => 4300,
                 'cost_price' => 3200,
@@ -115,6 +143,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Queso cremoso',
                 'barcode' => null,
                 'sku' => 'DIE-001',
+                'category' => 'Fiambreria',
                 'unit_type' => 'weight',
                 'sale_price' => 9200,
                 'cost_price' => 6800,
@@ -126,6 +155,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Tornillo 5cm',
                 'barcode' => null,
                 'sku' => 'FER-001',
+                'category' => 'Ferreteria',
                 'unit_type' => 'unit',
                 'sale_price' => 120,
                 'cost_price' => 60,
@@ -142,6 +172,7 @@ class DatabaseSeeder extends Seeder
                     'sku' => $row['sku'],
                 ],
                 [
+                    'category_id' => $categoryIds[$row['category']] ?? null,
                     'supplier_id' => $supplierIds[$row['supplier']] ?? null,
                     'name' => $row['name'],
                     'slug' => Str::slug($row['name']).'-'.$business->id,

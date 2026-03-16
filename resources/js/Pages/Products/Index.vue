@@ -5,11 +5,13 @@ import { reactive } from 'vue';
 
 const props = defineProps({
     products: { type: Object, required: true },
-    filters: { type: Object, default: () => ({ search: '' }) },
+    categories: { type: Array, default: () => [] },
+    filters: { type: Object, default: () => ({ search: '', category_id: '' }) },
 });
 
 const state = reactive({
     search: props.filters.search || '',
+    category_id: props.filters.category_id || '',
 });
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
@@ -19,7 +21,10 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
 }).format(Number(value) || 0);
 
 const filter = () => {
-    router.get(route('products.index'), { search: state.search }, { preserveState: true, replace: true });
+    router.get(route('products.index'), {
+        search: state.search,
+        category_id: state.category_id || undefined,
+    }, { preserveState: true, replace: true });
 };
 </script>
 
@@ -48,6 +53,10 @@ const filter = () => {
                     placeholder="Buscar por nombre, barcode o sku"
                     @keyup.enter="filter"
                 >
+                <select v-model="state.category_id" class="rounded-xl border-cyan-100/25 text-sm" @change="filter">
+                    <option value="">Todas las categorias</option>
+                    <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+                </select>
                 <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70" @click="filter">
                     Buscar
                 </button>
@@ -69,6 +78,7 @@ const filter = () => {
                         <tr v-for="product in products.data" :key="product.id" :class="product.has_low_stock ? 'bg-rose-400/10' : ''">
                             <td class="px-3 py-2">
                                 <p class="font-semibold text-slate-100">{{ product.name }}</p>
+                                <p class="text-xs text-cyan-100/80">{{ product.category || 'Sin categoria' }}</p>
                                 <p class="text-xs text-slate-300/80">{{ product.supplier || 'Sin proveedor' }}</p>
                             </td>
                             <td class="px-3 py-2 text-slate-300">{{ product.barcode || product.sku || '-' }}</td>

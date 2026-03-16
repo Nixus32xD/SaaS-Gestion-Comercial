@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Products;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Products\StoreProductRequest;
 use App\Http\Requests\Products\UpdateProductRequest;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Supplier;
@@ -25,10 +26,11 @@ class ProductController extends Controller
         abort_if($business === null, 404);
 
         $search = trim((string) $request->query('search', ''));
+        $categoryId = $this->resolveCategoryFilter($business->id, $request->query('category_id'));
 
         $products = Product::query()
             ->forBusiness($business->id)
-            ->with('supplier')
+            ->with(['supplier', 'category'])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($innerQuery) use ($search): void {
                     $innerQuery
@@ -37,6 +39,7 @@ class ProductController extends Controller
                         ->orWhere('sku', 'like', "%{$search}%");
                 });
             })
+            ->when($categoryId !== null, fn ($query) => $query->where('category_id', $categoryId))
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString()
@@ -57,6 +60,7 @@ class ProductController extends Controller
                 'shelf_life_days' => $product->shelf_life_days,
                 'expiry_alert_days' => $product->expiry_alert_days,
                 'is_active' => $product->is_active,
+                'category' => $product->category?->name,
                 'supplier' => $product->supplier?->name,
                 'has_low_stock' => (float) $product->stock <= (float) $product->min_stock,
             ]);
@@ -64,7 +68,13 @@ class ProductController extends Controller
         return Inertia::render('Products/Index', [
             'filters' => [
                 'search' => $search,
+                'category_id' => $categoryId,
             ],
+            'categories' => Category::query()
+                ->forBusiness($business->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'products' => $products,
         ]);
     }
@@ -75,6 +85,11 @@ class ProductController extends Controller
         abort_if($business === null, 404);
 
         return Inertia::render('Products/Create', [
+            'categories' => Category::query()
+                ->forBusiness($business->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'suppliers' => Supplier::query()
                 ->forBusiness($business->id)
                 ->orderBy('name')
@@ -90,11 +105,13 @@ class ProductController extends Controller
         abort_if($business === null, 404);
 
         $data = $request->validated();
+        $categoryId = $this->resolveCategoryId($business->id, $data['category_id'] ?? null);
         $supplierId = $this->resolveSupplierId($business->id, $data['supplier_id'] ?? null);
         $initialStock = round((float) ($data['stock'] ?? 0), 3);
 
         $product = Product::query()->create([
             'business_id' => $business->id,
+            'category_id' => $categoryId,
             'supplier_id' => $supplierId,
             'name' => $data['name'],
             'slug' => $this->buildUniqueSlug($business->id, $data['slug'] ?: $data['name']),
@@ -141,6 +158,7 @@ class ProductController extends Controller
         return Inertia::render('Products/Edit', [
             'product' => [
                 'id' => $product->id,
+                'category_id' => $product->category_id,
                 'supplier_id' => $product->supplier_id,
                 'name' => $product->name,
                 'slug' => $product->slug,
@@ -157,6 +175,11 @@ class ProductController extends Controller
                 'expiry_alert_days' => $product->expiry_alert_days,
                 'is_active' => $product->is_active,
             ],
+            'categories' => Category::query()
+                ->forBusiness($business->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'suppliers' => Supplier::query()
                 ->forBusiness($business->id)
                 ->orderBy('name')
@@ -174,12 +197,14 @@ class ProductController extends Controller
         abort_if($product->business_id !== $business->id, 403);
 
         $data = $request->validated();
+        $categoryId = $this->resolveCategoryId($business->id, $data['category_id'] ?? null);
         $supplierId = $this->resolveSupplierId($business->id, $data['supplier_id'] ?? null);
 
         $beforeStock = round((float) $product->stock, 3);
         $newStock = round((float) ($data['stock'] ?? $beforeStock), 3);
 
         $product->update([
+            'category_id' => $categoryId,
             'supplier_id' => $supplierId,
             'name' => $data['name'],
             'slug' => $this->buildUniqueSlug($business->id, $data['slug'] ?: $data['name'], $product->id),
@@ -215,6 +240,40 @@ class ProductController extends Controller
         return redirect()
             ->route('products.index')
             ->with('success', 'Producto actualizado correctamente.');
+    }
+
+    private function resolveCategoryFilter(int $businessId, mixed $categoryId): ?int
+    {
+        if ($categoryId === null || $categoryId === '') {
+            return null;
+        }
+
+        $category = Category::query()
+            ->forBusiness($businessId)
+            ->whereKey((int) $categoryId)
+            ->first();
+
+        return $category?->id;
+    }
+
+    private function resolveCategoryId(int $businessId, mixed $categoryId): ?int
+    {
+        if ($categoryId === null || $categoryId === '') {
+            return null;
+        }
+
+        $category = Category::query()
+            ->forBusiness($businessId)
+            ->whereKey((int) $categoryId)
+            ->first();
+
+        if ($category === null) {
+            throw ValidationException::withMessages([
+                'category_id' => 'La categoria seleccionada no pertenece al comercio.',
+            ]);
+        }
+
+        return $category->id;
     }
 
     private function resolveSupplierId(int $businessId, mixed $supplierId): ?int

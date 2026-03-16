@@ -20,6 +20,7 @@ const navigation = computed(() => {
 
     return [
         { label: 'Dashboard', route: 'dashboard', pattern: 'dashboard', icon: 'DB' },
+        { label: 'Categorias', route: 'categories.index', pattern: 'categories.*', icon: 'CT' },
         { label: 'Productos', route: 'products.index', pattern: 'products.*', icon: 'PR' },
         { label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' },
         { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },

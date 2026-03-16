@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Business extends Model
+class Category extends Model
 {
+    use BelongsToBusiness;
     use HasFactory;
     use SoftDeletes;
 
@@ -16,12 +18,10 @@ class Business extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'business_id',
         'name',
         'slug',
-        'owner_name',
-        'email',
-        'phone',
-        'address',
+        'description',
         'is_active',
     ];
 
@@ -33,30 +33,6 @@ class Business extends Model
         return [
             'is_active' => 'bool',
         ];
-    }
-
-    /**
-     * @return HasMany<User, $this>
-     */
-    public function users(): HasMany
-    {
-        return $this->hasMany(User::class);
-    }
-
-    /**
-     * @return HasMany<Supplier, $this>
-     */
-    public function suppliers(): HasMany
-    {
-        return $this->hasMany(Supplier::class);
-    }
-
-    /**
-     * @return HasMany<Category, $this>
-     */
-    public function categories(): HasMany
-    {
-        return $this->hasMany(Category::class);
     }
 
     /**
