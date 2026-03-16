@@ -12,16 +12,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        $this->createIndexIfMissing('products', 'products_id_business_id_index', function (Blueprint $table): void {
-            $table->index(['id', 'business_id'], 'products_id_business_id_index');
+        $this->createUniqueIndexIfMissing('products', 'products_id_business_id_unique', function (Blueprint $table): void {
+            $table->unique(['id', 'business_id'], 'products_id_business_id_unique');
         });
 
-        $this->createIndexIfMissing('sales', 'sales_id_business_id_index', function (Blueprint $table): void {
-            $table->index(['id', 'business_id'], 'sales_id_business_id_index');
+        $this->createUniqueIndexIfMissing('sales', 'sales_id_business_id_unique', function (Blueprint $table): void {
+            $table->unique(['id', 'business_id'], 'sales_id_business_id_unique');
         });
 
-        $this->createIndexIfMissing('purchases', 'purchases_id_business_id_index', function (Blueprint $table): void {
-            $table->index(['id', 'business_id'], 'purchases_id_business_id_index');
+        $this->createUniqueIndexIfMissing('purchases', 'purchases_id_business_id_unique', function (Blueprint $table): void {
+            $table->unique(['id', 'business_id'], 'purchases_id_business_id_unique');
         });
 
         $this->createForeignIfMissing('sale_items', 'sale_items_sale_id_business_id_foreign', function (Blueprint $table): void {
@@ -61,28 +61,28 @@ return new class extends Migration
         $this->dropForeignIfExists('sale_items', 'sale_items_sale_id_business_id_foreign');
         $this->dropForeignIfExists('sale_items', 'sale_items_product_id_business_id_foreign');
 
-        $this->dropIndexIfExists('purchases', 'purchases_id_business_id_index');
-        $this->dropIndexIfExists('sales', 'sales_id_business_id_index');
-        $this->dropIndexIfExists('products', 'products_id_business_id_index');
+        $this->dropUniqueIfExists('purchases', 'purchases_id_business_id_unique');
+        $this->dropUniqueIfExists('sales', 'sales_id_business_id_unique');
+        $this->dropUniqueIfExists('products', 'products_id_business_id_unique');
     }
 
-    private function createIndexIfMissing(string $table, string $indexName, \Closure $callback): void
+    private function createUniqueIndexIfMissing(string $table, string $indexName, \Closure $callback): void
     {
-        if ($this->indexExists($table, $indexName)) {
+        if ($this->uniqueIndexExists($table, $indexName)) {
             return;
         }
 
         Schema::table($table, $callback);
     }
 
-    private function dropIndexIfExists(string $table, string $indexName): void
+    private function dropUniqueIfExists(string $table, string $indexName): void
     {
-        if (! $this->indexExists($table, $indexName)) {
+        if (! $this->uniqueIndexExists($table, $indexName)) {
             return;
         }
 
         Schema::table($table, function (Blueprint $table) use ($indexName): void {
-            $table->dropIndex($indexName);
+            $table->dropUnique($indexName);
         });
     }
 
@@ -106,12 +106,13 @@ return new class extends Migration
         });
     }
 
-    private function indexExists(string $table, string $indexName): bool
+    private function uniqueIndexExists(string $table, string $indexName): bool
     {
         return DB::table('information_schema.statistics')
             ->where('table_schema', DB::getDatabaseName())
             ->where('table_name', $table)
             ->where('index_name', $indexName)
+            ->where('non_unique', 0)
             ->exists();
     }
 
