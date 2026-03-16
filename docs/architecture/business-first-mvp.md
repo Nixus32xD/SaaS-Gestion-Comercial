@@ -7,7 +7,6 @@ Consolidar el MVP sobre un modelo simple y mantenible basado en `business_id`, c
 ## Principios
 
 - `business_id` es el eje unico de aislamiento del negocio.
-- No se usa tenancy avanzada en el runtime principal.
 - `superadmin` administra comercios y usuarios globales.
 - Cada comercio opera con usuarios internos simples (`admin`, `staff`).
 - Las reglas criticas de compras, ventas y stock viven en servicios transaccionales.
@@ -16,7 +15,7 @@ Consolidar el MVP sobre un modelo simple y mantenible basado en `business_id`, c
 
 - El middleware `business` resuelve el comercio del usuario autenticado.
 - `CurrentBusiness` expone el comercio activo al resto de la app.
-- No hay `tenant_id`, `branch_id` ni cambio de contexto por membresias.
+- No hay identificadores alternativos ni cambio de contexto por membresias.
 
 ## Modelo de datos
 
@@ -64,7 +63,7 @@ Consolidar el MVP sobre un modelo simple y mantenible basado en `business_id`, c
 ### Fuera del flujo principal por ahora
 
 - multi-sucursal compleja
-- tenant switching
+- cambio de contexto entre comercios
 - memberships avanzados
 - RBAC sofisticado
-- tenancy modular avanzada
+- capas extra de aislamiento fuera de `business_id`

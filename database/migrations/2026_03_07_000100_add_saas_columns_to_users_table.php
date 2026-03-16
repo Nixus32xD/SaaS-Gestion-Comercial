@@ -11,12 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table): void {
-            $table->string('role', 30)->default('admin')->after('password');
-            $table->boolean('is_active')->default(true)->after('role');
-            $table->timestamp('last_login_at')->nullable()->after('is_active');
-            $table->index('role');
-            $table->index('is_active');
+        Schema::create('businesses', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->string('owner_name')->nullable();
+            $table->string('email')->nullable();
+            $table->string('phone')->nullable();
+            $table->string('address')->nullable();
+            $table->boolean('is_active')->default(true)->index();
+            $table->timestamps();
+            $table->softDeletes();
+
+            $table->index('name');
         });
     }
 
@@ -25,10 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table): void {
-            $table->dropIndex(['role']);
-            $table->dropIndex(['is_active']);
-            $table->dropColumn(['role', 'is_active', 'last_login_at']);
-        });
+        Schema::dropIfExists('businesses');
     }
 };

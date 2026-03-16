@@ -1,82 +1,45 @@
-# Documento Archivado
-> Referencia historica. La arquitectura vigente esta en `docs/architecture/business-first-mvp.md`.
+# Arquitectura Operativa Actual
+> Referencia vigente del modelo actual del proyecto.
 
 ## Objetivo
 
-Construir una base SaaS multi-tenant sólida para gestión comercial/POS, preparada para escalar por módulos (catálogo, stock, compras, ventas, caja, reportes y configuración), manteniendo aislamiento estricto por comercio (tenant).
+Documentar la base activa: una sola aplicacion, una sola base compartida y aislamiento estricto de datos por `business_id`.
 
-## Estrategia de multi-tenant
+## Decisiones activas
 
-- **Modelo:** base de datos compartida + columna `tenant_id` en entidades de negocio.
-- **Aislamiento:** resolución de tenant en middleware por membresía del usuario (`tenant_user`).
-- **Contexto activo:** `tenant_id` y `branch_id` en sesión + servicio `CurrentTenant`.
-- **Escalabilidad futura:** este enfoque permite evolucionar a esquemas separados por tenant sin romper contratos de dominio.
+- El comercio vive en `businesses`.
+- Los usuarios operativos usan `users.business_id`.
+- No existe cambio de contexto entre multiples comercios para el mismo usuario operativo.
+- Las entidades del negocio se relacionan por `business_id` y, cuando corresponde, por constraints compuestas.
 
-## Dominios / módulos
+## Tablas principales
 
-1. **Auth**
-   - Login, registro, recuperación, perfil.
-   - Alta de tenant + usuario owner en onboarding.
-2. **Tenancy**
-   - Tenant, membresías de usuarios, contexto activo.
-3. **Branches**
-   - Sucursales, sucursal principal, contexto por sucursal.
-4. **RBAC**
-   - Roles, permisos, asignación por tenant y opcional por sucursal.
-5. **Settings**
-   - Configuración por tenant en formato clave/valor JSON.
-6. **(Fases siguientes) Catalog, Inventory, Purchases, Sales, CashRegister, Customers, Suppliers, Reports**
-   - Cada dominio agrega `tenant_id` y, cuando aplique, `branch_id`.
+- `businesses`
+- `users`
+- `suppliers`
+- `categories`
+- `products`
+- `sales`
+- `sale_items`
+- `purchases`
+- `purchase_items`
+- `stock_movements`
+- `business_document_sequences`
 
-## Modelo de datos inicial (Fase 1)
+## Criterios de diseno
 
-- `tenants`
-  - Datos del comercio, moneda, locale, estado y metadatos SaaS.
-- `branches`
-  - Sucursales por tenant, con bandera `is_main`.
-- `tenant_user`
-  - Membresía usuario-tenant, estado, owner, sucursal por defecto.
-- `roles`
-  - Roles por tenant (`owner`, `admin`, etc.) con posibilidad de personalización futura.
-- `permissions`
-  - Catálogo global de permisos por módulo.
-- `permission_role`
-  - Matriz de permisos por rol.
-- `role_user`
-  - Asignación de roles a usuarios por tenant y opcional por sucursal.
-- `settings`
-  - Parámetros por tenant en formato extensible.
-- `users` (extendida)
-  - Estado activo y última fecha de login.
+- Queries operativas siempre filtradas por `business_id`.
+- Constraints compuestas para reforzar integridad entre tablas del mismo negocio.
+- Servicios transaccionales para compras, ventas y movimientos de stock.
+- Pantallas simples y mantenibles para el MVP.
 
-## Lineamientos de implementación
+## Alcance actual
 
-- Controladores delgados.
-- Validación en Form Requests.
-- Lógica de onboarding en servicio transaccional.
-- Relaciones Eloquent explícitas.
-- Índices en claves de búsqueda y filtros críticos.
-- Soft deletes en entidades administrativas (`tenants`, `branches`, `roles`).
-
-## Roadmap por fases
-
-1. **Fase 1 (actual)**
-   - Arquitectura base, tenancy, sucursales, RBAC base, settings, onboarding.
-2. **Fase 2**
-   - Catálogo flexible: products, variants, barcodes, atributos dinámicos, stock base.
-3. **Fase 3**
-   - Proveedores y compras con impacto automático en stock.
-4. **Fase 4**
-   - Ventas POS con medios de pago y devoluciones base.
-5. **Fase 5**
-   - Caja: apertura/cierre/arqueo/movimientos.
-6. **Fase 6**
-   - Clientes y reportes operativos.
-7. **Fase 7**
-   - Configuración avanzada, permisos finos, auditoría y hardening.
-
-## Decisiones clave
-
-- Se prioriza consistencia y trazabilidad frente a atajos.
-- El diseño favorece crecimiento modular sin acoplar dominios.
-- La base deja preparado el terreno para suscripciones/planes y módulos premium.
+- productos
+- categorias
+- stock
+- compras
+- ventas
+- proveedores
+- usuarios del comercio
+- dashboard simple
