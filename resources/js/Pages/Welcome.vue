@@ -1,6 +1,9 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
 
+const whatsappUrl =
+    'https://wa.me/542612476927?text=Hola%2C%20vi%20la%20landing%20del%20sistema%20de%20gestion%20comercial%20y%20quiero%20consultar%20por%20la%20implementacion%20y%20los%20planes%20disponibles.';
+
 const pricingSections = [
     {
         title: 'Instalacion inicial',
@@ -238,13 +241,14 @@ defineProps({
                         </article>
                     </div>
 
-                    <Link
-                        v-if="canLogin"
-                        :href="route('login')"
+                    <a
+                        :href="whatsappUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         class="mt-6 inline-flex rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-200"
                     >
-                        Solicitar acceso
-                    </Link>
+                        Consultar por WhatsApp
+                    </a>
                 </section>
             </main>
 
