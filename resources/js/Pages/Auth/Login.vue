@@ -2,9 +2,6 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 defineProps({
-    canResetPassword: {
-        type: Boolean,
-    },
     status: {
         type: String,
     },
@@ -103,13 +100,6 @@ const submit = () => {
                     </label>
 
                     <div class="flex items-center justify-between gap-3 pt-2">
-                        <Link
-                            v-if="canResetPassword"
-                            :href="route('password.request')"
-                            class="text-sm text-cyan-100/90 underline transition hover:text-cyan-100"
-                        >
-                            Olvide mi contrasena
-                        </Link>
                         <button
                             type="submit"
                             class="title rounded-lg bg-cyan-300 px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
