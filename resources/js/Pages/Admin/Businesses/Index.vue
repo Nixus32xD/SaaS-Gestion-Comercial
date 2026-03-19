@@ -34,8 +34,8 @@ const filteredBusinesses = computed(() => {
         <template #header>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-100">Comercios</h2>
-                    <p class="mt-1 text-sm text-slate-300/80">Alta, edicion y estado de comercios.</p>
+                    <h2 class="text-2xl font-bold text-slate-100">Comercios y funciones</h2>
+                    <p class="mt-1 text-sm text-slate-300/80">Alta, edicion y configuraciones exclusivas por comercio.</p>
                 </div>
                 <Link
                     :href="route('admin.businesses.create')"
@@ -64,6 +64,7 @@ const filteredBusinesses = computed(() => {
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Comercio</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Admin inicial</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Estado</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Ventas avanzadas</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Productos</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Proveedores</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
@@ -88,6 +89,17 @@ const filteredBusinesses = computed(() => {
                                     {{ business.is_active ? 'Activo' : 'Inactivo' }}
                                 </span>
                             </td>
+                            <td class="px-3 py-2">
+                                <span
+                                    class="rounded-full px-2 py-1 text-xs font-semibold"
+                                    :class="business.advanced_sale_settings_enabled ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-200 text-slate-700'"
+                                >
+                                    {{ business.advanced_sale_settings_enabled ? 'Habilitada' : 'No' }}
+                                </span>
+                                <p class="mt-1 text-xs text-slate-300/80">
+                                    Sectores {{ business.active_sale_sectors_count }} | Cuentas {{ business.active_payment_destinations_count }}
+                                </p>
+                            </td>
                             <td class="px-3 py-2 text-slate-200">{{ business.products_count }}</td>
                             <td class="px-3 py-2 text-slate-200">{{ business.suppliers_count }}</td>
                             <td class="px-3 py-2 text-right">
@@ -102,7 +114,7 @@ const filteredBusinesses = computed(() => {
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="6" class="px-3 py-6 text-center text-slate-400">No se encontraron comercios.</td>
+                            <td colspan="7" class="px-3 py-6 text-center text-slate-400">No se encontraron comercios.</td>
                         </tr>
                     </tbody>
                 </table>

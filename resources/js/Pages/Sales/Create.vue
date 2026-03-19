@@ -5,6 +5,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
     products: { type: Array, default: () => [] },
+    advanced_sale_settings: { type: Object, default: () => ({ enabled: false, sale_sectors: [], payment_destinations: [] }) },
 });
 
 const state = reactive({
@@ -32,6 +33,8 @@ const nowLocalDateTime = () => {
 
 const form = useForm({
     payment_method: 'cash',
+    sale_sector_id: null,
+    payment_destination_id: null,
     amount_received: '',
     sold_at: nowLocalDateTime(),
     discount: 0,
@@ -276,6 +279,9 @@ const getLineSubtotal = (item) => {
 const subtotal = computed(() => form.items.reduce((acc, item) => acc + getLineSubtotal(item), 0));
 const total = computed(() => Math.max(0, subtotal.value - Number(form.discount || 0)));
 const isCashPayment = computed(() => form.payment_method === 'cash');
+const advancedSaleSettingsEnabled = computed(() => Boolean(props.advanced_sale_settings?.enabled));
+const saleSectorOptions = computed(() => props.advanced_sale_settings?.sale_sectors || []);
+const paymentDestinationOptions = computed(() => props.advanced_sale_settings?.payment_destinations || []);
 const amountReceived = computed(() => Number(form.amount_received || 0));
 const remaining = computed(() => (
     isCashPayment.value
@@ -290,6 +296,7 @@ const changeAmount = computed(() => (
 const canSubmit = computed(() => (
     form.items.length > 0
     && !form.processing
+    && (!advancedSaleSettingsEnabled.value || (form.sale_sector_id && form.payment_destination_id))
     && (!isCashPayment.value || remaining.value === 0)
 ));
 
@@ -320,6 +327,8 @@ const submit = () => {
     form
         .transform((data) => ({
             ...data,
+            sale_sector_id: advancedSaleSettingsEnabled.value ? data.sale_sector_id : null,
+            payment_destination_id: advancedSaleSettingsEnabled.value ? data.payment_destination_id : null,
             items: data.items.map((item) => ({
                 product_id: item.product_id,
                 quantity: item.quantity,
@@ -381,12 +390,14 @@ onBeforeUnmount(() => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
                     <h2 class="text-2xl font-bold text-slate-100">Nueva venta</h2>
                     <p class="mt-1 text-sm text-slate-300/80">Carga rapida por nombre o lector de codigo.</p>
                 </div>
-                <Link :href="route('sales.index')" class="text-sm font-semibold text-slate-300 hover:text-slate-100">Volver</Link>
+                <div class="flex w-full sm:w-auto sm:justify-end">
+                    <Link :href="route('sales.index')" class="inline-flex w-full items-center justify-center rounded-xl border border-cyan-100/20 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-slate-100 sm:w-auto">Volver</Link>
+                </div>
             </div>
         </template>
 
@@ -518,10 +529,56 @@ onBeforeUnmount(() => {
             </section>
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
-                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div v-if="advancedSaleSettingsEnabled" class="mb-4 rounded-2xl border border-cyan-200/20 bg-slate-950/35 p-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0">
+                            <h3 class="text-base font-semibold text-slate-100">Contexto de venta</h3>
+                            <p class="mt-1 text-sm text-slate-300/80">Selecciona el sector y la cuenta configurados para este comercio.</p>
+                        </div>
+                        <span class="inline-flex w-fit rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-100">Exclusivo por comercio</span>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 md:grid-cols-2">
+                        <div>
+                            <label for="sale-sector" class="mb-1 block text-sm font-medium text-slate-300">Sector / punto de venta</label>
+                            <select
+                                id="sale-sector"
+                                v-model="form.sale_sector_id"
+                                class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                            >
+                                <option :value="null">Seleccionar sector</option>
+                                <option v-for="sector in saleSectorOptions" :key="sector.id" :value="sector.id">
+                                    {{ sector.name }}
+                                </option>
+                            </select>
+                            <p v-if="form.errors.sale_sector_id" class="mt-1 text-xs text-rose-300">
+                                {{ form.errors.sale_sector_id }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <label for="payment-destination" class="mb-1 block text-sm font-medium text-slate-300">Cuenta de cobro / destino</label>
+                            <select
+                                id="payment-destination"
+                                v-model="form.payment_destination_id"
+                                class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                            >
+                                <option :value="null">Seleccionar cuenta</option>
+                                <option v-for="destination in paymentDestinationOptions" :key="destination.id" :value="destination.id">
+                                    {{ destination.name }}
+                                </option>
+                            </select>
+                            <p v-if="form.errors.payment_destination_id" class="mt-1 text-xs text-rose-300">
+                                {{ form.errors.payment_destination_id }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <div>
                         <label for="sold-at" class="mb-1 block text-sm font-medium text-slate-300">Fecha y hora</label>
-                        <input id="sold-at" v-model="form.sold_at" type="datetime-local" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        <input id="sold-at" v-model="form.sold_at" type="datetime-local" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 sale-calendar-input" />
                     </div>
                     <div>
                         <label for="discount" class="mb-1 block text-sm font-medium text-slate-300">Descuento</label>
@@ -587,6 +644,8 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="rounded-xl bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <p v-if="advancedSaleSettingsEnabled">Sector: <strong>{{ saleSectorOptions.find((item) => item.id === form.sale_sector_id)?.name || '-' }}</strong></p>
+                        <p v-if="advancedSaleSettingsEnabled">Cuenta: <strong>{{ paymentDestinationOptions.find((item) => item.id === form.payment_destination_id)?.name || '-' }}</strong></p>
                         <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
                         <p>Descuento: <strong>{{ money(form.discount) }}</strong></p>
                         <p class="mt-2 text-base text-slate-100">Total: <strong>{{ money(total) }}</strong></p>

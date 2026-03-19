@@ -11,6 +11,7 @@ const props = defineProps({
     latest_sales: { type: Array, default: () => [] },
     latest_purchases: { type: Array, default: () => [] },
     expiration_alerts: { type: Array, default: () => [] },
+    advanced_sales: { type: Object, default: () => ({ enabled: false, sales_by_sector: [], sales_by_payment_destination: [] }) },
 });
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
@@ -88,6 +89,8 @@ const trendLabelIndexes = computed(() => {
         count - 1,
     ];
 });
+
+const advancedSalesEnabled = computed(() => Boolean(props.advanced_sales?.enabled));
 </script>
 
 <template>
@@ -183,6 +186,36 @@ const trendLabelIndexes = computed(() => {
                 </article>
             </section>
 
+            <section v-if="advancedSalesEnabled" class="grid gap-4 lg:grid-cols-2">
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <h3 class="text-base font-semibold text-slate-100">Ventas del mes por sector</h3>
+                    <ul v-if="advanced_sales.sales_by_sector?.length" class="mt-3 space-y-2 text-sm">
+                        <li v-for="sector in advanced_sales.sales_by_sector" :key="sector.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
+                            <div class="flex items-center justify-between gap-3">
+                                <p class="font-medium text-slate-100">{{ sector.name }}</p>
+                                <p class="text-slate-200">{{ money(sector.total) }}</p>
+                            </div>
+                            <p class="mt-1 text-xs text-slate-300">{{ sector.sales_count }} ventas</p>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-3 text-sm text-slate-300">Sin ventas sectorizadas este mes.</p>
+                </article>
+
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <h3 class="text-base font-semibold text-slate-100">Cobros del mes por cuenta</h3>
+                    <ul v-if="advanced_sales.sales_by_payment_destination?.length" class="mt-3 space-y-2 text-sm">
+                        <li v-for="destination in advanced_sales.sales_by_payment_destination" :key="destination.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
+                            <div class="flex items-center justify-between gap-3">
+                                <p class="font-medium text-slate-100">{{ destination.name }}</p>
+                                <p class="text-slate-200">{{ money(destination.total) }}</p>
+                            </div>
+                            <p class="mt-1 text-xs text-slate-300">{{ destination.sales_count }} ventas</p>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-3 text-sm text-slate-300">Sin cobros asociados a cuentas este mes.</p>
+                </article>
+            </section>
+
             <section class="grid gap-4 lg:grid-cols-2">
                 <article class="rounded-2xl border border-amber-200/40 bg-amber-300/12 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
                     <h3 class="text-base font-semibold text-amber-100">Alertas de vencimiento</h3>
@@ -215,6 +248,9 @@ const trendLabelIndexes = computed(() => {
                         <li v-for="sale in latest_sales" :key="sale.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
                             <p class="font-medium text-slate-100">{{ sale.sale_number || `Venta #${sale.id}` }} - {{ money(sale.total) }}</p>
                             <p class="text-xs text-slate-300">{{ sale.sold_at }} - {{ sale.user || '-' }}</p>
+                            <p v-if="advancedSalesEnabled" class="mt-1 text-xs text-slate-400">
+                                {{ sale.sale_sector || 'Sin sector' }} | {{ sale.payment_destination || 'Sin cuenta' }}
+                            </p>
                         </li>
                     </ul>
                     <p v-else class="mt-3 text-sm text-slate-300">Sin ventas recientes.</p>

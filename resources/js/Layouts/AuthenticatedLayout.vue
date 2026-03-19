@@ -13,7 +13,7 @@ const canManageUsers = computed(() => page.props.auth?.role === 'admin');
 const navigation = computed(() => {
     if (isSuperAdmin.value) {
         return [
-            { label: 'Comercios', route: 'admin.businesses.index', pattern: 'admin.businesses.*', icon: 'AD' },
+            { label: 'Comercios y funciones', route: 'admin.businesses.index', pattern: 'admin.businesses.*', icon: 'AD' },
             { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
         ];
     }

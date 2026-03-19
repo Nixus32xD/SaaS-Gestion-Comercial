@@ -66,4 +66,56 @@ class Business extends Model
     {
         return $this->hasMany(Product::class);
     }
+
+    /**
+     * @return HasMany<BusinessFeature, $this>
+     */
+    public function features(): HasMany
+    {
+        return $this->hasMany(BusinessFeature::class);
+    }
+
+    /**
+     * @return HasMany<BusinessSaleSector, $this>
+     */
+    public function saleSectors(): HasMany
+    {
+        return $this->hasMany(BusinessSaleSector::class);
+    }
+
+    /**
+     * @return HasMany<BusinessPaymentDestination, $this>
+     */
+    public function paymentDestinations(): HasMany
+    {
+        return $this->hasMany(BusinessPaymentDestination::class);
+    }
+
+    /**
+     * @return HasMany<Sale, $this>
+     */
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
+    }
+
+    public function hasFeature(string $feature): bool
+    {
+        if ($this->relationLoaded('features')) {
+            return $this->features->contains(
+                fn (BusinessFeature $businessFeature): bool => $businessFeature->feature === $feature
+                    && $businessFeature->is_enabled
+            );
+        }
+
+        return $this->features()
+            ->where('feature', $feature)
+            ->where('is_enabled', true)
+            ->exists();
+    }
+
+    public function hasAdvancedSaleSettings(): bool
+    {
+        return $this->hasFeature(BusinessFeature::ADVANCED_SALE_SETTINGS);
+    }
 }

@@ -45,6 +45,7 @@
     .app-shell input[type='email'],
     .app-shell input[type='password'],
     .app-shell input[type='number'],
+    .app-shell input[type='month'],
     .app-shell input[type='date'],
     .app-shell input[type='datetime-local'],
     .app-shell input[type='tel'],
@@ -60,6 +61,7 @@
     .app-shell input[type='email']::placeholder,
     .app-shell input[type='password']::placeholder,
     .app-shell input[type='number']::placeholder,
+    .app-shell input[type='month']::placeholder,
     .app-shell input[type='date']::placeholder,
     .app-shell input[type='datetime-local']::placeholder,
     .app-shell input[type='tel']::placeholder,
@@ -73,6 +75,7 @@
     .app-shell input[type='email']:focus,
     .app-shell input[type='password']:focus,
     .app-shell input[type='number']:focus,
+    .app-shell input[type='month']:focus,
     .app-shell input[type='date']:focus,
     .app-shell input[type='datetime-local']:focus,
     .app-shell input[type='tel']:focus,
@@ -87,6 +90,7 @@
     .app-shell input[type='email']:disabled,
     .app-shell input[type='password']:disabled,
     .app-shell input[type='number']:disabled,
+    .app-shell input[type='month']:disabled,
     .app-shell input[type='date']:disabled,
     .app-shell input[type='datetime-local']:disabled,
     .app-shell input[type='tel']:disabled,
@@ -100,8 +104,35 @@
         @apply bg-slate-900 text-slate-100;
     }
 
+    .app-shell input[type='month']::-webkit-datetime-edit,
+    .app-shell input[type='date']::-webkit-datetime-edit,
+    .app-shell input[type='datetime-local']::-webkit-datetime-edit,
+    .app-shell input[type='month']::-webkit-datetime-edit-text,
+    .app-shell input[type='date']::-webkit-datetime-edit-text,
+    .app-shell input[type='datetime-local']::-webkit-datetime-edit-text,
+    .app-shell input[type='month']::-webkit-datetime-edit-month-field,
+    .app-shell input[type='date']::-webkit-datetime-edit-month-field,
+    .app-shell input[type='datetime-local']::-webkit-datetime-edit-month-field,
+    .app-shell input[type='month']::-webkit-datetime-edit-day-field,
+    .app-shell input[type='date']::-webkit-datetime-edit-day-field,
+    .app-shell input[type='datetime-local']::-webkit-datetime-edit-day-field,
+    .app-shell input[type='month']::-webkit-datetime-edit-year-field,
+    .app-shell input[type='date']::-webkit-datetime-edit-year-field,
+    .app-shell input[type='datetime-local']::-webkit-datetime-edit-year-field,
+    .app-shell input[type='datetime-local']::-webkit-datetime-edit-hour-field,
+    .app-shell input[type='datetime-local']::-webkit-datetime-edit-minute-field {
+        color: rgb(226 232 240);
+    }
+
+    .app-shell input[type='month']::-webkit-calendar-picker-indicator,
     .app-shell input[type='date']::-webkit-calendar-picker-indicator,
     .app-shell input[type='datetime-local']::-webkit-calendar-picker-indicator {
         filter: invert(1) brightness(1.2) opacity(0.75);
+    }
+
+    .app-shell input[type='month']::-webkit-calendar-picker-indicator:hover,
+    .app-shell input[type='date']::-webkit-calendar-picker-indicator:hover,
+    .app-shell input[type='datetime-local']::-webkit-calendar-picker-indicator:hover {
+        filter: invert(1) brightness(1.35) opacity(0.95);
     }
 }

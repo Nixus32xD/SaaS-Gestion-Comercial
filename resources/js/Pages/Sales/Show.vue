@@ -6,6 +6,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 const props = defineProps({
     sale: { type: Object, required: true },
     auto_back: { type: Boolean, default: false },
+    advanced_sale_settings_enabled: { type: Boolean, default: false },
 });
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
@@ -71,6 +72,8 @@ onBeforeUnmount(() => {
 
                 <div class="grid gap-2 text-sm text-slate-300">
                     <p>Vendedor: <strong>{{ sale.user || '-' }}</strong></p>
+                    <p v-if="advanced_sale_settings_enabled">Sector / punto de venta: <strong>{{ sale.sale_sector || '-' }}</strong></p>
+                    <p v-if="advanced_sale_settings_enabled">Cuenta de cobro / destino: <strong>{{ sale.payment_destination || '-' }}</strong></p>
                     <p>Medio de pago: <strong>{{ paymentMethodLabel }}</strong></p>
                     <p>Subtotal: <strong>{{ money(sale.subtotal) }}</strong></p>
                     <p>Descuento: <strong>{{ money(sale.discount) }}</strong></p>

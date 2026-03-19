@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Businesses\StoreBusinessRequest;
 use App\Http\Requests\Admin\Businesses\UpdateBusinessRequest;
 use App\Models\Business;
+use App\Models\BusinessFeature;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -19,12 +20,19 @@ class BusinessController extends Controller
     public function index(): Response
     {
         $businesses = Business::query()
-            ->withCount(['users', 'products', 'suppliers'])
+            ->withCount([
+                'users',
+                'products',
+                'suppliers',
+                'saleSectors as active_sale_sectors_count' => fn ($query) => $query->where('is_active', true),
+                'paymentDestinations as active_payment_destinations_count' => fn ($query) => $query->where('is_active', true),
+            ])
             ->with([
                 'users' => fn ($query) => $query
                     ->where('role', 'admin')
                     ->orderBy('id')
                     ->limit(1),
+                'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
             ])
             ->orderByDesc('id')
             ->get();
@@ -39,6 +47,9 @@ class BusinessController extends Controller
                 'phone' => $business->phone,
                 'address' => $business->address,
                 'is_active' => $business->is_active,
+                'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
+                'active_sale_sectors_count' => $business->active_sale_sectors_count,
+                'active_payment_destinations_count' => $business->active_payment_destinations_count,
                 'users_count' => $business->users_count,
                 'products_count' => $business->products_count,
                 'suppliers_count' => $business->suppliers_count,
@@ -90,6 +101,12 @@ class BusinessController extends Controller
 
     public function edit(Business $business): Response
     {
+        $business->load([
+            'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
+            'saleSectors' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
+            'paymentDestinations' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
+        ]);
+
         return Inertia::render('Admin/Businesses/Edit', [
             'business' => [
                 'id' => $business->id,
@@ -100,6 +117,23 @@ class BusinessController extends Controller
                 'phone' => $business->phone,
                 'address' => $business->address,
                 'is_active' => $business->is_active,
+            ],
+            'sales_settings' => [
+                'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
+                'sale_sectors' => $business->saleSectors->map(fn ($sector) => [
+                    'id' => $sector->id,
+                    'name' => $sector->name,
+                    'description' => $sector->description,
+                    'is_active' => $sector->is_active,
+                ])->values()->all(),
+                'payment_destinations' => $business->paymentDestinations->map(fn ($destination) => [
+                    'id' => $destination->id,
+                    'name' => $destination->name,
+                    'account_holder' => $destination->account_holder,
+                    'reference' => $destination->reference,
+                    'account_number' => $destination->account_number,
+                    'is_active' => $destination->is_active,
+                ])->values()->all(),
             ],
         ]);
     }
@@ -149,4 +183,3 @@ class BusinessController extends Controller
             ->exists();
     }
 }
-

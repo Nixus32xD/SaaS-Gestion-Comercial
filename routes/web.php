@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\BusinessController;
+use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Categories\CategoryController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Products\ProductController;
@@ -27,6 +28,7 @@ Route::middleware(['auth', 'superadmin'])
         Route::post('/businesses', [BusinessController::class, 'store'])->name('businesses.store');
         Route::get('/businesses/{business}/edit', [BusinessController::class, 'edit'])->name('businesses.edit');
         Route::put('/businesses/{business}', [BusinessController::class, 'update'])->name('businesses.update');
+        Route::put('/businesses/{business}/sales-settings', [BusinessSalesSettingsController::class, 'update'])->name('businesses.sales-settings.update');
     });
 
 Route::middleware(['auth', 'business'])->group(function (): void {

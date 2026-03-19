@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessFeature;
+use App\Models\BusinessPaymentDestination;
+use App\Models\BusinessSaleSector;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
@@ -21,6 +24,11 @@ class DashboardController extends Controller
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
 
+        $business->load([
+            'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
+        ]);
+
+        $advancedSaleSettingsEnabled = $business->hasAdvancedSaleSettings();
         $todaySales = (float) Sale::query()
             ->forBusiness($business->id)
             ->whereDate('sold_at', now()->toDateString())
@@ -66,7 +74,7 @@ class DashboardController extends Controller
 
         $latestSales = Sale::query()
             ->forBusiness($business->id)
-            ->with('user')
+            ->with(['user', 'saleSector', 'paymentDestination'])
             ->latest('sold_at')
             ->limit(8)
             ->get();
@@ -107,6 +115,9 @@ class DashboardController extends Controller
             ];
         });
 
+        $monthStart = now()->startOfMonth();
+        $monthEnd = now()->endOfMonth();
+
         return Inertia::render('Dashboard/Index', [
             'summary' => [
                 'today_sales' => $todaySales,
@@ -133,6 +144,8 @@ class DashboardController extends Controller
                 'total' => (float) $sale->total,
                 'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
                 'user' => $sale->user?->name,
+                'sale_sector' => $sale->saleSector?->name,
+                'payment_destination' => $sale->paymentDestination?->name,
             ]),
             'latest_purchases' => $latestPurchases->map(fn (Purchase $purchase) => [
                 'id' => $purchase->id,
@@ -142,6 +155,86 @@ class DashboardController extends Controller
                 'supplier' => $purchase->supplier?->name,
             ]),
             'expiration_alerts' => $expirationAlerts->all(),
+            'advanced_sales' => [
+                'enabled' => $advancedSaleSettingsEnabled,
+                'month' => $monthStart->format('Y-m'),
+                'sales_by_sector' => $advancedSaleSettingsEnabled
+                    ? $this->salesBySector($business->id, $monthStart, $monthEnd)
+                    : [],
+                'sales_by_payment_destination' => $advancedSaleSettingsEnabled
+                    ? $this->salesByPaymentDestination($business->id, $monthStart, $monthEnd)
+                    : [],
+            ],
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function salesBySector(int $businessId, mixed $monthStart, mixed $monthEnd): array
+    {
+        $totals = Sale::query()
+            ->forBusiness($businessId)
+            ->select('sale_sector_id', DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as sales_count'))
+            ->whereBetween('sold_at', [$monthStart, $monthEnd])
+            ->whereNotNull('sale_sector_id')
+            ->groupBy('sale_sector_id')
+            ->get()
+            ->keyBy('sale_sector_id');
+
+        return BusinessSaleSector::query()
+            ->forBusiness($businessId)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(function (BusinessSaleSector $sector) use ($totals): array {
+                $row = $totals->get($sector->id);
+
+                return [
+                    'id' => $sector->id,
+                    'name' => $sector->name,
+                    'is_active' => $sector->is_active,
+                    'total' => (float) ($row?->total ?? 0),
+                    'sales_count' => (int) ($row?->sales_count ?? 0),
+                ];
+            })
+            ->filter(fn (array $row): bool => $row['sales_count'] > 0 || $row['is_active'])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function salesByPaymentDestination(int $businessId, mixed $monthStart, mixed $monthEnd): array
+    {
+        $totals = Sale::query()
+            ->forBusiness($businessId)
+            ->select('payment_destination_id', DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as sales_count'))
+            ->whereBetween('sold_at', [$monthStart, $monthEnd])
+            ->whereNotNull('payment_destination_id')
+            ->groupBy('payment_destination_id')
+            ->get()
+            ->keyBy('payment_destination_id');
+
+        return BusinessPaymentDestination::query()
+            ->forBusiness($businessId)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(function (BusinessPaymentDestination $destination) use ($totals): array {
+                $row = $totals->get($destination->id);
+
+                return [
+                    'id' => $destination->id,
+                    'name' => $destination->name,
+                    'is_active' => $destination->is_active,
+                    'total' => (float) ($row?->total ?? 0),
+                    'sales_count' => (int) ($row?->sales_count ?? 0),
+                ];
+            })
+            ->filter(fn (array $row): bool => $row['sales_count'] > 0 || $row['is_active'])
+            ->values()
+            ->all();
     }
 }

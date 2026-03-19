@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Business;
+use App\Models\BusinessPaymentDestination;
+use App\Models\BusinessSaleSector;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\StockMovement;
@@ -98,12 +100,15 @@ class SaleService
                 $payload['amount_received'] ?? null,
                 $total
             );
+            [$saleSectorId, $paymentDestinationId] = $this->resolveAdvancedSaleContext($business, $payload);
 
             $sale = Sale::query()->create([
                 'business_id' => $business->id,
                 'user_id' => $user->id,
+                'sale_sector_id' => $saleSectorId,
                 'sale_number' => $this->documentNumberService->nextSaleNumber($business->id),
                 'payment_method' => $paymentMethod,
+                'payment_destination_id' => $paymentDestinationId,
                 'amount_received' => $amountReceived,
                 'change_amount' => $changeAmount,
                 'subtotal' => $subtotal,
@@ -158,7 +163,7 @@ class SaleService
                 $product->save();
             }
 
-            return $sale->load(['items', 'user']);
+            return $sale->load(['items', 'user', 'saleSector', 'paymentDestination']);
         });
     }
 
@@ -200,5 +205,45 @@ class SaleService
         }
 
         return [$amountReceived, round($amountReceived - $total, 2)];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{0: int|null, 1: int|null}
+     */
+    private function resolveAdvancedSaleContext(Business $business, array $payload): array
+    {
+        if (! $business->hasAdvancedSaleSettings()) {
+            return [null, null];
+        }
+
+        $saleSectorId = (int) ($payload['sale_sector_id'] ?? 0);
+        $paymentDestinationId = (int) ($payload['payment_destination_id'] ?? 0);
+
+        $saleSectorExists = BusinessSaleSector::query()
+            ->forBusiness($business->id)
+            ->whereKey($saleSectorId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $saleSectorExists) {
+            throw ValidationException::withMessages([
+                'sale_sector_id' => 'El sector seleccionado no esta disponible para este comercio.',
+            ]);
+        }
+
+        $paymentDestinationExists = BusinessPaymentDestination::query()
+            ->forBusiness($business->id)
+            ->whereKey($paymentDestinationId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $paymentDestinationExists) {
+            throw ValidationException::withMessages([
+                'payment_destination_id' => 'La cuenta seleccionada no esta disponible para este comercio.',
+            ]);
+        }
+
+        return [$saleSectorId, $paymentDestinationId];
     }
 }

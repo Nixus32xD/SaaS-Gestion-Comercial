@@ -19,8 +19,10 @@ class Sale extends Model
     protected $fillable = [
         'business_id',
         'user_id',
+        'sale_sector_id',
         'sale_number',
         'payment_method',
+        'payment_destination_id',
         'amount_received',
         'change_amount',
         'subtotal',
@@ -52,6 +54,22 @@ class Sale extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<BusinessSaleSector, $this>
+     */
+    public function saleSector(): BelongsTo
+    {
+        return $this->belongsTo(BusinessSaleSector::class, 'sale_sector_id');
+    }
+
+    /**
+     * @return BelongsTo<BusinessPaymentDestination, $this>
+     */
+    public function paymentDestination(): BelongsTo
+    {
+        return $this->belongsTo(BusinessPaymentDestination::class);
     }
 
     /**
