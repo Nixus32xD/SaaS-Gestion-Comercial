@@ -29,21 +29,28 @@ class DashboardController extends Controller
         ]);
 
         $advancedSaleSettingsEnabled = $business->hasAdvancedSaleSettings();
-        $todaySales = (float) Sale::query()
-            ->forBusiness($business->id)
-            ->whereDate('sold_at', now()->toDateString())
-            ->sum('total');
+        $todayStart = now()->startOfDay();
+        $todayEnd = now()->endOfDay();
+        $monthStart = now()->startOfMonth();
+        $monthEnd = now()->endOfMonth();
 
-        $monthSales = (float) Sale::query()
+        $salesSummary = Sale::query()
             ->forBusiness($business->id)
-            ->whereBetween('sold_at', [now()->startOfMonth(), now()->endOfMonth()])
-            ->sum('total');
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN sold_at BETWEEN ? AND ? THEN total ELSE 0 END), 0) as today_sales, COALESCE(SUM(CASE WHEN sold_at BETWEEN ? AND ? THEN total ELSE 0 END), 0) as month_sales',
+                [$todayStart, $todayEnd, $monthStart, $monthEnd]
+            )
+            ->first();
+
+        $todaySales = (float) ($salesSummary?->today_sales ?? 0);
+        $monthSales = (float) ($salesSummary?->month_sales ?? 0);
 
         $productsCount = Product::query()->forBusiness($business->id)->count();
         $suppliersCount = Supplier::query()->forBusiness($business->id)->count();
 
         $lowStock = Product::query()
             ->forBusiness($business->id)
+            ->select(['id', 'name', 'stock', 'min_stock'])
             ->whereColumn('stock', '<=', 'min_stock')
             ->orderBy('stock')
             ->limit(8)
@@ -74,14 +81,16 @@ class DashboardController extends Controller
 
         $latestSales = Sale::query()
             ->forBusiness($business->id)
-            ->with(['user', 'saleSector', 'paymentDestination'])
+            ->select(['id', 'business_id', 'user_id', 'sale_sector_id', 'sale_number', 'payment_destination_id', 'total', 'sold_at'])
+            ->with(['user:id,name', 'saleSector:id,name', 'paymentDestination:id,name'])
             ->latest('sold_at')
             ->limit(8)
             ->get();
 
         $latestPurchases = Purchase::query()
             ->forBusiness($business->id)
-            ->with('supplier')
+            ->select(['id', 'business_id', 'supplier_id', 'purchase_number', 'total', 'purchased_at'])
+            ->with('supplier:id,name')
             ->latest('purchased_at')
             ->limit(8)
             ->get();
@@ -114,9 +123,6 @@ class DashboardController extends Controller
                 'purchases_total' => (float) ($purchasesByDate->get($date) ?? 0),
             ];
         });
-
-        $monthStart = now()->startOfMonth();
-        $monthEnd = now()->endOfMonth();
 
         return Inertia::render('Dashboard/Index', [
             'summary' => [
@@ -184,6 +190,7 @@ class DashboardController extends Controller
 
         return BusinessSaleSector::query()
             ->forBusiness($businessId)
+            ->select(['id', 'name', 'is_active'])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
@@ -219,6 +226,7 @@ class DashboardController extends Controller
 
         return BusinessPaymentDestination::query()
             ->forBusiness($businessId)
+            ->select(['id', 'name', 'is_active'])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()

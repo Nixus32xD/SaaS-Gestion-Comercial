@@ -14,17 +14,24 @@ const state = reactive({
     category_id: props.filters.category_id || '',
 });
 
-const money = (value) => new Intl.NumberFormat('es-AR', {
+const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
     minimumFractionDigits: 2,
-}).format(Number(value) || 0);
+});
+
+const money = (value) => moneyFormatter.format(Number(value) || 0);
 
 const filter = () => {
     router.get(route('products.index'), {
         search: state.search,
         category_id: state.category_id || undefined,
-    }, { preserveState: true, replace: true });
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ['filters', 'products'],
+    });
 };
 </script>
 

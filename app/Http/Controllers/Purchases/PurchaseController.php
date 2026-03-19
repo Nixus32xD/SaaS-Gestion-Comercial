@@ -28,36 +28,48 @@ class PurchaseController extends Controller
 
         $search = trim((string) $request->query('search', ''));
 
-        $purchases = Purchase::query()
-            ->forBusiness($business->id)
-            ->with(['supplier', 'user'])
-            ->withCount('items')
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($innerQuery) use ($search): void {
-                    $innerQuery
-                        ->where('purchase_number', 'like', "%{$search}%")
-                        ->orWhere('notes', 'like', "%{$search}%");
-                });
-            })
-            ->latest('purchased_at')
-            ->paginate(15)
-            ->withQueryString()
-            ->through(fn (Purchase $purchase) => [
-                'id' => $purchase->id,
-                'purchase_number' => $purchase->purchase_number,
-                'subtotal' => (float) $purchase->subtotal,
-                'total' => (float) $purchase->total,
-                'purchased_at' => $purchase->purchased_at?->format('Y-m-d H:i'),
-                'supplier' => $purchase->supplier?->name,
-                'user' => $purchase->user?->name,
-                'items_count' => $purchase->items_count,
-            ]);
-
         return Inertia::render('Purchases/Index', [
             'filters' => [
                 'search' => $search,
             ],
-            'purchases' => $purchases,
+            'purchases' => fn () => Purchase::query()
+                ->forBusiness($business->id)
+                ->select([
+                    'id',
+                    'business_id',
+                    'supplier_id',
+                    'user_id',
+                    'purchase_number',
+                    'subtotal',
+                    'total',
+                    'purchased_at',
+                    'notes',
+                ])
+                ->with([
+                    'supplier:id,name',
+                    'user:id,name',
+                ])
+                ->withCount('items')
+                ->when($search !== '', function ($query) use ($search): void {
+                    $query->where(function ($innerQuery) use ($search): void {
+                        $innerQuery
+                            ->where('purchase_number', 'like', "%{$search}%")
+                            ->orWhere('notes', 'like', "%{$search}%");
+                    });
+                })
+                ->latest('purchased_at')
+                ->paginate(15)
+                ->withQueryString()
+                ->through(fn (Purchase $purchase) => [
+                    'id' => $purchase->id,
+                    'purchase_number' => $purchase->purchase_number,
+                    'subtotal' => (float) $purchase->subtotal,
+                    'total' => (float) $purchase->total,
+                    'purchased_at' => $purchase->purchased_at?->format('Y-m-d H:i'),
+                    'supplier' => $purchase->supplier?->name,
+                    'user' => $purchase->user?->name,
+                    'items_count' => $purchase->items_count,
+                ]),
         ]);
     }
 
@@ -74,6 +86,20 @@ class PurchaseController extends Controller
             'products' => Product::query()
                 ->forBusiness($business->id)
                 ->where('is_active', true)
+                ->select([
+                    'id',
+                    'business_id',
+                    'name',
+                    'barcode',
+                    'sku',
+                    'unit_type',
+                    'weight_unit',
+                    'stock',
+                    'cost_price',
+                    'sale_price',
+                    'shelf_life_days',
+                    'expiry_alert_days',
+                ])
                 ->orderBy('name')
                 ->limit(2000)
                 ->get()

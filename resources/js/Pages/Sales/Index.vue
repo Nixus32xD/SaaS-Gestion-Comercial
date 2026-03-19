@@ -25,14 +25,21 @@ const filter = () => {
     if (state.sale_sector_id) params.sale_sector_id = state.sale_sector_id;
     if (state.payment_destination_id) params.payment_destination_id = state.payment_destination_id;
 
-    router.get(route('sales.index'), params, { preserveState: true, replace: true });
+    router.get(route('sales.index'), params, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ['filters', 'sales', 'monthly_summary'],
+    });
 };
 
-const money = (value) => new Intl.NumberFormat('es-AR', {
+const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
     minimumFractionDigits: 2,
-}).format(Number(value) || 0);
+});
+
+const money = (value) => moneyFormatter.format(Number(value) || 0);
 
 const paymentMethodLabel = (value) => (value === 'transfer' ? 'Transferencia' : 'Efectivo');
 const advancedSaleSettingsEnabled = computed(() => Boolean(props.advanced_sale_settings?.enabled));

@@ -33,11 +33,22 @@ class SaleController extends Controller
 
         $business->load([
             'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
-            'saleSectors' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
-            'paymentDestinations' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
         ]);
 
         $advancedSaleSettingsEnabled = $business->hasAdvancedSaleSettings();
+
+        if ($advancedSaleSettingsEnabled) {
+            $business->load([
+                'saleSectors' => fn ($query) => $query
+                    ->select(['id', 'business_id', 'name', 'is_active'])
+                    ->orderBy('sort_order')
+                    ->orderBy('name'),
+                'paymentDestinations' => fn ($query) => $query
+                    ->select(['id', 'business_id', 'name', 'is_active'])
+                    ->orderBy('sort_order')
+                    ->orderBy('name'),
+            ]);
+        }
         $search = trim((string) $request->query('search', ''));
         $month = trim((string) $request->query('month', ''));
         $saleSectorId = $advancedSaleSettingsEnabled && $request->filled('sale_sector_id')
@@ -48,46 +59,13 @@ class SaleController extends Controller
             : null;
         [$monthStart, $monthEnd, $summaryMonth] = $this->resolveSummaryMonthRange($month);
 
-        $sales = Sale::query()
-            ->forBusiness($business->id)
-            ->with(['user', 'saleSector', 'paymentDestination'])
-            ->withCount('items')
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($innerQuery) use ($search): void {
-                    $innerQuery
-                        ->where('sale_number', 'like', "%{$search}%")
-                        ->orWhere('notes', 'like', "%{$search}%");
-                });
-            })
-            ->when($month !== '', function ($query) use ($monthStart, $monthEnd): void {
-                $query->whereBetween('sold_at', [$monthStart, $monthEnd]);
-            })
-            ->when($advancedSaleSettingsEnabled && $saleSectorId !== null, function ($query) use ($saleSectorId): void {
-                $query->where('sale_sector_id', $saleSectorId);
-            })
-            ->when($advancedSaleSettingsEnabled && $paymentDestinationId !== null, function ($query) use ($paymentDestinationId): void {
-                $query->where('payment_destination_id', $paymentDestinationId);
-            })
-            ->latest('sold_at')
-            ->paginate(15)
-            ->withQueryString()
-            ->through(fn (Sale $sale) => [
-                'id' => $sale->id,
-                'sale_number' => $sale->sale_number,
-                'payment_method' => $sale->payment_method,
-                'sale_sector' => $sale->saleSector?->name,
-                'payment_destination' => $sale->paymentDestination?->name,
-                'subtotal' => (float) $sale->subtotal,
-                'discount' => (float) $sale->discount,
-                'total' => (float) $sale->total,
-                'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
-                'user' => $sale->user?->name,
-                'items_count' => $sale->items_count,
-            ]);
-
         $summaryBaseQuery = Sale::query()
             ->forBusiness($business->id)
             ->whereBetween('sold_at', [$monthStart, $monthEnd]);
+
+        $summary = (clone $summaryBaseQuery)
+            ->selectRaw('COUNT(*) as sales_count, COALESCE(SUM(total), 0) as total')
+            ->first();
 
         return Inertia::render('Sales/Index', [
             'filters' => [
@@ -96,8 +74,61 @@ class SaleController extends Controller
                 'sale_sector_id' => $saleSectorId,
                 'payment_destination_id' => $paymentDestinationId,
             ],
-            'sales' => $sales,
-            'advanced_sale_settings' => [
+            'sales' => fn () => Sale::query()
+                ->forBusiness($business->id)
+                ->select([
+                    'id',
+                    'business_id',
+                    'user_id',
+                    'sale_sector_id',
+                    'sale_number',
+                    'payment_method',
+                    'payment_destination_id',
+                    'subtotal',
+                    'discount',
+                    'total',
+                    'sold_at',
+                    'notes',
+                ])
+                ->with([
+                    'user:id,name',
+                    'saleSector:id,name',
+                    'paymentDestination:id,name',
+                ])
+                ->withCount('items')
+                ->when($search !== '', function ($query) use ($search): void {
+                    $query->where(function ($innerQuery) use ($search): void {
+                        $innerQuery
+                            ->where('sale_number', 'like', "%{$search}%")
+                            ->orWhere('notes', 'like', "%{$search}%");
+                    });
+                })
+                ->when($month !== '', function ($query) use ($monthStart, $monthEnd): void {
+                    $query->whereBetween('sold_at', [$monthStart, $monthEnd]);
+                })
+                ->when($advancedSaleSettingsEnabled && $saleSectorId !== null, function ($query) use ($saleSectorId): void {
+                    $query->where('sale_sector_id', $saleSectorId);
+                })
+                ->when($advancedSaleSettingsEnabled && $paymentDestinationId !== null, function ($query) use ($paymentDestinationId): void {
+                    $query->where('payment_destination_id', $paymentDestinationId);
+                })
+                ->latest('sold_at')
+                ->paginate(15)
+                ->withQueryString()
+                ->through(fn (Sale $sale) => [
+                    'id' => $sale->id,
+                    'sale_number' => $sale->sale_number,
+                    'payment_method' => $sale->payment_method,
+                    'sale_sector' => $sale->saleSector?->name,
+                    'payment_destination' => $sale->paymentDestination?->name,
+                    'subtotal' => (float) $sale->subtotal,
+                    'discount' => (float) $sale->discount,
+                    'total' => (float) $sale->total,
+                    'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
+                    'user' => $sale->user?->name,
+                    'items_count' => $sale->items_count,
+                ]),
+            'advanced_sale_settings' => fn () => [
                 'enabled' => $advancedSaleSettingsEnabled,
                 'sale_sectors' => $business->saleSectors
                     ->map(fn ($sector) => [
@@ -116,10 +147,10 @@ class SaleController extends Controller
                     ->values()
                     ->all(),
             ],
-            'monthly_summary' => [
+            'monthly_summary' => fn () => [
                 'month' => $summaryMonth,
-                'sales_count' => (clone $summaryBaseQuery)->count(),
-                'total' => (float) (clone $summaryBaseQuery)->sum('total'),
+                'sales_count' => (int) ($summary?->sales_count ?? 0),
+                'total' => (float) ($summary?->total ?? 0),
                 'by_sector' => $advancedSaleSettingsEnabled
                     ? $this->salesTotalsBySector($business, $monthStart, $monthEnd)
                     : [],
@@ -215,9 +246,22 @@ class SaleController extends Controller
     {
         $business->load([
             'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
-            'saleSectors' => fn ($query) => $query->where('is_active', true)->orderBy('sort_order')->orderBy('name'),
-            'paymentDestinations' => fn ($query) => $query->where('is_active', true)->orderBy('sort_order')->orderBy('name'),
         ]);
+
+        if ($business->hasAdvancedSaleSettings()) {
+            $business->load([
+                'saleSectors' => fn ($query) => $query
+                    ->select(['id', 'business_id', 'name', 'description'])
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->orderBy('name'),
+                'paymentDestinations' => fn ($query) => $query
+                    ->select(['id', 'business_id', 'name', 'account_holder', 'reference', 'account_number'])
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->orderBy('name'),
+            ]);
+        }
 
         return [
             'enabled' => $business->hasAdvancedSaleSettings(),
@@ -318,6 +362,16 @@ class SaleController extends Controller
         $limit = $search === '' ? 20 : 30;
 
         return $this->productSearchQuery($businessId, $search)
+            ->select([
+                'id',
+                'name',
+                'barcode',
+                'sku',
+                'unit_type',
+                'weight_unit',
+                'sale_price',
+                'stock',
+            ])
             ->limit($limit)
             ->get()
             ->map(fn (Product $product) => $this->mapProduct($product))

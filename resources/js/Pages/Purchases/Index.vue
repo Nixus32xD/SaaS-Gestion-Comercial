@@ -10,15 +10,22 @@ const props = defineProps({
 
 const state = reactive({ search: props.filters.search || '' });
 
-const filter = () => {
-    router.get(route('purchases.index'), { search: state.search }, { preserveState: true, replace: true });
-};
-
-const money = (value) => new Intl.NumberFormat('es-AR', {
+const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
     minimumFractionDigits: 2,
-}).format(Number(value) || 0);
+});
+
+const filter = () => {
+    router.get(route('purchases.index'), { search: state.search }, {
+        only: ['filters', 'purchases'],
+        preserveScroll: true,
+        preserveState: true,
+        replace: true,
+    });
+};
+
+const money = (value) => moneyFormatter.format(Number(value) || 0);
 </script>
 
 <template>

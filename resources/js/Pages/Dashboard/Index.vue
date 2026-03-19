@@ -14,11 +14,13 @@ const props = defineProps({
     advanced_sales: { type: Object, default: () => ({ enabled: false, sales_by_sector: [], sales_by_payment_destination: [] }) },
 });
 
-const money = (value) => new Intl.NumberFormat('es-AR', {
+const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
     minimumFractionDigits: 2,
-}).format(Number(value) || 0);
+});
+
+const money = (value) => moneyFormatter.format(Number(value) || 0);
 
 const shortDate = (value) => new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',

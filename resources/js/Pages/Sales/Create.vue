@@ -18,7 +18,8 @@ const state = reactive({
 
 const searchInput = ref(null);
 const quantityInput = ref(null);
-const searchResults = ref([...props.products]);
+const knownProducts = ref([...(props.products || [])]);
+const searchResults = ref([...(props.products || [])]);
 const isLoadingProducts = ref(false);
 let searchTimer = null;
 let lastSearchRequestId = 0;
@@ -65,12 +66,20 @@ const findExactCodeMatch = (term, products = searchResults.value) => {
 };
 
 const fetchProducts = async (term = state.search) => {
+    const normalizedTerm = String(term || '').trim();
+
+    if (normalizedTerm === '') {
+        searchResults.value = knownProducts.value.slice(0, 20);
+        syncSelection();
+        return searchResults.value;
+    }
+
     const requestId = ++lastSearchRequestId;
     isLoadingProducts.value = true;
 
     try {
         const { data } = await window.axios.get(route('sales.products.search'), {
-            params: { search: String(term || '').trim() },
+            params: { search: normalizedTerm },
         });
 
         if (requestId !== lastSearchRequestId) {
@@ -79,8 +88,8 @@ const fetchProducts = async (term = state.search) => {
 
         searchResults.value = Array.isArray(data?.products) ? data.products : [];
         searchResults.value.forEach((product) => {
-            if (!props.products.find((entry) => entry.id === product.id)) {
-                props.products.push(product);
+            if (!knownProducts.value.find((entry) => entry.id === product.id)) {
+                knownProducts.value.push(product);
             }
         });
         syncSelection();
@@ -300,11 +309,15 @@ const canSubmit = computed(() => (
     && (!isCashPayment.value || remaining.value === 0)
 ));
 
-const money = (value) => new Intl.NumberFormat('es-AR', {
+const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: 'ARS',
     minimumFractionDigits: 2,
-}).format(Number(value) || 0);
+});
+
+const money = (value) => moneyFormatter.format(Number(value) || 0);
+const selectedSaleSectorName = computed(() => saleSectorOptions.value.find((item) => item.id === form.sale_sector_id)?.name || '-');
+const selectedPaymentDestinationName = computed(() => paymentDestinationOptions.value.find((item) => item.id === form.payment_destination_id)?.name || '-');
 
 const applyQuickAmount = (mode, amount = 0) => {
     if (!isCashPayment.value) return;
@@ -644,8 +657,8 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="rounded-xl bg-slate-950/35 p-4 text-sm text-slate-300">
-                        <p v-if="advancedSaleSettingsEnabled">Sector: <strong>{{ saleSectorOptions.find((item) => item.id === form.sale_sector_id)?.name || '-' }}</strong></p>
-                        <p v-if="advancedSaleSettingsEnabled">Cuenta: <strong>{{ paymentDestinationOptions.find((item) => item.id === form.payment_destination_id)?.name || '-' }}</strong></p>
+                        <p v-if="advancedSaleSettingsEnabled">Sector: <strong>{{ selectedSaleSectorName }}</strong></p>
+                        <p v-if="advancedSaleSettingsEnabled">Cuenta: <strong>{{ selectedPaymentDestinationName }}</strong></p>
                         <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
                         <p>Descuento: <strong>{{ money(form.discount) }}</strong></p>
                         <p class="mt-2 text-base text-slate-100">Total: <strong>{{ money(total) }}</strong></p>
