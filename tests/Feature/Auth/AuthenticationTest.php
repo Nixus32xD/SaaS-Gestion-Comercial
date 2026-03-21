@@ -47,6 +47,27 @@ test('business staff can authenticate and is redirected to dashboard', function 
     $response->assertRedirect(route('dashboard', absolute: false));
 });
 
+test('configured superadmin email alone does not grant superadmin access', function () {
+    config()->set('app.super_admin_email', 'superadmin@example.com');
+
+    $business = Business::factory()->create();
+    $user = User::factory()->businessAdmin($business->id)->create([
+        'email' => 'superadmin@example.com',
+    ]);
+
+    $response = $this->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('dashboard', absolute: false));
+
+    $this->actingAs($user)
+        ->get('/admin/businesses')
+        ->assertForbidden();
+});
+
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 

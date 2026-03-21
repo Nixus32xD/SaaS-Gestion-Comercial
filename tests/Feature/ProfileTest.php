@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Business;
 use App\Models\User;
 
 test('profile page is displayed', function () {
@@ -48,6 +49,29 @@ test('email verification status is unchanged when the email address is unchanged
         ->assertRedirect('/profile');
 
     $this->assertNotNull($user->refresh()->email_verified_at);
+});
+
+test('business users can not claim the reserved superadmin email from profile settings', function () {
+    config()->set('app.super_admin_email', 'superadmin@example.com');
+
+    $business = Business::factory()->create();
+    $user = User::factory()->businessAdmin($business->id)->create([
+        'email' => 'admin@comercio.test',
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->from('/profile')
+        ->patch('/profile', [
+            'name' => 'Admin Comercio',
+            'email' => 'superadmin@example.com',
+        ]);
+
+    $response
+        ->assertSessionHasErrors('email')
+        ->assertRedirect('/profile');
+
+    $this->assertSame('admin@comercio.test', $user->fresh()->email);
 });
 
 test('user can delete their account', function () {

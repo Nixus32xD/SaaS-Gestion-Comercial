@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Admin\Businesses;
 
+use App\Models\User;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -50,9 +52,20 @@ class StoreBusinessRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
             'admin.name' => ['required', 'string', 'max:150'],
-            'admin.email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'admin.email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email'),
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    if (! User::isReservedSuperAdminEmail((string) $value)) {
+                        return;
+                    }
+
+                    $fail('Ese correo esta reservado para la cuenta superadmin.');
+                },
+            ],
             'admin.password' => ['required', 'confirmed', Password::defaults()],
         ];
     }
 }
-

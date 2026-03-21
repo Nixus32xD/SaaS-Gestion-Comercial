@@ -57,6 +57,28 @@ test('admin can not change status of users from another business', function () {
     expect($foreignUser->fresh()->is_active)->toBeTrue();
 });
 
+test('admin can not create a business user with the reserved superadmin email', function () {
+    config()->set('app.super_admin_email', 'superadmin@example.com');
+
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    $response = $this
+        ->actingAs($admin)
+        ->from('/users')
+        ->post('/users', [
+            'name' => 'Caja Elevada',
+            'email' => 'superadmin@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'role' => 'staff',
+            'is_active' => true,
+        ]);
+
+    $response->assertSessionHasErrors('email');
+    expect(User::query()->where('email', 'superadmin@example.com')->exists())->toBeFalse();
+});
+
 test('admin can not change their own status', function () {
     $business = Business::factory()->create();
     $admin = User::factory()->businessAdmin($business->id)->create();

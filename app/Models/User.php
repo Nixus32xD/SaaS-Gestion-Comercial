@@ -62,18 +62,27 @@ class User extends Authenticatable
         return $this->belongsTo(Business::class);
     }
 
+    public static function reservedSuperAdminEmail(): ?string
+    {
+        $email = mb_strtolower(trim((string) config('app.super_admin_email')));
+
+        return $email !== '' ? $email : null;
+    }
+
+    public static function isReservedSuperAdminEmail(?string $email): bool
+    {
+        $reservedEmail = static::reservedSuperAdminEmail();
+
+        if ($reservedEmail === null) {
+            return false;
+        }
+
+        return mb_strtolower(trim((string) $email)) === $reservedEmail;
+    }
+
     public function isSuperAdmin(): bool
     {
-        if ($this->role === 'superadmin') {
-            return true;
-        }
-
-        $superAdminEmail = trim((string) config('app.super_admin_email'));
-        if ($superAdminEmail !== '') {
-            return mb_strtolower($this->email) === mb_strtolower($superAdminEmail);
-        }
-
-        return false;
+        return $this->role === 'superadmin';
     }
 
     public function isBusinessAdmin(): bool

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +25,17 @@ class ProfileUpdateRequest extends FormRequest
                 'email',
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    if (! User::isReservedSuperAdminEmail((string) $value)) {
+                        return;
+                    }
+
+                    if ($this->user()?->isSuperAdmin()) {
+                        return;
+                    }
+
+                    $fail('Ese correo esta reservado para la cuenta superadmin.');
+                },
             ],
         ];
     }
