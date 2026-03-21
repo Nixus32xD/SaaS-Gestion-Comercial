@@ -102,10 +102,13 @@ class Business extends Model
     public function hasFeature(string $feature): bool
     {
         if ($this->relationLoaded('features')) {
-            return $this->features->contains(
+            $loadedFeature = $this->features->first(
                 fn (BusinessFeature $businessFeature): bool => $businessFeature->feature === $feature
-                    && $businessFeature->is_enabled
             );
+
+            if ($loadedFeature !== null) {
+                return (bool) $loadedFeature->is_enabled;
+            }
         }
 
         return $this->features()
@@ -117,5 +120,10 @@ class Business extends Model
     public function hasAdvancedSaleSettings(): bool
     {
         return $this->hasFeature(BusinessFeature::ADVANCED_SALE_SETTINGS);
+    }
+
+    public function hasGlobalProductCatalog(): bool
+    {
+        return $this->hasFeature(BusinessFeature::GLOBAL_PRODUCT_CATALOG);
     }
 }

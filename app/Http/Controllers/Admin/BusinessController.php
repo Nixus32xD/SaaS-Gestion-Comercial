@@ -32,7 +32,10 @@ class BusinessController extends Controller
                     ->where('role', 'admin')
                     ->orderBy('id')
                     ->limit(1),
-                'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
+                'features' => fn ($query) => $query->whereIn('feature', [
+                    BusinessFeature::ADVANCED_SALE_SETTINGS,
+                    BusinessFeature::GLOBAL_PRODUCT_CATALOG,
+                ]),
             ])
             ->orderByDesc('id')
             ->get();
@@ -48,6 +51,7 @@ class BusinessController extends Controller
                 'address' => $business->address,
                 'is_active' => $business->is_active,
                 'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
+                'global_product_catalog_enabled' => $business->hasGlobalProductCatalog(),
                 'active_sale_sectors_count' => $business->active_sale_sectors_count,
                 'active_payment_destinations_count' => $business->active_payment_destinations_count,
                 'users_count' => $business->users_count,
@@ -102,7 +106,10 @@ class BusinessController extends Controller
     public function edit(Business $business): Response
     {
         $business->load([
-            'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
+            'features' => fn ($query) => $query->whereIn('feature', [
+                BusinessFeature::ADVANCED_SALE_SETTINGS,
+                BusinessFeature::GLOBAL_PRODUCT_CATALOG,
+            ]),
             'saleSectors' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
             'paymentDestinations' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
         ]);
@@ -120,6 +127,7 @@ class BusinessController extends Controller
             ],
             'sales_settings' => [
                 'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
+                'global_product_catalog_enabled' => $business->hasGlobalProductCatalog(),
                 'sale_sectors' => $business->saleSectors->map(fn ($sector) => [
                     'id' => $sector->id,
                     'name' => $sector->name,

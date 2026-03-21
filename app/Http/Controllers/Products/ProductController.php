@@ -6,13 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Products\StoreProductRequest;
 use App\Http\Requests\Products\UpdateProductRequest;
 use App\Models\Category;
+use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Services\Products\GlobalProductCatalogService;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -113,55 +117,94 @@ class ProductController extends Controller
                 ->forBusiness($business->id)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'global_catalog' => [
+                'enabled' => $business->hasGlobalProductCatalog(),
+            ],
         ]);
+    }
+
+    public function lookupCatalog(
+        Request $request,
+        CurrentBusiness $currentBusiness,
+        GlobalProductCatalogService $catalogService
+    ): JsonResponse {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+        abort_unless($business->hasGlobalProductCatalog(), 403, 'Catalogo global no habilitado para este comercio.');
+
+        return response()->json(
+            $catalogService->lookupForBusiness(
+                $business->id,
+                $request->string('barcode')->trim()->value(),
+                $request->string('name')->trim()->value(),
+            )
+        );
     }
 
     public function store(
         StoreProductRequest $request,
-        CurrentBusiness $currentBusiness
+        CurrentBusiness $currentBusiness,
+        GlobalProductCatalogService $catalogService
     ): RedirectResponse {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
 
         $data = $request->validated();
+        $globalCatalogEnabled = $business->hasGlobalProductCatalog();
+        $this->ensureGlobalCatalogEnabledForStore($globalCatalogEnabled, $data['global_product_id'] ?? null);
+        $globalProduct = $this->resolveGlobalProduct($data['global_product_id'] ?? null);
         $categoryId = $this->resolveCategoryId($business->id, $data['category_id'] ?? null);
+        if ($globalCatalogEnabled) {
+            $categoryId ??= $catalogService->resolveCategoryIdForBusiness($business->id, $globalProduct);
+        }
         $supplierId = $this->resolveSupplierId($business->id, $data['supplier_id'] ?? null);
         $initialStock = round((float) ($data['stock'] ?? 0), 3);
 
-        $product = Product::query()->create([
-            'business_id' => $business->id,
-            'category_id' => $categoryId,
-            'supplier_id' => $supplierId,
-            'name' => $data['name'],
-            'slug' => $this->buildUniqueSlug($business->id, $data['slug'] ?: $data['name']),
-            'description' => $data['description'] ?: null,
-            'barcode' => $data['barcode'] ?: null,
-            'sku' => $data['sku'] ?: null,
-            'unit_type' => $data['unit_type'],
-            'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
-            'sale_price' => $data['sale_price'],
-            'cost_price' => $data['cost_price'],
-            'stock' => $initialStock,
-            'min_stock' => $data['min_stock'] ?? 0,
-            'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
-            'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
-            'is_active' => (bool) ($data['is_active'] ?? true),
-        ]);
-
-        if ($initialStock > 0) {
-            StockMovement::query()->create([
+        DB::transaction(function () use (
+            $business,
+            $categoryId,
+            $supplierId,
+            $data,
+            $initialStock,
+            $request,
+            $globalProduct
+        ): void {
+            $product = Product::query()->create([
                 'business_id' => $business->id,
-                'product_id' => $product->id,
-                'type' => 'initial',
-                'reference_type' => Product::class,
-                'reference_id' => $product->id,
-                'quantity' => $initialStock,
-                'stock_before' => 0,
-                'stock_after' => $initialStock,
-                'notes' => 'Stock inicial del producto',
-                'created_by' => $request->user()?->id,
+                'global_product_id' => $globalProduct?->id,
+                'category_id' => $categoryId,
+                'supplier_id' => $supplierId,
+                'name' => $data['name'],
+                'slug' => $this->buildUniqueSlug($business->id, $data['slug'] ?: $data['name']),
+                'description' => $data['description'] ?: null,
+                'barcode' => $data['barcode'] ?: null,
+                'sku' => $data['sku'] ?: null,
+                'unit_type' => $data['unit_type'],
+                'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
+                'sale_price' => $data['sale_price'],
+                'cost_price' => $data['cost_price'],
+                'stock' => $initialStock,
+                'min_stock' => $data['min_stock'] ?? 0,
+                'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
+                'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
+                'is_active' => (bool) ($data['is_active'] ?? true),
             ]);
-        }
+
+            if ($initialStock > 0) {
+                StockMovement::query()->create([
+                    'business_id' => $business->id,
+                    'product_id' => $product->id,
+                    'type' => 'initial',
+                    'reference_type' => Product::class,
+                    'reference_id' => $product->id,
+                    'quantity' => $initialStock,
+                    'stock_before' => 0,
+                    'stock_after' => $initialStock,
+                    'notes' => 'Stock inicial del producto',
+                    'created_by' => $request->user()?->id,
+                ]);
+            }
+        });
 
         return redirect()
             ->route('products.index')
@@ -222,43 +265,74 @@ class ProductController extends Controller
         $beforeStock = round((float) $product->stock, 3);
         $newStock = round((float) ($data['stock'] ?? $beforeStock), 3);
 
-        $product->update([
-            'category_id' => $categoryId,
-            'supplier_id' => $supplierId,
-            'name' => $data['name'],
-            'slug' => $this->buildUniqueSlug($business->id, $data['slug'] ?: $data['name'], $product->id),
-            'description' => $data['description'] ?: null,
-            'barcode' => $data['barcode'] ?: null,
-            'sku' => $data['sku'] ?: null,
-            'unit_type' => $data['unit_type'],
-            'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
-            'sale_price' => $data['sale_price'],
-            'cost_price' => $data['cost_price'],
-            'stock' => $newStock,
-            'min_stock' => $data['min_stock'] ?? 0,
-            'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
-            'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
-            'is_active' => (bool) ($data['is_active'] ?? true),
-        ]);
-
-        if ($beforeStock !== $newStock) {
-            StockMovement::query()->create([
-                'business_id' => $business->id,
-                'product_id' => $product->id,
-                'type' => 'adjustment',
-                'reference_type' => Product::class,
-                'reference_id' => $product->id,
-                'quantity' => round($newStock - $beforeStock, 3),
-                'stock_before' => $beforeStock,
-                'stock_after' => $newStock,
-                'notes' => 'Ajuste manual desde edicion de producto',
-                'created_by' => $request->user()?->id,
+        DB::transaction(function () use (
+            $product,
+            $categoryId,
+            $supplierId,
+            $data,
+            $business,
+            $newStock,
+            $beforeStock,
+            $request
+        ): void {
+            $product->update([
+                'category_id' => $categoryId,
+                'supplier_id' => $supplierId,
+                'name' => $data['name'],
+                'slug' => $this->buildUniqueSlug($business->id, $data['slug'] ?: $data['name'], $product->id),
+                'description' => $data['description'] ?: null,
+                'barcode' => $data['barcode'] ?: null,
+                'sku' => $data['sku'] ?: null,
+                'unit_type' => $data['unit_type'],
+                'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
+                'sale_price' => $data['sale_price'],
+                'cost_price' => $data['cost_price'],
+                'stock' => $newStock,
+                'min_stock' => $data['min_stock'] ?? 0,
+                'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
+                'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
+                'is_active' => (bool) ($data['is_active'] ?? true),
             ]);
-        }
+
+            if ($beforeStock !== $newStock) {
+                StockMovement::query()->create([
+                    'business_id' => $business->id,
+                    'product_id' => $product->id,
+                    'type' => 'adjustment',
+                    'reference_type' => Product::class,
+                    'reference_id' => $product->id,
+                    'quantity' => round($newStock - $beforeStock, 3),
+                    'stock_before' => $beforeStock,
+                    'stock_after' => $newStock,
+                    'notes' => 'Ajuste manual desde edicion de producto',
+                    'created_by' => $request->user()?->id,
+                ]);
+            }
+        });
 
         return redirect()
             ->route('products.index')
             ->with('success', 'Producto actualizado correctamente.');
+    }
+
+    private function resolveGlobalProduct(mixed $globalProductId): ?GlobalProduct
+    {
+        if ($globalProductId === null || $globalProductId === '') {
+            return null;
+        }
+
+        return GlobalProduct::query()->find((int) $globalProductId);
+    }
+
+    private function ensureGlobalCatalogEnabledForStore(bool $enabled, mixed $globalProductId): void
+    {
+        if ($enabled || $globalProductId === null || $globalProductId === '') {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'global_product_id' => 'El catalogo global no esta habilitado para este comercio.',
+        ]);
     }
 
     private function resolveCategoryFilter(int $businessId, mixed $categoryId): ?int

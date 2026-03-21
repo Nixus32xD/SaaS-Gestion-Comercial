@@ -1,6 +1,9 @@
 <?php
 
 use App\Models\Business;
+use App\Models\BusinessFeature;
+use App\Models\Category;
+use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
@@ -187,4 +190,60 @@ test('purchase with new product rejects duplicated sku from the same business', 
 
     $response->assertSessionHasErrors('items.0.product.sku');
     expect(Purchase::query()->count())->toBe(0);
+});
+
+test('purchase can create a new local product linked to the global catalog', function () {
+    $sourceBusiness = Business::factory()->create();
+    $targetBusiness = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($targetBusiness->id)->create();
+
+    BusinessFeature::query()->create([
+        'business_id' => $targetBusiness->id,
+        'feature' => BusinessFeature::GLOBAL_PRODUCT_CATALOG,
+        'is_enabled' => true,
+    ]);
+
+    $sourceCategory = Category::query()->create([
+        'business_id' => $sourceBusiness->id,
+        'name' => 'Lacteos',
+        'slug' => 'lacteos-source',
+        'is_active' => true,
+    ]);
+
+    $targetCategory = Category::query()->create([
+        'business_id' => $targetBusiness->id,
+        'name' => 'lacteos',
+        'slug' => 'lacteos-target',
+        'is_active' => true,
+    ]);
+
+    $globalProduct = GlobalProduct::query()->create([
+        'name' => 'Leche Entera 1L',
+        'barcode' => '7792222222222',
+        'category_id' => $sourceCategory->id,
+        'normalized_name' => 'leche entera 1l',
+    ]);
+
+    $this->actingAs($admin)
+        ->post('/purchases', [
+            'items' => [[
+                'product_id' => null,
+                'quantity' => 2,
+                'unit_cost' => 900,
+                'product' => [
+                    'global_product_id' => $globalProduct->id,
+                    'name' => 'Leche Entera 1L',
+                    'barcode' => '7792222222222',
+                    'unit_type' => 'unit',
+                    'sale_price' => 1300,
+                ],
+            ]],
+        ])
+        ->assertRedirect();
+
+    $product = Product::query()->firstOrFail();
+
+    expect($product->global_product_id)->toBe($globalProduct->id);
+    expect($product->category_id)->toBe($targetCategory->id);
+    expect($product->stock)->toBe('2.000');
 });

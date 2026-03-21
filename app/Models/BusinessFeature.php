@@ -13,6 +13,8 @@ class BusinessFeature extends Model
 
     public const ADVANCED_SALE_SETTINGS = 'advanced_sale_settings';
 
+    public const GLOBAL_PRODUCT_CATALOG = 'global_product_catalog';
+
     /**
      * @var list<string>
      */

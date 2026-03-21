@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 class BusinessSalesConfigurationService
 {
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      */
     public function update(Business $business, array $payload): void
     {
@@ -21,6 +21,16 @@ class BusinessSalesConfigurationService
                 ],
                 [
                     'is_enabled' => (bool) ($payload['advanced_sale_settings_enabled'] ?? false),
+                ]
+            );
+
+            BusinessFeature::query()->updateOrCreate(
+                [
+                    'business_id' => $business->id,
+                    'feature' => BusinessFeature::GLOBAL_PRODUCT_CATALOG,
+                ],
+                [
+                    'is_enabled' => (bool) ($payload['global_product_catalog_enabled'] ?? false),
                 ]
             );
 

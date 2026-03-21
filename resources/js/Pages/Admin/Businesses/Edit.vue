@@ -41,6 +41,7 @@ const form = useForm({
 
 const salesSettingsForm = useForm({
     advanced_sale_settings_enabled: Boolean(props.sales_settings.advanced_sale_settings_enabled),
+    global_product_catalog_enabled: Boolean(props.sales_settings.global_product_catalog_enabled),
     sale_sectors: (props.sales_settings.sale_sectors || []).map((sector) => ({
         id: sector.id,
         name: sector.name || '',
@@ -171,12 +172,18 @@ const removePaymentDestination = (index) => {
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-semibold text-slate-100">Funciones por comercio</h3>
-                        <p class="mt-1 text-sm text-slate-300/80">Configuracion exclusiva para separar ventas por sector y cuenta de cobro.</p>
+                        <p class="mt-1 text-sm text-slate-300/80">Configuracion exclusiva para ventas avanzadas y acceso al catalogo global.</p>
                     </div>
-                    <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
-                        <input v-model="salesSettingsForm.advanced_sale_settings_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
-                        Habilitar ventas avanzadas
-                    </label>
+                    <div class="flex flex-col gap-2">
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
+                            <input v-model="salesSettingsForm.advanced_sale_settings_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
+                            Habilitar ventas avanzadas
+                        </label>
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
+                            <input v-model="salesSettingsForm.global_product_catalog_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
+                            Habilitar catalogo global de productos
+                        </label>
+                    </div>
                 </div>
 
                 <p v-if="salesSettingsForm.errors.sale_sectors" class="mt-3 text-sm text-rose-300">{{ salesSettingsForm.errors.sale_sectors }}</p>

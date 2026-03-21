@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Business;
-use App\Models\BusinessFeature;
 use App\Models\BusinessPaymentDestination;
 use App\Models\BusinessSaleSector;
 use App\Models\User;
@@ -13,6 +12,7 @@ test('superadmin can configure advanced sale settings for a business', function 
     $this->actingAs($superAdmin)
         ->put(route('admin.businesses.sales-settings.update', $business), [
             'advanced_sale_settings_enabled' => true,
+            'global_product_catalog_enabled' => true,
             'sale_sectors' => [
                 ['name' => 'Almacen', 'description' => 'Mostrador principal', 'is_active' => true],
                 ['name' => 'Viviendas', 'description' => 'Ventas por unidad', 'is_active' => true],
@@ -37,6 +37,7 @@ test('superadmin can configure advanced sale settings for a business', function 
         ->assertRedirect(route('admin.businesses.edit', $business));
 
     expect($business->fresh()->hasAdvancedSaleSettings())->toBeTrue();
+    expect($business->fresh()->hasGlobalProductCatalog())->toBeTrue();
 
     expect(BusinessSaleSector::query()->where('business_id', $business->id)->orderBy('sort_order')->pluck('name')->all())
         ->toBe(['Almacen', 'Viviendas']);

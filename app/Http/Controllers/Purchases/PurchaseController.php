@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Purchases;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Purchases\StorePurchaseRequest;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Supplier;
@@ -17,9 +18,7 @@ use Inertia\Response;
 
 class PurchaseController extends Controller
 {
-    public function __construct(private readonly PurchaseService $purchaseService)
-    {
-    }
+    public function __construct(private readonly PurchaseService $purchaseService) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
     {
@@ -83,6 +82,11 @@ class PurchaseController extends Controller
                 ->forBusiness($business->id)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'categories' => Category::query()
+                ->forBusiness($business->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'products' => Product::query()
                 ->forBusiness($business->id)
                 ->where('is_active', true)
@@ -120,6 +124,9 @@ class PurchaseController extends Controller
                     'shelf_life_days' => $product->shelf_life_days,
                     'expiry_alert_days' => $product->expiry_alert_days,
                 ]),
+            'global_catalog' => [
+                'enabled' => $business->hasGlobalProductCatalog(),
+            ],
         ]);
     }
 

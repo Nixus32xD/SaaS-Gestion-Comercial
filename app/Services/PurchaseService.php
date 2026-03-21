@@ -3,31 +3,36 @@
 namespace App\Services;
 
 use App\Models\Business;
+use App\Models\Category;
+use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Products\GlobalProductCatalogService;
 use App\Support\ProductMeasurement;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PurchaseService
 {
-    public function __construct(private readonly DocumentNumberService $documentNumberService)
-    {
-    }
+    public function __construct(
+        private readonly DocumentNumberService $documentNumberService,
+        private readonly GlobalProductCatalogService $catalogService
+    ) {}
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      */
     public function createPurchase(Business $business, User $user, array $payload): Purchase
     {
         return DB::transaction(function () use ($business, $user, $payload): Purchase {
             $purchasedAt = $this->resolveDateTimeValue($payload['purchased_at'] ?? null);
+            $globalCatalogEnabled = $business->hasGlobalProductCatalog();
 
             $supplierId = data_get($payload, 'supplier_id');
             $supplier = null;
@@ -76,6 +81,7 @@ class PurchaseService
                 $business,
                 $supplier,
                 $purchasedAt,
+                $globalCatalogEnabled,
                 &$seenSkus,
                 &$seenBarcodes
             ): array {
@@ -101,19 +107,38 @@ class PurchaseService
                     );
 
                     $newName = trim((string) data_get($item, 'product.name'));
+                    $globalProductId = data_get($item, 'product.global_product_id');
+                    $this->ensureGlobalCatalogEnabled($globalCatalogEnabled, $globalProductId, $index);
+                    $globalProduct = $this->resolveGlobalProduct($globalProductId);
+
+                    if ($newName === '' && $globalProduct !== null) {
+                        $newName = $globalProduct->name;
+                    }
+
                     if ($newName === '') {
                         throw ValidationException::withMessages([
                             'items' => 'Los items sin producto deben incluir nombre de producto.',
                         ]);
                     }
 
+                    $categoryId = $this->resolveCategoryId(
+                        $business->id,
+                        data_get($item, 'product.category_id'),
+                        $globalCatalogEnabled ? $globalProduct : null,
+                        $index
+                    );
+                    $barcode = trim((string) data_get($item, 'product.barcode')) ?: null;
+                    $barcode ??= $globalProduct?->barcode;
+
                     $product = Product::query()->create([
                         'business_id' => $business->id,
+                        'global_product_id' => $globalProduct?->id,
+                        'category_id' => $categoryId,
                         'supplier_id' => $supplier?->id,
                         'name' => $newName,
                         'slug' => $this->buildUniqueSlug($business->id, $newName),
                         'description' => null,
-                        'barcode' => trim((string) data_get($item, 'product.barcode')) ?: null,
+                        'barcode' => $barcode,
                         'sku' => trim((string) data_get($item, 'product.sku')) ?: null,
                         'unit_type' => data_get($item, 'product.unit_type', 'unit'),
                         'weight_unit' => ProductMeasurement::normalizeWeightUnit(
@@ -248,9 +273,9 @@ class PurchaseService
     }
 
     /**
-     * @param array<string, mixed> $item
-     * @param array<string, bool> $seenSkus
-     * @param array<string, bool> $seenBarcodes
+     * @param  array<string, mixed>  $item
+     * @param  array<string, bool>  $seenSkus
+     * @param  array<string, bool>  $seenBarcodes
      */
     private function ensureNewProductIdentityIsAvailable(
         int $businessId,
@@ -314,5 +339,49 @@ class PurchaseService
         }
 
         return mb_strtolower($normalized);
+    }
+
+    private function resolveGlobalProduct(mixed $globalProductId): ?GlobalProduct
+    {
+        if ($globalProductId === null || $globalProductId === '') {
+            return null;
+        }
+
+        return GlobalProduct::query()->find((int) $globalProductId);
+    }
+
+    private function resolveCategoryId(
+        int $businessId,
+        mixed $categoryId,
+        ?GlobalProduct $globalProduct,
+        int $index
+    ): ?int {
+        if ($categoryId !== null && $categoryId !== '') {
+            $category = Category::query()
+                ->forBusiness($businessId)
+                ->whereKey((int) $categoryId)
+                ->first();
+
+            if ($category === null) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.product.category_id" => 'La categoria seleccionada no pertenece al comercio.',
+                ]);
+            }
+
+            return $category->id;
+        }
+
+        return $this->catalogService->resolveCategoryIdForBusiness($businessId, $globalProduct);
+    }
+
+    private function ensureGlobalCatalogEnabled(bool $enabled, mixed $globalProductId, int $index): void
+    {
+        if ($enabled || $globalProductId === null || $globalProductId === '') {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            "items.{$index}.product.global_product_id" => 'El catalogo global no esta habilitado para este comercio.',
+        ]);
     }
 }

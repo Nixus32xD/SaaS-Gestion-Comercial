@@ -5,7 +5,22 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
     suppliers: { type: Array, default: () => [] },
+    categories: { type: Array, default: () => [] },
     products: { type: Array, default: () => [] },
+    global_catalog: { type: Object, default: () => ({ enabled: false }) },
+});
+
+const buildNewProductState = () => ({
+    global_product_id: '',
+    category_id: '',
+    name: '',
+    barcode: '',
+    sku: '',
+    unit_type: 'unit',
+    weight_unit: 'kg',
+    sale_price: 0,
+    min_stock: 0,
+    expiry_alert_days: 15,
 });
 
 const state = reactive({
@@ -17,15 +32,12 @@ const state = reactive({
     highlightedIndex: 0,
     activeProductId: null,
     helperMessage: 'Busca por nombre, codigo de barras o SKU. Enter agrega el producto.',
-    new_product: {
-        name: '',
-        barcode: '',
-        sku: '',
-        unit_type: 'unit',
-        weight_unit: 'kg',
-        sale_price: 0,
-        min_stock: 0,
-        expiry_alert_days: 15,
+    new_product: buildNewProductState(),
+    lookup: {
+        status: 'idle',
+        localProduct: null,
+        globalProduct: null,
+        conflict: null,
     },
 });
 
@@ -33,6 +45,7 @@ const searchInput = ref(null);
 const quantityInput = ref(null);
 const unitCostInput = ref(null);
 const newNameInput = ref(null);
+const isLookingUpCatalog = ref(false);
 
 const nowLocalDateTime = () => {
     const date = new Date();
@@ -133,6 +146,13 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
 
+const resetNewProductLookup = () => {
+    state.lookup.status = 'idle';
+    state.lookup.localProduct = null;
+    state.lookup.globalProduct = null;
+    state.lookup.conflict = null;
+};
+
 const syncSelection = () => {
     if (!filteredProducts.value.length) {
         state.highlightedIndex = 0;
@@ -232,6 +252,76 @@ const addExistingProduct = (product, source = 'manual') => {
     });
 };
 
+const lookupNewProductCatalog = async () => {
+    const barcode = String(state.new_product.barcode || '').trim();
+    const name = String(state.new_product.name || '').trim();
+
+    if (barcode === '' && name === '') {
+        resetNewProductLookup();
+        return;
+    }
+
+    isLookingUpCatalog.value = true;
+
+    try {
+        const { data } = await window.axios.get(route('products.catalog.lookup'), {
+            params: { barcode, name },
+        });
+
+        state.new_product.global_product_id = '';
+        state.lookup.localProduct = data?.local_product || null;
+        state.lookup.globalProduct = data?.global_product || null;
+        state.lookup.conflict = data?.conflict || null;
+
+        if (state.lookup.localProduct) {
+            state.lookup.status = 'found_local';
+            return;
+        }
+
+        if (state.lookup.conflict) {
+            state.lookup.status = 'conflict';
+            return;
+        }
+
+        if (state.lookup.globalProduct) {
+            state.lookup.status = 'found_global';
+            return;
+        }
+
+        state.lookup.status = 'not_found';
+    } catch (error) {
+        resetNewProductLookup();
+        state.lookup.status = 'error';
+    } finally {
+        isLookingUpCatalog.value = false;
+    }
+};
+
+const applyGlobalProductToPurchase = () => {
+    if (!state.lookup.globalProduct) return;
+
+    state.new_product.global_product_id = state.lookup.globalProduct.id;
+    state.new_product.name = state.lookup.globalProduct.name || state.new_product.name;
+
+    if (String(state.new_product.barcode || '').trim() === '' && state.lookup.globalProduct.barcode) {
+        state.new_product.barcode = state.lookup.globalProduct.barcode;
+    }
+
+    if (state.lookup.globalProduct.suggested_category?.id) {
+        state.new_product.category_id = state.lookup.globalProduct.suggested_category.id;
+    }
+
+    state.lookup.status = 'applied';
+    state.helperMessage = `Catalogo global aplicado a ${state.new_product.name}.`;
+};
+
+const switchToExistingFromLookup = () => {
+    if (!state.lookup.localProduct) return;
+
+    setMode('existing');
+    state.search = state.lookup.localProduct.barcode || state.lookup.localProduct.name;
+};
+
 const addNewProductItem = () => {
     const name = String(state.new_product.name || '').trim();
     if (name === '') {
@@ -260,6 +350,8 @@ const addNewProductItem = () => {
         unit_cost: Number(unitCost.toFixed(2)),
         expires_at: expiresAt || null,
         product: {
+            global_product_id: state.new_product.global_product_id || null,
+            category_id: state.new_product.category_id || null,
             name,
             barcode: String(state.new_product.barcode || '').trim() || null,
             sku: String(state.new_product.sku || '').trim() || null,
@@ -272,16 +364,8 @@ const addNewProductItem = () => {
         },
     });
 
-    state.new_product = {
-        name: '',
-        barcode: '',
-        sku: '',
-        unit_type: 'unit',
-        weight_unit: 'kg',
-        sale_price: 0,
-        min_stock: 0,
-        expiry_alert_days: 15,
-    };
+    state.new_product = buildNewProductState();
+    resetNewProductLookup();
     state.quantity = 1;
     state.unit_cost = 0;
     state.expires_at = '';
@@ -356,6 +440,13 @@ const handleSearchKeydown = (event) => {
     }
 };
 
+const handleNewBarcodeKeydown = (event) => {
+    if (event.key !== 'Enter') return;
+
+    event.preventDefault();
+    void lookupNewProductCatalog();
+};
+
 const removeItem = (index) => {
     form.items.splice(index, 1);
 };
@@ -381,7 +472,7 @@ const setMode = (mode) => {
         return;
     }
 
-    state.helperMessage = 'Modo producto nuevo. Carga nombre y datos basicos.';
+    state.helperMessage = 'Modo producto nuevo. Carga nombre y datos basicos o busca en el catalogo global.';
     nextTick(() => newNameInput.value?.focus());
 };
 
@@ -547,48 +638,109 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <div v-else class="mt-4 grid gap-3 lg:grid-cols-3">
-                    <div>
-                        <label for="new_product_name" class="mb-1 block text-sm font-medium text-slate-300">Nombre del producto</label>
-                        <input id="new_product_name" ref="newNameInput" v-model="state.new_product.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Ej: Yerba 1kg" />
-                    </div>
-                    <div>
-                        <label for="new_product_barcode" class="mb-1 block text-sm font-medium text-slate-300">Codigo de barras</label>
-                        <input id="new_product_barcode" v-model="state.new_product.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
-                    </div>
-                    <div>
-                        <label for="new_product_sku" class="mb-1 block text-sm font-medium text-slate-300">SKU</label>
-                        <input id="new_product_sku" v-model="state.new_product.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
-                    </div>
-                    <div>
-                        <label for="new_product_unit_type" class="mb-1 block text-sm font-medium text-slate-300">Tipo de unidad</label>
-                        <select id="new_product_unit_type" v-model="state.new_product.unit_type" class="w-full rounded-xl border-cyan-100/25 text-sm">
-                            <option value="unit">Unidad</option>
-                            <option value="weight">Peso</option>
-                        </select>
-                    </div>
-                    <div v-if="state.new_product.unit_type === 'weight'">
-                        <label for="new_product_weight_unit" class="mb-1 block text-sm font-medium text-slate-300">Gestion por peso</label>
-                        <select id="new_product_weight_unit" v-model="state.new_product.weight_unit" class="w-full rounded-xl border-cyan-100/25 text-sm">
-                            <option value="kg">Kilos</option>
-                            <option value="g">Gramos</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="new_product_sale_price" class="mb-1 block text-sm font-medium text-slate-300">
-                            {{ state.new_product.unit_type === 'weight' ? (state.new_product.weight_unit === 'g' ? 'Precio de venta sugerido por 100 g' : 'Precio de venta sugerido por kg') : 'Precio de venta sugerido' }}
-                        </label>
-                        <input id="new_product_sale_price" v-model.number="state.new_product.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.00" />
-                    </div>
-                    <div>
-                        <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-300">
-                            {{ state.new_product.unit_type === 'weight' ? `Stock minimo (${state.new_product.weight_unit === 'g' ? 'g' : 'kg'})` : 'Stock minimo' }}
-                        </label>
-                        <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" :step="state.new_product.unit_type === 'weight' && state.new_product.weight_unit === 'kg' ? '0.001' : '1'" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0" />
-                    </div>
-                    <div>
-                        <label for="new_product_expiry_alert_days" class="mb-1 block text-sm font-medium text-slate-300">Alerta vencimiento (dias)</label>
-                        <input id="new_product_expiry_alert_days" v-model.number="state.new_product.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                <div v-else class="mt-4 grid gap-4">
+                    <section v-if="global_catalog.enabled" class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-100">Lookup en catalogo global</h3>
+                                <p class="mt-1 text-xs text-slate-300/80">Si el producto no existe localmente, puedes buscarlo en el catalogo global y reutilizar nombre y categoria.</p>
+                            </div>
+                            <button
+                                type="button"
+                                class="rounded-xl border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800/70 disabled:opacity-60"
+                                :disabled="isLookingUpCatalog"
+                                @click="lookupNewProductCatalog"
+                            >
+                                {{ isLookingUpCatalog ? 'Buscando...' : 'Buscar en catalogo' }}
+                            </button>
+                        </div>
+
+                        <div v-if="state.lookup.status === 'found_local'" class="mt-4 rounded-xl border border-amber-200/35 bg-amber-300/10 p-4 text-sm text-amber-100">
+                            <p class="font-semibold">Ese producto ya existe en este comercio.</p>
+                            <p class="mt-1">Puedes volver al modo de producto existente para registrar la compra sobre el item local.</p>
+                            <button type="button" class="mt-3 rounded-lg border border-amber-100/35 px-3 py-2 text-xs font-semibold text-amber-50 hover:bg-amber-100/10" @click="switchToExistingFromLookup">
+                                Ir a producto existente
+                            </button>
+                        </div>
+
+                        <div v-else-if="state.lookup.status === 'found_global'" class="mt-4 rounded-xl border border-emerald-200/35 bg-emerald-300/10 p-4 text-sm text-emerald-100">
+                            <p class="font-semibold">Producto encontrado en el catalogo global.</p>
+                            <p class="mt-2">Nombre: {{ state.lookup.globalProduct.name }}</p>
+                            <p class="mt-1">Barcode: {{ state.lookup.globalProduct.barcode || 'Sin barcode' }}</p>
+                            <p class="mt-1">Categoria global: {{ state.lookup.globalProduct.category?.name || 'Sin categoria' }}</p>
+                            <p class="mt-1">Categoria sugerida local: {{ state.lookup.globalProduct.suggested_category?.name || 'Sin coincidencia segura' }}</p>
+                            <button type="button" class="mt-3 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500" @click="applyGlobalProductToPurchase">
+                                Usar producto del catalogo global
+                            </button>
+                        </div>
+
+                        <div v-else-if="state.lookup.status === 'applied'" class="mt-4 rounded-xl border border-cyan-200/35 bg-cyan-300/10 p-4 text-sm text-cyan-100">
+                            Se aplico el catalogo global al nuevo producto. El costo, stock y vencimiento siguen siendo del lote y del comercio actual.
+                        </div>
+
+                        <div v-else-if="state.lookup.status === 'conflict'" class="mt-4 rounded-xl border border-amber-200/35 bg-amber-300/10 p-4 text-sm text-amber-100">
+                            {{ state.lookup.conflict }}
+                        </div>
+
+                        <div v-else-if="state.lookup.status === 'not_found'" class="mt-4 rounded-xl border border-slate-100/15 bg-slate-900/30 p-4 text-sm text-slate-300">
+                            No hubo coincidencia segura en el catalogo global. Puedes seguir con la carga manual.
+                        </div>
+
+                        <div v-else-if="state.lookup.status === 'error'" class="mt-4 rounded-xl border border-rose-200/35 bg-rose-300/10 p-4 text-sm text-rose-100">
+                            No se pudo consultar el catalogo global en este momento.
+                        </div>
+                    </section>
+
+                    <div class="grid gap-3 lg:grid-cols-3">
+                        <div>
+                            <label for="new_product_name" class="mb-1 block text-sm font-medium text-slate-300">Nombre del producto</label>
+                            <input id="new_product_name" ref="newNameInput" v-model="state.new_product.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Ej: Yerba 1kg" />
+                        </div>
+                        <div>
+                            <label for="new_product_barcode" class="mb-1 block text-sm font-medium text-slate-300">Codigo de barras</label>
+                            <input id="new_product_barcode" v-model="state.new_product.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleNewBarcodeKeydown" />
+                        </div>
+                        <div>
+                            <label for="new_product_sku" class="mb-1 block text-sm font-medium text-slate-300">SKU</label>
+                            <input id="new_product_sku" v-model="state.new_product.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
+                        </div>
+                        <div>
+                            <label for="new_product_category_id" class="mb-1 block text-sm font-medium text-slate-300">Categoria</label>
+                            <select id="new_product_category_id" v-model="state.new_product.category_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                                <option value="">Sin categoria</option>
+                                <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="new_product_unit_type" class="mb-1 block text-sm font-medium text-slate-300">Tipo de unidad</label>
+                            <select id="new_product_unit_type" v-model="state.new_product.unit_type" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                                <option value="unit">Unidad</option>
+                                <option value="weight">Peso</option>
+                            </select>
+                        </div>
+                        <div v-if="state.new_product.unit_type === 'weight'">
+                            <label for="new_product_weight_unit" class="mb-1 block text-sm font-medium text-slate-300">Gestion por peso</label>
+                            <select id="new_product_weight_unit" v-model="state.new_product.weight_unit" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                                <option value="kg">Kilos</option>
+                                <option value="g">Gramos</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="new_product_sale_price" class="mb-1 block text-sm font-medium text-slate-300">
+                                {{ state.new_product.unit_type === 'weight' ? (state.new_product.weight_unit === 'g' ? 'Precio de venta sugerido por 100 g' : 'Precio de venta sugerido por kg') : 'Precio de venta sugerido' }}
+                            </label>
+                            <input id="new_product_sale_price" v-model.number="state.new_product.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.00" />
+                        </div>
+                        <div>
+                            <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-300">
+                                {{ state.new_product.unit_type === 'weight' ? `Stock minimo (${state.new_product.weight_unit === 'g' ? 'g' : 'kg'})` : 'Stock minimo' }}
+                            </label>
+                            <input id="new_product_min_stock" v-model.number="state.new_product.min_stock" type="number" min="0" :step="state.new_product.unit_type === 'weight' && state.new_product.weight_unit === 'kg' ? '0.001' : '1'" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0" />
+                        </div>
+                        <div>
+                            <label for="new_product_expiry_alert_days" class="mb-1 block text-sm font-medium text-slate-300">Alerta vencimiento (dias)</label>
+                            <input id="new_product_expiry_alert_days" v-model.number="state.new_product.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                        </div>
                     </div>
                 </div>
 

@@ -14,6 +14,7 @@ const navigation = computed(() => {
     if (isSuperAdmin.value) {
         return [
             { label: 'Comercios y funciones', route: 'admin.businesses.index', pattern: 'admin.businesses.*', icon: 'AD' },
+            { label: 'Catalogo global', route: 'admin.global-products.index', pattern: 'admin.global-products.*', icon: 'CG' },
             { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
         ];
     }

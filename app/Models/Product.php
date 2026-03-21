@@ -20,6 +20,7 @@ class Product extends Model
      */
     protected $fillable = [
         'business_id',
+        'global_product_id',
         'category_id',
         'supplier_id',
         'name',
@@ -61,6 +62,14 @@ class Product extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * @return BelongsTo<GlobalProduct, $this>
+     */
+    public function globalProduct(): BelongsTo
+    {
+        return $this->belongsTo(GlobalProduct::class);
     }
 
     /**

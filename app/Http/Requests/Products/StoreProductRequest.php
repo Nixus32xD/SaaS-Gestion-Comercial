@@ -40,6 +40,7 @@ class StoreProductRequest extends FormRequest
         $productId = $this->route('product')?->id;
 
         return [
+            'global_product_id' => ['nullable', 'integer', 'exists:global_products,id'],
             'category_id' => ['nullable', 'integer'],
             'supplier_id' => ['nullable', 'integer'],
             'name' => ['required', 'string', 'max:150'],

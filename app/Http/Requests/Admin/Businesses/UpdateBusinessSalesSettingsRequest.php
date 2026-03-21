@@ -22,6 +22,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
 
         return [
             'advanced_sale_settings_enabled' => ['required', 'boolean'],
+            'global_product_catalog_enabled' => ['required', 'boolean'],
             'sale_sectors' => ['nullable', 'array'],
             'sale_sectors.*.id' => [
                 'nullable',
@@ -53,6 +54,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
     {
         $this->merge([
             'advanced_sale_settings_enabled' => $this->boolean('advanced_sale_settings_enabled'),
+            'global_product_catalog_enabled' => $this->boolean('global_product_catalog_enabled'),
             'sale_sectors' => collect((array) $this->input('sale_sectors', []))
                 ->map(fn (array $sector): array => [
                     'id' => $sector['id'] ?? null,

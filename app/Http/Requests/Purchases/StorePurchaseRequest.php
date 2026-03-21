@@ -42,6 +42,8 @@ class StorePurchaseRequest extends FormRequest
             'items.*.unit_cost' => ['required', 'numeric', 'gte:0'],
             'items.*.expires_at' => ['nullable', 'date'],
             'items.*.product' => ['nullable', 'array'],
+            'items.*.product.global_product_id' => ['nullable', 'integer', 'exists:global_products,id'],
+            'items.*.product.category_id' => ['nullable', 'integer'],
             'items.*.product.name' => ['nullable', 'string', 'max:150'],
             'items.*.product.barcode' => ['nullable', 'string', 'max:120'],
             'items.*.product.sku' => ['nullable', 'string', 'max:120'],

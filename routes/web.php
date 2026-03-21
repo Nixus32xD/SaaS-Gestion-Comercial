@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\BusinessSalesSettingsController;
+use App\Http\Controllers\Admin\GlobalProductCatalogController;
 use App\Http\Controllers\Categories\CategoryController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Products\ProductController;
@@ -29,6 +30,8 @@ Route::middleware(['auth', 'superadmin'])
         Route::get('/businesses/{business}/edit', [BusinessController::class, 'edit'])->name('businesses.edit');
         Route::put('/businesses/{business}', [BusinessController::class, 'update'])->name('businesses.update');
         Route::put('/businesses/{business}/sales-settings', [BusinessSalesSettingsController::class, 'update'])->name('businesses.sales-settings.update');
+        Route::get('/global-products', [GlobalProductCatalogController::class, 'index'])->name('global-products.index');
+        Route::post('/global-products/sync', [GlobalProductCatalogController::class, 'sync'])->name('global-products.sync');
     });
 
 Route::middleware(['auth', 'business'])->group(function (): void {
@@ -42,6 +45,7 @@ Route::middleware(['auth', 'business'])->group(function (): void {
 
     Route::get('/products', [ProductController::class, 'index'])->name('products.index');
     Route::get('/products/create', [ProductController::class, 'create'])->name('products.create');
+    Route::get('/products/catalog/lookup', [ProductController::class, 'lookupCatalog'])->name('products.catalog.lookup');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
     Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
