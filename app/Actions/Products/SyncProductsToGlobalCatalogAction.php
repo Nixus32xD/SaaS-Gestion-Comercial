@@ -20,6 +20,7 @@ class SyncProductsToGlobalCatalogAction
             'analyzed' => 0,
             'created' => 0,
             'existing' => 0,
+            'skipped' => 0,
             'linked' => 0,
             'conflicts' => 0,
             'error_count' => 0,
@@ -34,6 +35,7 @@ class SyncProductsToGlobalCatalogAction
                 'category_id',
                 'name',
                 'barcode',
+                'sku',
             ])
             ->orderBy('id')
             ->chunkById(200, function ($products) use (&$summary): void {
@@ -51,9 +53,15 @@ class SyncProductsToGlobalCatalogAction
                             $summary['existing']++;
                         }
 
+                        if ($result['status'] === 'skipped') {
+                            $summary['skipped']++;
+                        }
+
                         if ($result['status'] === 'conflict') {
                             $summary['conflicts']++;
-                            $summary['errors'][] = $result['message'];
+                            if ($result['message']) {
+                                $summary['errors'][] = $result['message'];
+                            }
                         }
 
                         if ($result['linked']) {

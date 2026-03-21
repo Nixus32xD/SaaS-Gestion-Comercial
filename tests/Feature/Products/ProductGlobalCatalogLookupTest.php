@@ -43,6 +43,39 @@ test('product catalog lookup prioritizes an existing local product by barcode', 
         ->assertJsonPath('global_product', null);
 });
 
+test('product catalog lookup can resolve a global product by sku', function () {
+    $sourceBusiness = Business::factory()->create();
+    $targetBusiness = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($targetBusiness->id)->create();
+
+    BusinessFeature::query()->create([
+        'business_id' => $targetBusiness->id,
+        'feature' => BusinessFeature::GLOBAL_PRODUCT_CATALOG,
+        'is_enabled' => true,
+    ]);
+
+    $sourceCategory = Category::query()->create([
+        'business_id' => $sourceBusiness->id,
+        'name' => 'Almacen',
+        'slug' => 'almacen-source',
+        'is_active' => true,
+    ]);
+
+    GlobalProduct::query()->create([
+        'name' => 'Arroz Largo Fino 1kg',
+        'sku' => 'ARROZ-001',
+        'category_id' => $sourceCategory->id,
+        'normalized_name' => 'arroz largo fino 1kg',
+    ]);
+
+    $this->actingAs($admin)
+        ->getJson(route('products.catalog.lookup', ['sku' => 'ARROZ-001']))
+        ->assertOk()
+        ->assertJsonPath('global_product.name', 'Arroz Largo Fino 1kg')
+        ->assertJsonPath('global_product.sku', 'ARROZ-001')
+        ->assertJsonPath('local_product', null);
+});
+
 test('product catalog lookup suggests the local category that matches the global category name', function () {
     $sourceBusiness = Business::factory()->create();
     $targetBusiness = Business::factory()->create();

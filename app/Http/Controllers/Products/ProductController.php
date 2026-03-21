@@ -136,7 +136,7 @@ class ProductController extends Controller
             $catalogService->lookupForBusiness(
                 $business->id,
                 $request->string('barcode')->trim()->value(),
-                $request->string('name')->trim()->value(),
+                $request->string('sku')->trim()->value(),
             )
         );
     }

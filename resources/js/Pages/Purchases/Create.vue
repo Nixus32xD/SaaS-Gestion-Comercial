@@ -254,9 +254,9 @@ const addExistingProduct = (product, source = 'manual') => {
 
 const lookupNewProductCatalog = async () => {
     const barcode = String(state.new_product.barcode || '').trim();
-    const name = String(state.new_product.name || '').trim();
+    const sku = String(state.new_product.sku || '').trim();
 
-    if (barcode === '' && name === '') {
+    if (barcode === '' && sku === '') {
         resetNewProductLookup();
         return;
     }
@@ -265,7 +265,7 @@ const lookupNewProductCatalog = async () => {
 
     try {
         const { data } = await window.axios.get(route('products.catalog.lookup'), {
-            params: { barcode, name },
+            params: { barcode, sku },
         });
 
         state.new_product.global_product_id = '';
@@ -307,6 +307,10 @@ const applyGlobalProductToPurchase = () => {
         state.new_product.barcode = state.lookup.globalProduct.barcode;
     }
 
+    if (String(state.new_product.sku || '').trim() === '' && state.lookup.globalProduct.sku) {
+        state.new_product.sku = state.lookup.globalProduct.sku;
+    }
+
     if (state.lookup.globalProduct.suggested_category?.id) {
         state.new_product.category_id = state.lookup.globalProduct.suggested_category.id;
     }
@@ -319,7 +323,7 @@ const switchToExistingFromLookup = () => {
     if (!state.lookup.localProduct) return;
 
     setMode('existing');
-    state.search = state.lookup.localProduct.barcode || state.lookup.localProduct.name;
+    state.search = state.lookup.localProduct.barcode || state.lookup.localProduct.sku || state.lookup.localProduct.name;
 };
 
 const addNewProductItem = () => {
@@ -440,7 +444,7 @@ const handleSearchKeydown = (event) => {
     }
 };
 
-const handleNewBarcodeKeydown = (event) => {
+const handleNewIdentifierKeydown = (event) => {
     if (event.key !== 'Enter') return;
 
     event.preventDefault();
@@ -643,7 +647,7 @@ onBeforeUnmount(() => {
                         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div>
                                 <h3 class="text-sm font-semibold text-slate-100">Lookup en catalogo global</h3>
-                                <p class="mt-1 text-xs text-slate-300/80">Si el producto no existe localmente, puedes buscarlo en el catalogo global y reutilizar nombre y categoria.</p>
+                                <p class="mt-1 text-xs text-slate-300/80">Si el producto no existe localmente, puedes buscarlo por barcode o SKU y reutilizar nombre y categoria.</p>
                             </div>
                             <button
                                 type="button"
@@ -657,6 +661,8 @@ onBeforeUnmount(() => {
 
                         <div v-if="state.lookup.status === 'found_local'" class="mt-4 rounded-xl border border-amber-200/35 bg-amber-300/10 p-4 text-sm text-amber-100">
                             <p class="font-semibold">Ese producto ya existe en este comercio.</p>
+                            <p class="mt-1">Nombre: {{ state.lookup.localProduct.name }}</p>
+                            <p class="mt-1">SKU: {{ state.lookup.localProduct.sku || 'Sin SKU' }}</p>
                             <p class="mt-1">Puedes volver al modo de producto existente para registrar la compra sobre el item local.</p>
                             <button type="button" class="mt-3 rounded-lg border border-amber-100/35 px-3 py-2 text-xs font-semibold text-amber-50 hover:bg-amber-100/10" @click="switchToExistingFromLookup">
                                 Ir a producto existente
@@ -667,6 +673,7 @@ onBeforeUnmount(() => {
                             <p class="font-semibold">Producto encontrado en el catalogo global.</p>
                             <p class="mt-2">Nombre: {{ state.lookup.globalProduct.name }}</p>
                             <p class="mt-1">Barcode: {{ state.lookup.globalProduct.barcode || 'Sin barcode' }}</p>
+                            <p class="mt-1">SKU: {{ state.lookup.globalProduct.sku || 'Sin SKU' }}</p>
                             <p class="mt-1">Categoria global: {{ state.lookup.globalProduct.category?.name || 'Sin categoria' }}</p>
                             <p class="mt-1">Categoria sugerida local: {{ state.lookup.globalProduct.suggested_category?.name || 'Sin coincidencia segura' }}</p>
                             <button type="button" class="mt-3 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500" @click="applyGlobalProductToPurchase">
@@ -683,7 +690,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div v-else-if="state.lookup.status === 'not_found'" class="mt-4 rounded-xl border border-slate-100/15 bg-slate-900/30 p-4 text-sm text-slate-300">
-                            No hubo coincidencia segura en el catalogo global. Puedes seguir con la carga manual.
+                            No hubo coincidencia por barcode o SKU en el catalogo global. Puedes seguir con la carga manual.
                         </div>
 
                         <div v-else-if="state.lookup.status === 'error'" class="mt-4 rounded-xl border border-rose-200/35 bg-rose-300/10 p-4 text-sm text-rose-100">
@@ -698,11 +705,11 @@ onBeforeUnmount(() => {
                         </div>
                         <div>
                             <label for="new_product_barcode" class="mb-1 block text-sm font-medium text-slate-300">Codigo de barras</label>
-                            <input id="new_product_barcode" v-model="state.new_product.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleNewBarcodeKeydown" />
+                            <input id="new_product_barcode" v-model="state.new_product.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleNewIdentifierKeydown" />
                         </div>
                         <div>
                             <label for="new_product_sku" class="mb-1 block text-sm font-medium text-slate-300">SKU</label>
-                            <input id="new_product_sku" v-model="state.new_product.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
+                            <input id="new_product_sku" v-model="state.new_product.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleNewIdentifierKeydown" />
                         </div>
                         <div>
                             <label for="new_product_category_id" class="mb-1 block text-sm font-medium text-slate-300">Categoria</label>

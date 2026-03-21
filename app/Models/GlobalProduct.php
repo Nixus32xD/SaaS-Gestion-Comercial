@@ -16,6 +16,7 @@ class GlobalProduct extends Model
      */
     protected $fillable = [
         'barcode',
+        'sku',
         'name',
         'category_id',
         'normalized_name',

@@ -43,8 +43,8 @@ const syncCatalog = () => {
                     <p class="mt-2 text-3xl font-bold text-slate-100">{{ stats.total }}</p>
                 </article>
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Con barcode</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ stats.with_barcode }}</p>
+                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Con identificador</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ stats.with_identifier }}</p>
                 </article>
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
                     <p class="text-xs uppercase tracking-wider text-cyan-100/70">Sin categoria</p>
@@ -67,7 +67,7 @@ const syncCatalog = () => {
                     </div>
 
                     <div class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
-                        <p>Prioridad de matching: barcode exacto y, cuando falta o no resuelve, nombre normalizado.</p>
+                        <p>Prioridad de matching: barcode exacto y SKU exacto. Solo entran al catalogo global productos que tengan al menos uno de esos identificadores.</p>
                         <p class="mt-2">La accion no toca precios, stock ni datos operativos del comercio.</p>
                     </div>
 
@@ -85,6 +85,10 @@ const syncCatalog = () => {
                             <div class="rounded-lg border border-cyan-100/15 bg-slate-900/35 px-3 py-2">
                                 <p class="text-xs uppercase tracking-wide text-slate-400">Ya existentes</p>
                                 <p class="mt-1 text-lg font-semibold text-slate-100">{{ last_sync_summary.existing }}</p>
+                            </div>
+                            <div class="rounded-lg border border-cyan-100/15 bg-slate-900/35 px-3 py-2">
+                                <p class="text-xs uppercase tracking-wide text-slate-400">Omitidos</p>
+                                <p class="mt-1 text-lg font-semibold text-slate-100">{{ last_sync_summary.skipped }}</p>
                             </div>
                             <div class="rounded-lg border border-cyan-100/15 bg-slate-900/35 px-3 py-2">
                                 <p class="text-xs uppercase tracking-wide text-slate-400">Locales vinculados</p>
@@ -116,6 +120,7 @@ const syncCatalog = () => {
                             <li v-for="product in recent_global_products" :key="product.id" class="px-4 py-3">
                                 <p class="font-semibold text-slate-100">{{ product.name }}</p>
                                 <p class="mt-1 text-xs text-slate-300/80">Barcode: {{ product.barcode || 'sin barcode' }}</p>
+                                <p class="text-xs text-slate-300/80">SKU: {{ product.sku || 'sin sku' }}</p>
                                 <p class="text-xs text-slate-300/80">Categoria: {{ product.category || 'sin categoria' }}</p>
                                 <p class="text-xs text-slate-500">Actualizado: {{ product.updated_at || '-' }}</p>
                             </li>

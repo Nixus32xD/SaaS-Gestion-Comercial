@@ -18,7 +18,11 @@ class GlobalProductCatalogController extends Controller
         return Inertia::render('Admin/GlobalProducts/Index', [
             'stats' => [
                 'total' => GlobalProduct::query()->count(),
-                'with_barcode' => GlobalProduct::query()->whereNotNull('barcode')->count(),
+                'with_identifier' => GlobalProduct::query()
+                    ->where(function ($query): void {
+                        $query->whereNotNull('barcode')->orWhereNotNull('sku');
+                    })
+                    ->count(),
                 'without_category' => GlobalProduct::query()->whereNull('category_id')->count(),
                 'linked_local_products' => Product::query()->whereNotNull('global_product_id')->count(),
             ],
@@ -31,6 +35,7 @@ class GlobalProductCatalogController extends Controller
                     'id' => $product->id,
                     'name' => $product->name,
                     'barcode' => $product->barcode,
+                    'sku' => $product->sku,
                     'category' => $product->category?->name,
                     'updated_at' => $product->updated_at?->format('Y-m-d H:i'),
                 ])

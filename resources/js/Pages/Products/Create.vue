@@ -89,9 +89,9 @@ const clearGlobalSelection = () => {
 
 const lookupCatalog = async () => {
     const barcode = String(form.barcode || '').trim();
-    const name = String(form.name || '').trim();
+    const sku = String(form.sku || '').trim();
 
-    if (barcode === '' && name === '') {
+    if (barcode === '' && sku === '') {
         clearLookup();
         return;
     }
@@ -100,7 +100,7 @@ const lookupCatalog = async () => {
 
     try {
         const { data } = await window.axios.get(route('products.catalog.lookup'), {
-            params: { barcode, name },
+            params: { barcode, sku },
         });
 
         form.global_product_id = '';
@@ -143,6 +143,10 @@ const applyGlobalProduct = () => {
         form.barcode = lookup.globalProduct.barcode;
     }
 
+    if (String(form.sku || '').trim() === '' && lookup.globalProduct.sku) {
+        form.sku = lookup.globalProduct.sku;
+    }
+
     if (lookup.globalProduct.suggested_category?.id) {
         form.category_id = lookup.globalProduct.suggested_category.id;
     }
@@ -150,7 +154,7 @@ const applyGlobalProduct = () => {
     lookup.status = 'applied';
 };
 
-const handleBarcodeKeydown = (event) => {
+const handleIdentifierKeydown = (event) => {
     if (event.key !== 'Enter') return;
 
     event.preventDefault();
@@ -183,7 +187,7 @@ const submit = () => {
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <h3 class="text-sm font-semibold text-slate-100">Lookup en catalogo global</h3>
-                            <p class="mt-1 text-xs text-slate-300/80">Busca primero por codigo de barras. Si no tienes barcode, tambien puedes buscar por nombre.</p>
+                            <p class="mt-1 text-xs text-slate-300/80">Busca por codigo de barras o SKU. El catalogo global ya no toma productos sin alguno de esos identificadores.</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <button
@@ -208,6 +212,7 @@ const submit = () => {
                     <div v-if="lookup.status === 'found_local'" class="mt-4 rounded-xl border border-amber-200/35 bg-amber-300/10 p-4 text-sm text-amber-100">
                         <p class="font-semibold">Ese producto ya existe en este comercio.</p>
                         <p class="mt-1">Nombre: {{ lookup.localProduct.name }}</p>
+                        <p class="mt-1">SKU: {{ lookup.localProduct.sku || 'Sin SKU' }}</p>
                         <p class="mt-1">Categoria: {{ lookup.localProduct.category || 'Sin categoria' }}</p>
                         <Link :href="route('products.edit', lookup.localProduct.id)" class="mt-3 inline-flex rounded-lg border border-amber-100/35 px-3 py-2 text-xs font-semibold text-amber-50 hover:bg-amber-100/10">
                             Ver producto existente
@@ -218,6 +223,7 @@ const submit = () => {
                         <p class="font-semibold">Producto encontrado en el catalogo global. Puedes reutilizarlo para autocompletar la base local.</p>
                         <p class="mt-2">Nombre: {{ lookup.globalProduct.name }}</p>
                         <p class="mt-1">Barcode: {{ lookup.globalProduct.barcode || 'Sin barcode' }}</p>
+                        <p class="mt-1">SKU: {{ lookup.globalProduct.sku || 'Sin SKU' }}</p>
                         <p class="mt-1">Categoria global: {{ lookup.globalProduct.category?.name || 'Sin categoria' }}</p>
                         <p class="mt-1">
                             Categoria sugerida para este comercio:
@@ -239,7 +245,7 @@ const submit = () => {
                     </div>
 
                     <div v-else-if="lookup.status === 'not_found'" class="mt-4 rounded-xl border border-slate-100/15 bg-slate-900/30 p-4 text-sm text-slate-300">
-                        No se encontro una coincidencia global segura. Puedes crear el producto manualmente y seguir con el flujo actual.
+                        No se encontro una coincidencia por barcode o SKU en el catalogo global. Puedes crear el producto manualmente y seguir con el flujo actual.
                     </div>
 
                     <div v-else-if="lookup.status === 'error'" class="mt-4 rounded-xl border border-rose-200/35 bg-rose-300/10 p-4 text-sm text-rose-100">
@@ -286,11 +292,11 @@ const submit = () => {
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-300">Codigo de barras</label>
-                        <input v-model="form.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleBarcodeKeydown" />
+                        <input v-model="form.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleIdentifierKeydown" />
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-300">SKU</label>
-                        <input v-model="form.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
+                        <input v-model="form.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleIdentifierKeydown" />
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-300">{{ priceLabel }}</label>

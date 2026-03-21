@@ -15,31 +15,25 @@ class GlobalProductCatalogService
     /**
      * @return array<string, mixed>
      */
-    public function lookupForBusiness(int $businessId, ?string $barcode, ?string $name): array
+    public function lookupForBusiness(int $businessId, ?string $barcode, ?string $sku): array
     {
-        $barcode = $this->sanitizeBarcode($barcode);
-        $name = $this->sanitizeName($name);
-
-        $localProduct = $barcode === null
-            ? null
-            : Product::query()
-                ->forBusiness($businessId)
-                ->with('category:id,name')
-                ->where('barcode', $barcode)
-                ->first();
+        $barcode = $this->sanitizeIdentity($barcode);
+        $sku = $this->sanitizeIdentity($sku);
+        $localProduct = $this->findLocalProduct($businessId, $barcode, $sku);
 
         if ($localProduct !== null) {
             return [
-                'searched_by' => 'barcode',
+                'searched_by' => $barcode !== null ? 'barcode' : 'sku',
                 'local_product' => $this->mapLocalProduct($localProduct),
                 'global_product' => null,
+                'conflict' => null,
             ];
         }
 
-        $match = $this->findMatchingGlobalProduct($barcode, $name);
+        $match = $this->findMatchingGlobalProduct($barcode, $sku);
 
         return [
-            'searched_by' => $barcode !== null ? 'barcode' : 'name',
+            'searched_by' => $barcode !== null ? 'barcode' : ($sku !== null ? 'sku' : null),
             'local_product' => null,
             'global_product' => $match['product'] instanceof GlobalProduct
                 ? $this->mapGlobalProduct($match['product'], $businessId)
@@ -60,6 +54,14 @@ class GlobalProductCatalogService
                 ->lockForUpdate()
                 ->findOrFail($product->id);
 
+            if (! $this->hasCatalogIdentifier($localProduct->barcode, $localProduct->sku)) {
+                return [
+                    'status' => 'skipped',
+                    'linked' => false,
+                    'message' => 'Producto omitido por no tener barcode ni SKU.',
+                ];
+            }
+
             if ($localProduct->global_product_id !== null) {
                 $globalProduct = GlobalProduct::query()->find($localProduct->global_product_id);
 
@@ -74,7 +76,7 @@ class GlobalProductCatalogService
                 }
             }
 
-            $match = $this->findMatchingGlobalProduct($localProduct->barcode, $localProduct->name);
+            $match = $this->findMatchingGlobalProduct($localProduct->barcode, $localProduct->sku);
 
             if ($match['conflict']) {
                 return [
@@ -132,67 +134,75 @@ class GlobalProductCatalogService
     /**
      * @return array{product: ?GlobalProduct, conflict: bool, message: ?string}
      */
-    private function findMatchingGlobalProduct(?string $barcode, ?string $name): array
+    private function findMatchingGlobalProduct(?string $barcode, ?string $sku): array
     {
-        $barcode = $this->sanitizeBarcode($barcode);
-        $name = $this->sanitizeName($name);
+        $barcode = $this->sanitizeIdentity($barcode);
+        $sku = $this->sanitizeIdentity($sku);
 
-        if ($barcode !== null) {
-            $byBarcode = GlobalProduct::query()
+        if (! $this->hasCatalogIdentifier($barcode, $sku)) {
+            return [
+                'product' => null,
+                'conflict' => false,
+                'message' => null,
+            ];
+        }
+
+        $byBarcode = $barcode === null
+            ? null
+            : GlobalProduct::query()
                 ->with('category:id,name')
                 ->where('barcode', $barcode)
                 ->first();
 
-            if ($byBarcode !== null) {
-                return [
-                    'product' => $byBarcode,
-                    'conflict' => false,
-                    'message' => null,
-                ];
-            }
-        }
+        $bySku = $sku === null
+            ? null
+            : GlobalProduct::query()
+                ->with('category:id,name')
+                ->where('sku', $sku)
+                ->first();
 
-        if ($name === null) {
-            return [
-                'product' => null,
-                'conflict' => false,
-                'message' => null,
-            ];
-        }
-
-        $normalizedName = $this->nameNormalizer->normalize($name);
-
-        if ($normalizedName === '') {
-            return [
-                'product' => null,
-                'conflict' => false,
-                'message' => null,
-            ];
-        }
-
-        $byName = GlobalProduct::query()
-            ->with('category:id,name')
-            ->where('normalized_name', $normalizedName)
-            ->first();
-
-        if ($byName === null) {
-            return [
-                'product' => null,
-                'conflict' => false,
-                'message' => null,
-            ];
-        }
-
-        if ($barcode !== null && $byName->barcode !== null && $byName->barcode !== $barcode) {
+        if ($byBarcode !== null && $bySku !== null && $byBarcode->id !== $bySku->id) {
             return [
                 'product' => null,
                 'conflict' => true,
-                'message' => "Conflicto para \"{$name}\": el catalogo global ya tiene otro codigo de barras asignado.",
+                'message' => 'Conflicto de identificadores: el barcode y el SKU apuntan a productos globales distintos.',
+            ];
+        }
+
+        if ($byBarcode !== null) {
+            if ($sku !== null && $byBarcode->sku !== null && $byBarcode->sku !== $sku) {
+                return [
+                    'product' => null,
+                    'conflict' => true,
+                    'message' => 'Conflicto de SKU: el producto global encontrado por barcode ya tiene otro SKU asignado.',
+                ];
+            }
+
+            return [
+                'product' => $byBarcode,
+                'conflict' => false,
+                'message' => null,
+            ];
+        }
+
+        if ($bySku !== null) {
+            if ($barcode !== null && $bySku->barcode !== null && $bySku->barcode !== $barcode) {
+                return [
+                    'product' => null,
+                    'conflict' => true,
+                    'message' => 'Conflicto de barcode: el producto global encontrado por SKU ya tiene otro barcode asignado.',
+                ];
+            }
+
+            return [
+                'product' => $bySku,
+                'conflict' => false,
+                'message' => null,
             ];
         }
 
         return [
-            'product' => $byName,
+            'product' => null,
             'conflict' => false,
             'message' => null,
         ];
@@ -201,7 +211,8 @@ class GlobalProductCatalogService
     private function createGlobalProductFromLocal(Product $product): GlobalProduct
     {
         $attributes = [
-            'barcode' => $this->sanitizeBarcode($product->barcode),
+            'barcode' => $this->sanitizeIdentity($product->barcode),
+            'sku' => $this->sanitizeIdentity($product->sku),
             'name' => $product->name,
             'category_id' => $product->category_id,
             'normalized_name' => $this->nameNormalizer->normalize($product->name),
@@ -210,7 +221,7 @@ class GlobalProductCatalogService
         try {
             return GlobalProduct::query()->create($attributes);
         } catch (QueryException $exception) {
-            $match = $this->findMatchingGlobalProduct($product->barcode, $product->name);
+            $match = $this->findMatchingGlobalProduct($product->barcode, $product->sku);
 
             if ($match['product'] instanceof GlobalProduct) {
                 $this->fillMissingGlobalFields($match['product'], $product);
@@ -225,10 +236,16 @@ class GlobalProductCatalogService
     private function fillMissingGlobalFields(GlobalProduct $globalProduct, Product $localProduct): void
     {
         $dirty = false;
-        $barcode = $this->sanitizeBarcode($localProduct->barcode);
+        $barcode = $this->sanitizeIdentity($localProduct->barcode);
+        $sku = $this->sanitizeIdentity($localProduct->sku);
 
         if ($globalProduct->barcode === null && $barcode !== null) {
             $globalProduct->barcode = $barcode;
+            $dirty = true;
+        }
+
+        if ($globalProduct->sku === null && $sku !== null) {
+            $globalProduct->sku = $sku;
             $dirty = true;
         }
 
@@ -242,6 +259,36 @@ class GlobalProductCatalogService
         }
     }
 
+    private function findLocalProduct(int $businessId, ?string $barcode, ?string $sku): ?Product
+    {
+        if ($barcode !== null) {
+            $localByBarcode = Product::query()
+                ->forBusiness($businessId)
+                ->with('category:id,name')
+                ->where('barcode', $barcode)
+                ->first();
+
+            if ($localByBarcode !== null) {
+                return $localByBarcode;
+            }
+        }
+
+        if ($sku === null) {
+            return null;
+        }
+
+        return Product::query()
+            ->forBusiness($businessId)
+            ->with('category:id,name')
+            ->where('sku', $sku)
+            ->first();
+    }
+
+    private function hasCatalogIdentifier(?string $barcode, ?string $sku): bool
+    {
+        return $this->sanitizeIdentity($barcode) !== null || $this->sanitizeIdentity($sku) !== null;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -251,6 +298,7 @@ class GlobalProductCatalogService
             'id' => $product->id,
             'name' => $product->name,
             'barcode' => $product->barcode,
+            'sku' => $product->sku,
             'category' => $product->category?->name,
         ];
     }
@@ -269,6 +317,7 @@ class GlobalProductCatalogService
             'id' => $product->id,
             'name' => $product->name,
             'barcode' => $product->barcode,
+            'sku' => $product->sku,
             'category' => $product->category ? [
                 'id' => $product->category->id,
                 'name' => $product->category->name,
@@ -280,17 +329,10 @@ class GlobalProductCatalogService
         ];
     }
 
-    private function sanitizeBarcode(?string $value): ?string
+    private function sanitizeIdentity(?string $value): ?string
     {
-        $barcode = trim((string) $value);
+        $identity = trim((string) $value);
 
-        return $barcode === '' ? null : $barcode;
-    }
-
-    private function sanitizeName(?string $value): ?string
-    {
-        $name = trim((string) $value);
-
-        return $name === '' ? null : $name;
+        return $identity === '' ? null : $identity;
     }
 }

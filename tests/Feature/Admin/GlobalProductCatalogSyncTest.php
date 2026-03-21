@@ -60,6 +60,7 @@ test('superadmin can sync local products into the global catalog without duplica
             return $summary['analyzed'] === 2
                 && $summary['created'] === 1
                 && $summary['existing'] === 1
+                && $summary['skipped'] === 0
                 && $summary['linked'] === 2
                 && $summary['conflicts'] === 0
                 && $summary['error_count'] === 0;
@@ -72,4 +73,37 @@ test('superadmin can sync local products into the global catalog without duplica
     expect($globalProduct->category_id)->toBe($sourceCategory->id);
     expect($productA->fresh()->global_product_id)->toBe($globalProduct->id);
     expect($productB->fresh()->global_product_id)->toBe($globalProduct->id);
+});
+
+test('sync skips local products without barcode and sku', function () {
+    $business = Business::factory()->create();
+    $superAdmin = User::factory()->superadmin()->create();
+
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Producto sin identificador',
+        'slug' => 'producto-sin-identificador',
+        'unit_type' => 'unit',
+        'sale_price' => 1200,
+        'cost_price' => 800,
+        'stock' => 10,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($superAdmin)
+        ->post(route('admin.global-products.sync'))
+        ->assertRedirect(route('admin.global-products.index'))
+        ->assertSessionHas('global_catalog_sync_summary', function (array $summary): bool {
+            return $summary['analyzed'] === 1
+                && $summary['created'] === 0
+                && $summary['existing'] === 0
+                && $summary['skipped'] === 1
+                && $summary['linked'] === 0
+                && $summary['conflicts'] === 0
+                && $summary['error_count'] === 0;
+        });
+
+    expect(GlobalProduct::query()->count())->toBe(0);
+    expect($product->fresh()->global_product_id)->toBeNull();
 });
