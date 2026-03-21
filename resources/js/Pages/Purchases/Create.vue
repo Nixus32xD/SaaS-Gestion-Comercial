@@ -46,6 +46,9 @@ const quantityInput = ref(null);
 const unitCostInput = ref(null);
 const newNameInput = ref(null);
 const isLookingUpCatalog = ref(false);
+const isResolvingExistingSearch = ref(false);
+let searchMutationVersion = 0;
+let lastHandledSearchMutationVersion = -1;
 
 const nowLocalDateTime = () => {
     const date = new Date();
@@ -391,21 +394,37 @@ const addCurrentItem = () => {
 
 const handleSearchEnter = () => {
     if (state.mode !== 'existing') return;
+    const searchTerm = String(state.search || '').trim();
 
-    const exactCodeMatch = findExactCodeMatch(state.search);
-
-    if (exactCodeMatch) {
-        setDefaultCost(exactCodeMatch);
-        addExistingProduct(exactCodeMatch, 'scanner');
+    if (searchTerm === '') {
         return;
     }
 
-    if (activeProduct.value) {
-        addExistingProduct(activeProduct.value, 'manual');
+    if (isResolvingExistingSearch.value || searchMutationVersion === lastHandledSearchMutationVersion) {
         return;
     }
 
-    state.helperMessage = 'Sin coincidencias. Usa Alt+N para cargar un producto nuevo.';
+    isResolvingExistingSearch.value = true;
+    lastHandledSearchMutationVersion = searchMutationVersion;
+
+    try {
+        const exactCodeMatch = findExactCodeMatch(searchTerm);
+
+        if (exactCodeMatch) {
+            setDefaultCost(exactCodeMatch);
+            addExistingProduct(exactCodeMatch, 'scanner');
+            return;
+        }
+
+        if (activeProduct.value) {
+            addExistingProduct(activeProduct.value, 'manual');
+            return;
+        }
+
+        state.helperMessage = 'Sin coincidencias. Usa Alt+N para cargar un producto nuevo.';
+    } finally {
+        isResolvingExistingSearch.value = false;
+    }
 };
 
 const handleSearchKeydown = (event) => {
@@ -446,6 +465,7 @@ const handleSearchKeydown = (event) => {
 
 const handleNewIdentifierKeydown = (event) => {
     if (event.key !== 'Enter') return;
+    if (isLookingUpCatalog.value) return;
 
     event.preventDefault();
     void lookupNewProductCatalog();
@@ -527,6 +547,7 @@ const handleGlobalShortcuts = (event) => {
 };
 
 watch(() => state.search, () => {
+    searchMutationVersion += 1;
     syncSelection();
 });
 
