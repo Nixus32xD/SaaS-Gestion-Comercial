@@ -21,8 +21,11 @@ const quantityInput = ref(null);
 const knownProducts = ref([...(props.products || [])]);
 const searchResults = ref([...(props.products || [])]);
 const isLoadingProducts = ref(false);
+const isResolvingSearch = ref(false);
 let searchTimer = null;
 let lastSearchRequestId = 0;
+let searchMutationVersion = 0;
+let lastHandledSearchMutationVersion = -1;
 
 const nowLocalDateTime = () => {
     const date = new Date();
@@ -126,6 +129,8 @@ const syncSelection = () => {
 };
 
 watch(() => state.search, (value) => {
+    searchMutationVersion += 1;
+
     if (searchTimer !== null) {
         window.clearTimeout(searchTimer);
     }
@@ -184,19 +189,48 @@ const addProductToCart = (product, source = 'manual') => {
 };
 
 const handleSearchEnter = async () => {
-    const results = await fetchProducts(state.search);
-    const exact = findExactCodeMatch(state.search, results);
+    const searchTerm = String(state.search || '').trim();
+    if (searchTerm === '') return;
 
-    if (exact) {
-        addProductToCart(exact, 'scanner');
+    if (isResolvingSearch.value || searchMutationVersion === lastHandledSearchMutationVersion) {
         return;
     }
 
-    const fallback = results.find((product) => product.id === state.activeProductId)
-        || results[state.highlightedIndex]
-        || null;
+    lastHandledSearchMutationVersion = searchMutationVersion;
 
-    addProductToCart(fallback, 'manual');
+    if (searchTimer !== null) {
+        window.clearTimeout(searchTimer);
+        searchTimer = null;
+    }
+
+    const exactKnown = findExactCodeMatch(searchTerm, knownProducts.value);
+
+    if (exactKnown) {
+        addProductToCart(exactKnown, 'scanner');
+        return;
+    }
+
+    const activeProductIdAtSubmit = state.activeProductId;
+    const highlightedIndexAtSubmit = state.highlightedIndex;
+    isResolvingSearch.value = true;
+
+    const results = await fetchProducts(searchTerm);
+    const exact = findExactCodeMatch(searchTerm, results);
+
+    try {
+        if (exact) {
+            addProductToCart(exact, 'scanner');
+            return;
+        }
+
+        const fallback = results.find((product) => product.id === activeProductIdAtSubmit)
+            || results[highlightedIndexAtSubmit]
+            || null;
+
+        addProductToCart(fallback, 'manual');
+    } finally {
+        isResolvingSearch.value = false;
+    }
 };
 
 const handleSearchKeydown = (event) => {
@@ -435,6 +469,7 @@ onBeforeUnmount(() => {
                             aria-autocomplete="list"
                             role="combobox"
                             :aria-expanded="filteredProducts.length ? 'true' : 'false'"
+                            :disabled="isResolvingSearch"
                             @keydown="handleSearchKeydown"
                         >
                     </div>
@@ -454,6 +489,7 @@ onBeforeUnmount(() => {
                         <button
                             type="button"
                             class="w-full rounded-xl border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                            :disabled="isResolvingSearch"
                             @click="addProductToCart(activeProduct, 'manual')"
                         >
                             Agregar
