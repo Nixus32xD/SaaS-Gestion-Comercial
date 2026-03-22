@@ -7,6 +7,7 @@ use App\Models\BusinessPaymentDestination;
 use App\Models\BusinessSaleSector;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Support\ProductMeasurement;
@@ -16,12 +17,13 @@ use Illuminate\Validation\ValidationException;
 
 class SaleService
 {
-    public function __construct(private readonly DocumentNumberService $documentNumberService)
-    {
-    }
+    public function __construct(
+        private readonly DocumentNumberService $documentNumberService,
+        private readonly ProductBatchService $productBatchService
+    ) {}
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      */
     public function createSale(Business $business, User $user, array $payload): Sale
     {
@@ -135,13 +137,22 @@ class SaleService
 
                 $stocks->put($productId, $after);
 
-                $sale->items()->create([
+                /** @var SaleItem $saleItem */
+                $saleItem = $sale->items()->create([
                     'business_id' => $business->id,
                     'product_id' => $productId,
                     'product_name' => $lineItem['product_name'],
                     'quantity' => $lineItem['quantity'],
                     'unit_price' => $lineItem['unit_price'],
                     'subtotal' => $lineItem['subtotal'],
+                ]);
+
+                $this->productBatchService->consumeStock($business, $products->get($productId), (float) $lineItem['quantity'], [
+                    'movement_type' => 'sale',
+                    'reference_type' => SaleItem::class,
+                    'reference_id' => $saleItem->id,
+                    'notes' => "Venta {$sale->sale_number}",
+                    'created_by' => $user->id,
                 ]);
 
                 StockMovement::query()->create([
@@ -208,7 +219,7 @@ class SaleService
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      * @return array{0: int|null, 1: int|null}
      */
     private function resolveAdvancedSaleContext(Business $business, array $payload): array

@@ -22,6 +22,8 @@ const form = useForm({
     sale_price: Number(props.product.sale_price),
     cost_price: Number(props.product.cost_price),
     stock: Number(props.product.stock),
+    batch_code: '',
+    batch_expires_at: '',
     min_stock: Number(props.product.min_stock),
     shelf_life_days: props.product.shelf_life_days ? Number(props.product.shelf_life_days) : '',
     expiry_alert_days: Number(props.product.expiry_alert_days || 15),
@@ -100,6 +102,14 @@ const submit = () => {
         </template>
 
         <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm" @submit.prevent="submit">
+            <div class="mb-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                <p class="font-semibold text-slate-100">Stock y lotes</p>
+                <p class="mt-2">Stock total: <strong>{{ props.product.batch_summary.total_stock }}</strong></p>
+                <p>Lotes activos: <strong>{{ props.product.batch_summary.tracked_stock }}</strong></p>
+                <p v-if="props.product.batch_summary.untracked_stock > 0">Stock sin lote historico: <strong>{{ props.product.batch_summary.untracked_stock }}</strong></p>
+                <p class="mt-2 text-xs text-slate-400">Si aumentas stock desde esta pantalla puedes indicar lote y vencimiento. Si reduces stock, el sistema consume por FEFO y luego usa el remanente historico sin lote.</p>
+            </div>
+
             <div class="grid gap-3 md:grid-cols-2">
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-300">Nombre</label>
@@ -158,6 +168,14 @@ const submit = () => {
                     <input v-model.number="form.stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
                 <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Lote para ingreso o ajuste positivo</label>
+                    <input v-model="form.batch_code" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional, se genera automatico" />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-sm font-medium text-slate-300">Vencimiento del lote</label>
+                    <input v-model="form.batch_expires_at" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                </div>
+                <div class="space-y-1">
                     <label class="text-sm font-medium text-slate-300">{{ minStockLabel }}</label>
                     <input v-model.number="form.min_stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                 </div>
@@ -186,6 +204,56 @@ const submit = () => {
                 </button>
             </div>
         </form>
+
+        <section class="mt-6 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-100">Lotes activos</h3>
+                    <p class="mt-1 text-sm text-slate-300/80">Control de cantidades y vencimientos usado por la salida FEFO.</p>
+                </div>
+                <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">{{ props.product.batch_summary.batches_count }} lotes</span>
+            </div>
+
+            <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-950/35">
+                        <tr>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Lote</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Costo</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Vencimiento</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody v-if="props.product.batches.length" class="divide-y divide-slate-100">
+                        <tr v-for="batch in props.product.batches" :key="batch.id">
+                            <td class="px-3 py-2 font-semibold text-slate-100">{{ batch.batch_code }}</td>
+                            <td class="px-3 py-2 text-slate-300">{{ batch.quantity }}</td>
+                            <td class="px-3 py-2 text-slate-300">{{ batch.unit_cost ?? '-' }}</td>
+                            <td class="px-3 py-2 text-slate-300">{{ batch.expires_at || 'Sin vencimiento' }}</td>
+                            <td class="px-3 py-2">
+                                <span
+                                    class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                                    :class="{
+                                        'bg-rose-400/15 text-rose-100': batch.status === 'expired',
+                                        'bg-amber-300/15 text-amber-100': batch.status === 'upcoming',
+                                        'bg-slate-700/50 text-slate-200': batch.status === 'no_expiration',
+                                        'bg-emerald-400/15 text-emerald-100': batch.status === 'valid',
+                                    }"
+                                >
+                                    {{ batch.status_label }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tbody v-else>
+                        <tr>
+                            <td colspan="5" class="px-3 py-6 text-center text-slate-400">Este producto todavia no tiene lotes activos cargados.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </AuthenticatedLayout>
 </template>
 

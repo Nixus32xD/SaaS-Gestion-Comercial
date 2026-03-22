@@ -28,6 +28,7 @@ const state = reactive({
     search: '',
     quantity: 1,
     unit_cost: 0,
+    batch_code: '',
     expires_at: '',
     highlightedIndex: 0,
     activeProductId: null,
@@ -225,6 +226,7 @@ const addExistingProduct = (product, source = 'manual') => {
         item.product_id === product.id
         && item.product === null
         && Number(item.unit_cost) === unitCost
+        && (item.batch_code || null) === (state.batch_code || null)
         && (item.expires_at || null) === expiresAt
     ));
 
@@ -235,6 +237,7 @@ const addExistingProduct = (product, source = 'manual') => {
             product_id: product.id,
             quantity: Number(quantity.toFixed(3)),
             unit_cost: unitCost,
+            batch_code: state.batch_code || null,
             expires_at: expiresAt,
             product: null,
         });
@@ -245,6 +248,7 @@ const addExistingProduct = (product, source = 'manual') => {
     state.search = '';
     state.activeProductId = null;
     state.highlightedIndex = 0;
+    state.batch_code = '';
     state.expires_at = '';
     state.helperMessage = source === 'scanner'
         ? `Producto agregado por codigo: ${product.name}`
@@ -355,6 +359,7 @@ const addNewProductItem = () => {
         product_id: null,
         quantity: Number(quantity.toFixed(3)),
         unit_cost: Number(unitCost.toFixed(2)),
+        batch_code: state.batch_code || null,
         expires_at: expiresAt || null,
         product: {
             global_product_id: state.new_product.global_product_id || null,
@@ -375,6 +380,7 @@ const addNewProductItem = () => {
     resetNewProductLookup();
     state.quantity = 1;
     state.unit_cost = 0;
+    state.batch_code = '';
     state.expires_at = '';
     state.helperMessage = `Producto nuevo agregado: ${name}`;
 
@@ -772,7 +778,7 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <div class="mt-4 grid gap-3 lg:grid-cols-4">
+                <div class="mt-4 grid gap-3 lg:grid-cols-5">
                     <div>
                         <label for="purchase_quantity" class="mb-1 block text-sm font-medium text-slate-300">Cantidad <span class="text-xs text-slate-400">({{ activeMeasurement.quantityLabel }})</span></label>
                         <input id="purchase_quantity" ref="quantityInput" v-model.number="state.quantity" type="number" :min="activeMeasurement.quantityMin" :step="activeMeasurement.quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
@@ -780,6 +786,10 @@ onBeforeUnmount(() => {
                     <div>
                         <label for="purchase_unit_cost" class="mb-1 block text-sm font-medium text-slate-300">Costo unitario <span class="text-xs text-slate-400">{{ activeMeasurement.priceLabel }}</span></label>
                         <input id="purchase_unit_cost" ref="unitCostInput" v-model.number="state.unit_cost" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                    </div>
+                    <div>
+                        <label for="purchase_batch_code" class="mb-1 block text-sm font-medium text-slate-300">Lote</label>
+                        <input id="purchase_batch_code" v-model="state.batch_code" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional, suma o crea lote" />
                     </div>
                     <div>
                         <label for="purchase_expires_at" class="mb-1 block text-sm font-medium text-slate-300">Vencimiento del lote</label>
@@ -801,8 +811,9 @@ onBeforeUnmount(() => {
                                 <p class="font-semibold text-slate-100">{{ itemLabel(item) }}</p>
                                 <p class="mt-1 text-xs text-slate-400">
                                     {{ item.quantity }} {{ itemMeta(item).quantityLabel }}
-                                    · {{ money(item.unit_cost) }} {{ itemMeta(item).priceLabel }}
+                                    - {{ money(item.unit_cost) }} {{ itemMeta(item).priceLabel }}
                                 </p>
+                                <p class="mt-1 text-xs text-slate-400">Lote: {{ item.batch_code || 'Automatico' }}</p>
                                 <p class="mt-1 text-xs text-slate-400">Vence: {{ item.expires_at || '-' }}</p>
                             </div>
                             <button type="button" class="shrink-0 rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
@@ -818,6 +829,7 @@ onBeforeUnmount(() => {
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Costo</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Lote</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Vencimiento</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Subtotal</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
@@ -828,6 +840,7 @@ onBeforeUnmount(() => {
                                 <td class="px-3 py-2 font-semibold text-slate-100">{{ itemLabel(item) }}</td>
                                 <td class="px-3 py-2">{{ item.quantity }} <span class="text-xs text-slate-400">{{ itemMeta(item).quantityLabel }}</span></td>
                                 <td class="px-3 py-2">{{ money(item.unit_cost) }} <span class="text-xs text-slate-400">{{ itemMeta(item).priceLabel }}</span></td>
+                                <td class="px-3 py-2">{{ item.batch_code || 'Automatico' }}</td>
                                 <td class="px-3 py-2">{{ item.expires_at || '-' }}</td>
                                 <td class="px-3 py-2">{{ money(lineSubtotal(item)) }}</td>
                                 <td class="px-3 py-2 text-right">
@@ -837,7 +850,7 @@ onBeforeUnmount(() => {
                         </tbody>
                         <tbody v-else>
                             <tr>
-                                <td colspan="6" class="px-3 py-5 text-center text-slate-400">Agrega items para registrar la compra.</td>
+                                <td colspan="7" class="px-3 py-5 text-center text-slate-400">Agrega items para registrar la compra.</td>
                             </tr>
                         </tbody>
                     </table>

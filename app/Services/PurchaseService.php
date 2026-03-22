@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
@@ -22,7 +23,8 @@ class PurchaseService
 {
     public function __construct(
         private readonly DocumentNumberService $documentNumberService,
-        private readonly GlobalProductCatalogService $catalogService
+        private readonly GlobalProductCatalogService $catalogService,
+        private readonly ProductBatchService $productBatchService
     ) {}
 
     /**
@@ -166,6 +168,7 @@ class PurchaseService
                     'product_name' => $product->name,
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
+                    'batch_code' => $this->normalizeBatchCode(data_get($item, 'batch_code')),
                     'subtotal' => ProductMeasurement::calculateSubtotal(
                         $quantity,
                         $unitCost,
@@ -195,7 +198,8 @@ class PurchaseService
                 $before = round((float) $product->stock, 3);
                 $after = round($before + (float) $line['quantity'], 3);
 
-                $purchase->items()->create([
+                /** @var PurchaseItem $purchaseItem */
+                $purchaseItem = $purchase->items()->create([
                     'business_id' => $business->id,
                     'product_id' => $product->id,
                     'product_name' => $line['product_name'],
@@ -203,6 +207,18 @@ class PurchaseService
                     'unit_cost' => $line['unit_cost'],
                     'subtotal' => $line['subtotal'],
                     'expires_at' => $line['expires_at'],
+                ]);
+
+                $this->productBatchService->receiveStock($business, $product, (float) $line['quantity'], [
+                    'batch_code' => $line['batch_code'],
+                    'expires_at' => $line['expires_at'],
+                    'unit_cost' => $line['unit_cost'],
+                    'movement_type' => 'purchase',
+                    'reference_type' => PurchaseItem::class,
+                    'reference_id' => $purchaseItem->id,
+                    'notes' => "Compra {$purchase->purchase_number}",
+                    'created_by' => $user->id,
+                    'error_key' => 'items',
                 ]);
 
                 $product->stock = $after;
@@ -339,6 +355,13 @@ class PurchaseService
         }
 
         return mb_strtolower($normalized);
+    }
+
+    private function normalizeBatchCode(mixed $value): ?string
+    {
+        $normalized = trim((string) $value);
+
+        return $normalized === '' ? null : $normalized;
     }
 
     private function resolveGlobalProduct(mixed $globalProductId): ?GlobalProduct

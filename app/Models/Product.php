@@ -87,4 +87,12 @@ class Product extends Model
     {
         return $this->hasMany(StockMovement::class);
     }
+
+    /**
+     * @return HasMany<ProductBatch, $this>
+     */
+    public function batches(): HasMany
+    {
+        return $this->hasMany(ProductBatch::class);
+    }
 }

@@ -2,8 +2,8 @@
 
 use App\Models\Business;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Purchase;
-use App\Models\PurchaseItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Supplier;
@@ -209,26 +209,22 @@ test('dashboard expiration alerts ignore products without available stock', func
         'purchased_at' => now(),
     ]);
 
-    PurchaseItem::query()->create([
+    ProductBatch::query()->create([
         'business_id' => $business->id,
-        'purchase_id' => $purchase->id,
         'product_id' => $productWithoutStock->id,
-        'product_name' => $productWithoutStock->name,
+        'batch_code' => 'NO-STOCK',
+        'expires_at' => now()->addDays(2)->toDateString(),
         'quantity' => 1,
         'unit_cost' => 50,
-        'subtotal' => 50,
-        'expires_at' => now()->addDays(2)->toDateString(),
     ]);
 
-    PurchaseItem::query()->create([
+    ProductBatch::query()->create([
         'business_id' => $business->id,
-        'purchase_id' => $purchase->id,
         'product_id' => $productWithStock->id,
-        'product_name' => $productWithStock->name,
+        'batch_code' => 'WITH-STOCK',
+        'expires_at' => now()->addDays(2)->toDateString(),
         'quantity' => 1,
         'unit_cost' => 50,
-        'subtotal' => 50,
-        'expires_at' => now()->addDays(2)->toDateString(),
     ]);
 
     $this->actingAs($admin)->get('/dashboard')

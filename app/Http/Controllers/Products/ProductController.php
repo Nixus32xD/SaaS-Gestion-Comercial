@@ -8,8 +8,10 @@ use App\Http\Requests\Products\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\GlobalProduct;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Services\ProductBatchService;
 use App\Services\Products\GlobalProductCatalogService;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
@@ -144,7 +146,8 @@ class ProductController extends Controller
     public function store(
         StoreProductRequest $request,
         CurrentBusiness $currentBusiness,
-        GlobalProductCatalogService $catalogService
+        GlobalProductCatalogService $catalogService,
+        ProductBatchService $productBatchService
     ): RedirectResponse {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
@@ -167,7 +170,8 @@ class ProductController extends Controller
             $data,
             $initialStock,
             $request,
-            $globalProduct
+            $globalProduct,
+            $productBatchService
         ): void {
             $product = Product::query()->create([
                 'business_id' => $business->id,
@@ -203,6 +207,18 @@ class ProductController extends Controller
                     'notes' => 'Stock inicial del producto',
                     'created_by' => $request->user()?->id,
                 ]);
+
+                $productBatchService->receiveStock($business, $product, $initialStock, [
+                    'batch_code' => $data['batch_code'] ?? null,
+                    'expires_at' => $data['batch_expires_at'] ?? null,
+                    'unit_cost' => $data['cost_price'],
+                    'movement_type' => 'initial',
+                    'reference_type' => Product::class,
+                    'reference_id' => $product->id,
+                    'notes' => 'Stock inicial del producto',
+                    'created_by' => $request->user()?->id,
+                    'error_key' => 'batch_code',
+                ]);
             }
         });
 
@@ -216,6 +232,14 @@ class ProductController extends Controller
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
         abort_if($product->business_id !== $business->id, 403);
+
+        $product->load([
+            'batches' => fn ($query) => $query
+                ->available()
+                ->orderedForOutbound(),
+        ]);
+
+        $batchSummary = $this->buildBatchSummary($product);
 
         return Inertia::render('Products/Edit', [
             'product' => [
@@ -232,6 +256,11 @@ class ProductController extends Controller
                 'sale_price' => (float) $product->sale_price,
                 'cost_price' => (float) $product->cost_price,
                 'stock' => (float) $product->stock,
+                'batch_summary' => $batchSummary,
+                'batches' => $product->batches
+                    ->map(fn (ProductBatch $batch) => $this->mapBatchForDisplay($batch, (int) ($product->expiry_alert_days ?? 15)))
+                    ->values()
+                    ->all(),
                 'min_stock' => (float) $product->min_stock,
                 'shelf_life_days' => $product->shelf_life_days,
                 'expiry_alert_days' => $product->expiry_alert_days,
@@ -252,7 +281,8 @@ class ProductController extends Controller
     public function update(
         UpdateProductRequest $request,
         CurrentBusiness $currentBusiness,
-        Product $product
+        Product $product,
+        ProductBatchService $productBatchService
     ): RedirectResponse {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
@@ -273,7 +303,8 @@ class ProductController extends Controller
             $business,
             $newStock,
             $beforeStock,
-            $request
+            $request,
+            $productBatchService
         ): void {
             $product->update([
                 'category_id' => $categoryId,
@@ -295,13 +326,37 @@ class ProductController extends Controller
             ]);
 
             if ($beforeStock !== $newStock) {
+                $stockDelta = round($newStock - $beforeStock, 3);
+
+                if ($stockDelta > 0) {
+                    $productBatchService->receiveStock($business, $product, $stockDelta, [
+                        'batch_code' => $data['batch_code'] ?? null,
+                        'expires_at' => $data['batch_expires_at'] ?? null,
+                        'unit_cost' => $data['cost_price'],
+                        'movement_type' => 'adjustment',
+                        'reference_type' => Product::class,
+                        'reference_id' => $product->id,
+                        'notes' => 'Ajuste manual desde edicion de producto',
+                        'created_by' => $request->user()?->id,
+                        'error_key' => 'batch_code',
+                    ]);
+                } elseif ($stockDelta < 0) {
+                    $productBatchService->consumeStock($business, $product, abs($stockDelta), [
+                        'movement_type' => 'adjustment',
+                        'reference_type' => Product::class,
+                        'reference_id' => $product->id,
+                        'notes' => 'Ajuste manual desde edicion de producto',
+                        'created_by' => $request->user()?->id,
+                    ]);
+                }
+
                 StockMovement::query()->create([
                     'business_id' => $business->id,
                     'product_id' => $product->id,
                     'type' => 'adjustment',
                     'reference_type' => Product::class,
                     'reference_id' => $product->id,
-                    'quantity' => round($newStock - $beforeStock, 3),
+                    'quantity' => $stockDelta,
                     'stock_before' => $beforeStock,
                     'stock_after' => $newStock,
                     'notes' => 'Ajuste manual desde edicion de producto',
@@ -411,5 +466,45 @@ class ProductController extends Controller
             ->when($ignoreId !== null, fn ($query) => $query->where('id', '!=', $ignoreId))
             ->where('slug', $slug)
             ->exists();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapBatchForDisplay(ProductBatch $batch, int $alertDays): array
+    {
+        $status = $batch->expirationStatus($alertDays);
+
+        return [
+            'id' => $batch->id,
+            'batch_code' => $batch->batch_code,
+            'quantity' => (float) $batch->quantity,
+            'unit_cost' => $batch->unit_cost !== null ? (float) $batch->unit_cost : null,
+            'expires_at' => $batch->expires_at?->toDateString(),
+            'status' => $status,
+            'status_label' => match ($status) {
+                'expired' => 'Vencido',
+                'upcoming' => 'Proximo',
+                'no_expiration' => 'Sin vencimiento',
+                default => 'Vigente',
+            },
+        ];
+    }
+
+    /**
+     * @return array<string, float|int|bool>
+     */
+    private function buildBatchSummary(Product $product): array
+    {
+        $trackedStock = round((float) $product->batches->sum('quantity'), 3);
+        $totalStock = round((float) $product->stock, 3);
+
+        return [
+            'tracked_stock' => $trackedStock,
+            'untracked_stock' => max(0, round($totalStock - $trackedStock, 3)),
+            'total_stock' => $totalStock,
+            'has_batches' => $product->batches->isNotEmpty(),
+            'batches_count' => $product->batches->count(),
+        ];
     }
 }

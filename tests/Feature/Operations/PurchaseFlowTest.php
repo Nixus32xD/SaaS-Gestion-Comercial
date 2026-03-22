@@ -5,6 +5,7 @@ use App\Models\BusinessFeature;
 use App\Models\Category;
 use App\Models\GlobalProduct;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\Supplier;
@@ -246,4 +247,85 @@ test('purchase can create a new local product linked to the global catalog', fun
     expect($product->global_product_id)->toBe($globalProduct->id);
     expect($product->category_id)->toBe($targetCategory->id);
     expect($product->stock)->toBe('2.000');
+});
+
+test('purchase creates a tracked batch with automatic code when none is provided', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Leche',
+        'slug' => 'leche',
+        'unit_type' => 'unit',
+        'sale_price' => 1500,
+        'cost_price' => 900,
+        'stock' => 1,
+        'min_stock' => 0,
+        'expiry_alert_days' => 15,
+        'is_active' => true,
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/purchases', [
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 3,
+                'unit_cost' => 950,
+                'expires_at' => '2026-04-15',
+            ]],
+        ])
+        ->assertRedirect();
+
+    $batch = ProductBatch::query()->firstOrFail();
+
+    expect($product->fresh()->stock)->toBe('4.000');
+    expect($batch->product_id)->toBe($product->id);
+    expect($batch->batch_code)->toStartWith('L-'.now()->format('Y').'-');
+    expect($batch->expires_at?->toDateString())->toBe('2026-04-15');
+    expect($batch->quantity)->toBe('3.000');
+});
+
+test('purchase can add quantity into an existing batch code', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Yogur',
+        'slug' => 'yogur',
+        'unit_type' => 'unit',
+        'sale_price' => 1100,
+        'cost_price' => 700,
+        'stock' => 2,
+        'min_stock' => 0,
+        'expiry_alert_days' => 15,
+        'is_active' => true,
+    ]);
+
+    $batch = ProductBatch::query()->create([
+        'business_id' => $business->id,
+        'product_id' => $product->id,
+        'batch_code' => 'LOT-BASE',
+        'expires_at' => '2026-04-20',
+        'quantity' => 1,
+        'unit_cost' => 700,
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/purchases', [
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 2,
+                'unit_cost' => 720,
+                'batch_code' => 'LOT-BASE',
+                'expires_at' => '2026-04-20',
+            ]],
+        ])
+        ->assertRedirect();
+
+    expect($product->fresh()->stock)->toBe('4.000');
+    expect($batch->fresh()->quantity)->toBe('3.000');
+    expect($batch->fresh()->unit_cost)->toBe('720.00');
+    expect(ProductBatch::query()->count())->toBe(1);
 });

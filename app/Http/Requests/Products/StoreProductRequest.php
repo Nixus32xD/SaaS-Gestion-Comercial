@@ -23,6 +23,7 @@ class StoreProductRequest extends FormRequest
             'description' => trim((string) $this->input('description')),
             'barcode' => trim((string) $this->input('barcode')) ?: null,
             'sku' => trim((string) $this->input('sku')) ?: null,
+            'batch_code' => trim((string) $this->input('batch_code')) ?: null,
             'weight_unit' => $this->filled('weight_unit')
                 ? trim((string) $this->input('weight_unit'))
                 : null,
@@ -71,6 +72,8 @@ class StoreProductRequest extends FormRequest
             'sale_price' => ['required', 'numeric', 'gte:0'],
             'cost_price' => ['required', 'numeric', 'gte:0'],
             'stock' => ['nullable', 'numeric', 'gte:0'],
+            'batch_code' => ['nullable', 'string', 'max:80'],
+            'batch_expires_at' => ['nullable', 'date'],
             'min_stock' => ['nullable', 'numeric', 'gte:0'],
             'shelf_life_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],
             'expiry_alert_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],

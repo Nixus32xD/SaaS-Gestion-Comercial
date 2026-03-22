@@ -93,6 +93,75 @@ const trendLabelIndexes = computed(() => {
 });
 
 const advancedSalesEnabled = computed(() => Boolean(props.advanced_sales?.enabled));
+
+const expirationAlerts = computed(() => {
+    const items = Array.isArray(props.expiration_alerts) ? props.expiration_alerts : [];
+
+    return items.map((item) => {
+        const daysRemaining = Number(item.days_remaining);
+        const normalizedDays = Number.isFinite(daysRemaining) ? daysRemaining : null;
+
+        let urgency = 'upcoming_later';
+        let urgencyLabel = 'Proximamente';
+        let cardClass = 'border-slate-700/70 bg-slate-950/40';
+        let badgeClass = 'bg-slate-700/80 text-slate-100';
+
+        if (item.status === 'expired') {
+            urgency = 'expired';
+            urgencyLabel = 'Vencido';
+            cardClass = 'border-rose-300/35 bg-rose-400/12';
+            badgeClass = 'bg-rose-500/20 text-rose-100';
+        } else if (normalizedDays !== null && normalizedDays <= 7) {
+            urgency = 'upcoming_urgent';
+            urgencyLabel = 'Urgente';
+            cardClass = 'border-amber-300/35 bg-amber-400/12';
+            badgeClass = 'bg-amber-400/20 text-amber-100';
+        } else if (normalizedDays !== null && normalizedDays <= 15) {
+            urgency = 'upcoming_soon';
+            urgencyLabel = 'Pronto';
+            cardClass = 'border-yellow-300/30 bg-yellow-400/10';
+            badgeClass = 'bg-yellow-400/20 text-yellow-100';
+        } else if (item.status === 'upcoming') {
+            urgency = 'upcoming_later';
+            urgencyLabel = 'A controlar';
+            cardClass = 'border-cyan-300/25 bg-cyan-400/10';
+            badgeClass = 'bg-cyan-400/20 text-cyan-100';
+        }
+
+        return {
+            ...item,
+            urgency,
+            urgencyLabel,
+            cardClass,
+            badgeClass,
+        };
+    });
+});
+
+const expirationGroups = computed(() => {
+    const groups = [
+        {
+            key: 'expired',
+            title: 'Vencidos',
+            empty: 'Sin lotes vencidos.',
+            items: expirationAlerts.value.filter((item) => item.urgency === 'expired'),
+        },
+        {
+            key: 'upcoming_urgent',
+            title: 'Vencen en 7 dias',
+            empty: 'Sin lotes criticos.',
+            items: expirationAlerts.value.filter((item) => item.urgency === 'upcoming_urgent'),
+        },
+        {
+            key: 'upcoming_other',
+            title: 'Proximos despues',
+            empty: 'Sin otros lotes proximos a vencer.',
+            items: expirationAlerts.value.filter((item) => ['upcoming_soon', 'upcoming_later'].includes(item.urgency)),
+        },
+    ];
+
+    return groups.filter((group) => group.items.length > 0);
+});
 </script>
 
 <template>
@@ -221,16 +290,42 @@ const advancedSalesEnabled = computed(() => Boolean(props.advanced_sales?.enable
             <section class="grid gap-4 lg:grid-cols-2">
                 <article class="rounded-2xl border border-amber-200/40 bg-amber-300/12 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
                     <h3 class="text-base font-semibold text-amber-100">Alertas de vencimiento</h3>
-                    <ul v-if="expiration_alerts.length" class="mt-3 space-y-2 text-sm">
-                        <li v-for="item in expiration_alerts" :key="item.purchase_item_id" class="rounded-lg border border-amber-200/30 bg-slate-950/40 px-3 py-2">
-                            <span class="font-medium text-slate-100">{{ item.product_name }}</span>
-                            <span v-if="item.purchase_number" class="ml-2 text-slate-300">lote {{ item.purchase_number }}</span>
-                            <span class="ml-2 text-slate-300">vence {{ item.expires_at }}</span>
-                            <span class="ml-2 font-semibold" :class="item.status === 'expired' ? 'text-rose-300' : 'text-amber-200'">
-                                {{ item.status === 'expired' ? 'Vencido' : `Faltan ${item.days_remaining} dias` }}
-                            </span>
-                        </li>
-                    </ul>
+                    <div v-if="expirationGroups.length" class="mt-4 grid gap-4 xl:grid-cols-3">
+                        <section v-for="group in expirationGroups" :key="group.key" class="rounded-xl border border-amber-200/20 bg-slate-950/30 p-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <h4 class="text-sm font-semibold text-slate-100">{{ group.title }}</h4>
+                                <span class="rounded-full border border-slate-600/70 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
+                                    {{ group.items.length }}
+                                </span>
+                            </div>
+
+                            <ul class="mt-3 space-y-2 text-sm">
+                                <li
+                                    v-for="item in group.items"
+                                    :key="item.batch_id"
+                                    class="rounded-lg border px-3 py-2"
+                                    :class="item.cardClass"
+                                >
+                                    <div class="flex flex-wrap items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="font-medium text-slate-100">{{ item.product_name }}</p>
+                                            <p class="mt-1 text-xs text-slate-300">
+                                                <span v-if="item.batch_code">Lote {{ item.batch_code }}</span>
+                                                <span v-if="item.quantity" class="ml-2">Stock {{ item.quantity }}</span>
+                                                <span class="ml-2">Vence {{ item.expires_at }}</span>
+                                            </p>
+                                        </div>
+                                        <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="item.badgeClass">
+                                            {{ item.urgencyLabel }}
+                                        </span>
+                                    </div>
+                                    <p class="mt-2 text-xs font-medium" :class="item.status === 'expired' ? 'text-rose-200' : 'text-amber-100'">
+                                        {{ item.status === 'expired' ? 'Este lote ya esta vencido.' : `Faltan ${item.days_remaining} dias para vencer.` }}
+                                    </p>
+                                </li>
+                            </ul>
+                        </section>
+                    </div>
                     <p v-else class="mt-3 text-sm text-slate-300">No hay productos proximos a vencer.</p>
                 </article>
 

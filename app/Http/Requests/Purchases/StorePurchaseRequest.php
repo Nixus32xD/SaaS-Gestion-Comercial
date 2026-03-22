@@ -19,9 +19,18 @@ class StorePurchaseRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $items = collect((array) $this->input('items', []))
+            ->map(function ($item): array {
+                $row = (array) $item;
+                $row['batch_code'] = trim((string) ($row['batch_code'] ?? '')) ?: null;
+
+                return $row;
+            })
+            ->all();
+
         $this->merge([
             'notes' => trim((string) $this->input('notes')),
-            'items' => $this->input('items', []),
+            'items' => $items,
         ]);
     }
 
@@ -40,6 +49,7 @@ class StorePurchaseRequest extends FormRequest
             'items.*.product_id' => ['nullable', 'integer'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_cost' => ['required', 'numeric', 'gte:0'],
+            'items.*.batch_code' => ['nullable', 'string', 'max:80'],
             'items.*.expires_at' => ['nullable', 'date'],
             'items.*.product' => ['nullable', 'array'],
             'items.*.product.global_product_id' => ['nullable', 'integer', 'exists:global_products,id'],

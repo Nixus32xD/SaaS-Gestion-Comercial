@@ -23,6 +23,8 @@ const form = useForm({
     sale_price: 0,
     cost_price: 0,
     stock: 0,
+    batch_code: '',
+    batch_expires_at: '',
     min_stock: 0,
     shelf_life_days: '',
     expiry_alert_days: 15,
@@ -309,6 +311,14 @@ const submit = () => {
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-300">{{ stockLabel }}</label>
                         <input v-model.number="form.stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-300">Lote inicial</label>
+                        <input v-model="form.batch_code" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional, se genera automatico" />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-300">Vencimiento del lote inicial</label>
+                        <input v-model="form.batch_expires_at" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-300">{{ minStockLabel }}</label>
