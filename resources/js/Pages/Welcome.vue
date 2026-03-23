@@ -130,42 +130,71 @@ const pricingNotes = [
     'Desde el plan mensual de ARS 45.000 se contemplan beneficios sobre funcionalidades personalizadas.',
 ];
 
-const productHighlights = [
+const heroHighlights = [
     {
-        title: 'Operacion diaria',
-        description: 'Ventas, compras y stock por comercio con impacto automatico en cada movimiento.',
+        title: 'Operacion diaria ordenada',
+        description: 'Ventas, compras y stock sincronizados por comercio desde un solo lugar.',
     },
     {
-        title: 'Control fino de inventario',
-        description: 'Productos, categorias, proveedores, lotes y vencimientos en un mismo flujo.',
+        title: 'Inventario mas controlado',
+        description: 'Productos, categorias, proveedores, lotes y vencimientos dentro del mismo flujo.',
     },
     {
-        title: 'Seguimiento y alertas',
-        description: 'Dashboard operativo y correos configurables para stock bajo, agotados y vencimientos.',
+        title: 'Seguimiento automatico',
+        description: 'Dashboard operativo y alertas por mail para actuar antes de que aparezca el problema.',
     },
 ];
 
-const currentCapabilities = [
-    'Dashboard con metricas operativas y alertas visibles por comercio.',
-    'Gestion de categorias, productos y proveedores.',
-    'Ventas y compras con actualizacion automatica de stock.',
-    'Control de lotes con proximos vencimientos y productos vencidos.',
-    'Usuarios internos con roles admin y staff.',
-    'Notificaciones por mail con destinatarios, horarios y pausado manual.',
+const productModules = [
+    {
+        title: 'Ventas y compras',
+        description: 'Registro operativo con impacto automatico en stock y numeracion por comercio.',
+    },
+    {
+        title: 'Stock y catalogo',
+        description: 'Productos, categorias y proveedores listos para trabajar en la operatoria diaria.',
+    },
+    {
+        title: 'Lotes y vencimientos',
+        description: 'Control de proximos vencimientos y productos vencidos para evitar perdida operativa.',
+    },
+    {
+        title: 'Usuarios y permisos',
+        description: 'Roles admin y staff para organizar el trabajo interno del comercio.',
+    },
+    {
+        title: 'Dashboard operativo',
+        description: 'Metricas visibles por comercio con foco en seguimiento diario y decisiones rapidas.',
+    },
+    {
+        title: 'Notificaciones por mail',
+        description: 'Destinatarios, horarios y pausa manual configurables desde el mismo sistema.',
+    },
 ];
 
-const notificationHighlights = [
+const notificationFlow = [
     'Resumen por mail de stock bajo, agotado y vencimientos.',
-    'Horario configurable por comercio para evitar avisos fuera de turno.',
-    'Envio a email principal, admins y correos adicionales.',
-    'Historial reciente de envios desde la configuracion del comercio.',
+    'Ventana horaria configurable por comercio para evitar avisos fuera de turno.',
+    'Envio al email principal, admins activos y correos adicionales.',
+    'Historial reciente de envios para revisar que paso en cada comercio.',
 ];
 
 const implementationPillars = [
-    'Puesta en marcha guiada y capacitacion inicial.',
-    'Carga de productos opcional si el comercio quiere delegarla.',
-    'Base preparada para operar en Laravel Cloud con scheduler y colas.',
+    {
+        title: 'Puesta en marcha guiada',
+        description: 'Configuracion inicial, parametros base y capacitacion para empezar a operar.',
+    },
+    {
+        title: 'Carga opcional del catalogo',
+        description: 'Si el comercio no quiere cargar productos manualmente, puede delegarlo como servicio.',
+    },
+    {
+        title: 'Infraestructura lista para Cloud',
+        description: 'Base preparada para funcionar con scheduler, colas y envio de correos en Laravel Cloud.',
+    },
 ];
+
+const businessTypes = ['Kioscos', 'Tiendas', 'Ferreterias', 'Petshops', 'Regalerias', 'Autoservicios', 'Y mas'];
 
 defineProps({
     canLogin: { type: Boolean, default: false },
@@ -201,33 +230,42 @@ defineProps({
                 </nav>
             </header>
 
-            <main class="my-auto grid gap-6 py-10 lg:grid-cols-3">
-                <section class="entry panel lg:col-span-2" style="animation-delay: 80ms">
-                    <p class="title text-sm uppercase tracking-[0.2em] text-cyan-200/90">Que ofrezco</p>
+            <main class="my-auto grid gap-6 py-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+                <section class="entry panel" style="animation-delay: 80ms">
+                    <p class="eyebrow text-sm uppercase tracking-[0.2em] text-cyan-200/90">Sistema listo para operar</p>
                     <h2 class="title mt-3 text-3xl font-bold leading-tight md:text-5xl">
-                        Ventas, stock y alertas operativas en un solo sistema
+                        Ventas, stock, vencimientos y alertas en un mismo flujo
                     </h2>
                     <p class="mt-5 max-w-2xl text-base text-slate-200/90 md:text-lg">
-                        El MVP ya resuelve la operacion diaria del comercio: productos, categorias, proveedores,
-                        compras, ventas, dashboard, usuarios internos y notificaciones por mail para stock y
-                        vencimientos. La carga masiva de productos sigue disponible como servicio opcional.
+                        El producto ya resuelve la operacion diaria del comercio con una base clara:
+                        compras, ventas, productos, proveedores, usuarios internos, dashboard y notificaciones
+                        por mail configurables para stock y vencimientos.
                     </p>
 
                     <div class="mt-8 grid gap-4 md:grid-cols-3">
-                        <article v-for="highlight in productHighlights" :key="highlight.title" class="box">
+                        <article v-for="highlight in heroHighlights" :key="highlight.title" class="box subtle-box">
                             <h3 class="title text-lg font-semibold">{{ highlight.title }}</h3>
-                            <p class="mt-2 text-sm text-slate-200/85">{{ highlight.description }}</p>
+                            <p class="mt-2 text-sm leading-6 text-slate-200/85">{{ highlight.description }}</p>
                         </article>
                     </div>
 
                     <article class="box mt-4">
-                        <h3 class="title text-lg font-semibold">Que incluye hoy</h3>
-                        <ul class="mt-3 space-y-2 text-sm text-slate-200/90">
-                            <li v-for="capability in currentCapabilities" :key="capability" class="flex items-start gap-2">
-                                <span class="dot" />
-                                <span>{{ capability }}</span>
-                            </li>
-                        </ul>
+                        <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                            <div>
+                                <h3 class="title text-lg font-semibold">Que incluye hoy</h3>
+                                <p class="mt-2 text-sm text-slate-200/80">
+                                    Funcionalidad real del MVP, sin prometer modulos que todavia no estan cerrados.
+                                </p>
+                            </div>
+                            <span class="tag">MVP activo</span>
+                        </div>
+
+                        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                            <article v-for="module in productModules" :key="module.title" class="module-card">
+                                <h4 class="title text-base font-semibold">{{ module.title }}</h4>
+                                <p class="mt-2 text-sm leading-6 text-slate-200/85">{{ module.description }}</p>
+                            </article>
+                        </div>
                     </article>
 
                     <article class="box mt-4">
@@ -243,9 +281,9 @@ defineProps({
 
                         <ul class="mt-4 grid gap-3 sm:grid-cols-2">
                             <li
-                                v-for="item in notificationHighlights"
+                                v-for="item in notificationFlow"
                                 :key="item"
-                                class="rounded-2xl border border-cyan-100/15 bg-slate-950/35 px-4 py-3 text-sm text-slate-200/90"
+                                class="notice-card"
                             >
                                 {{ item }}
                             </li>
@@ -254,22 +292,16 @@ defineProps({
 
                     <article class="box mt-4">
                         <h3 class="title text-lg font-semibold">Alcance</h3>
-                        <p class="mt-2 text-sm text-slate-200/85">Ideal para negocios minoristas y de mostrador:</p>
+                        <p class="mt-2 text-sm text-slate-200/85">Ideal para negocios minoristas y de mostrador que necesitan ordenar la operatoria diaria.</p>
                         <div class="mt-3 flex flex-wrap gap-2">
-                            <span class="tag">Kioscos</span>
-                            <span class="tag">Tiendas</span>
-                            <span class="tag">Ferreterias</span>
-                            <span class="tag">Petshops</span>
-                            <span class="tag">Regalerias</span>
-                            <span class="tag">Autoservicios</span>
-                            <span class="tag">Y mas</span>
+                            <span v-for="businessType in businessTypes" :key="businessType" class="tag">{{ businessType }}</span>
                         </div>
                     </article>
                 </section>
 
                 <section class="entry panel price" style="animation-delay: 180ms">
-                    <p class="title text-sm uppercase tracking-[0.2em] text-cyan-100/90">Propuesta comercial</p>
-                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion clara, simple y enfocada en operar</h3>
+                    <p class="eyebrow text-sm uppercase tracking-[0.2em] text-cyan-100/90">Propuesta comercial</p>
+                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion clara, simple y acompanada</h3>
                     <p class="mt-4 text-sm leading-6 text-slate-200/90">
                         Pensado para comercios que necesitan ordenar ventas, stock, vencimientos y seguimiento diario
                         sin entrar en procesos largos ni en una implementacion pesada.
@@ -278,27 +310,34 @@ defineProps({
                     <div class="mt-6 space-y-3">
                         <article
                             v-for="(pillar, index) in implementationPillars"
-                            :key="pillar"
+                            :key="pillar.title"
                             class="rounded-2xl p-5 ring-1"
                             :class="index === implementationPillars.length - 1
                                 ? 'bg-cyan-300/15 ring-cyan-100/30'
                                 : 'bg-white/10 ring-white/15'"
                         >
                             <p class="text-sm text-cyan-100/90">Pilar {{ index + 1 }}</p>
+                            <h4 class="title mt-2 text-lg font-semibold text-white">{{ pillar.title }}</h4>
                             <p class="mt-2 text-sm text-slate-200/90">
-                                {{ pillar }}
+                                {{ pillar.description }}
                             </p>
                         </article>
                     </div>
 
-                    <a
-                        :href="whatsappUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="mt-6 inline-flex rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-200"
-                    >
-                        Consultar por WhatsApp
-                    </a>
+                    <div class="cta-block mt-6">
+                        <p class="title text-lg font-semibold text-white">Listo para avanzar</p>
+                        <p class="mt-2 text-sm leading-6 text-slate-200/90">
+                            Si queres implementar el sistema o definir un plan segun tu catalogo, te respondo por WhatsApp.
+                        </p>
+                        <a
+                            :href="whatsappUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mt-4 inline-flex rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-200"
+                        >
+                            Consultar por WhatsApp
+                        </a>
+                    </div>
                 </section>
             </main>
 
@@ -392,6 +431,7 @@ defineProps({
     font-family: 'Space Grotesk', sans-serif;
 }
 
+.eyebrow,
 .landing,
 .panel,
 .box {
@@ -413,6 +453,27 @@ defineProps({
     padding: 1rem;
 }
 
+.subtle-box {
+    background: rgba(9, 16, 30, 0.35);
+}
+
+.module-card {
+    border-radius: 1rem;
+    border: 1px solid rgba(186, 230, 253, 0.14);
+    background: rgba(2, 6, 23, 0.2);
+    padding: 1rem;
+}
+
+.notice-card {
+    border-radius: 1rem;
+    border: 1px solid rgba(186, 230, 253, 0.15);
+    background: rgba(2, 6, 23, 0.22);
+    padding: 0.95rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: rgba(226, 232, 240, 0.92);
+}
+
 .tag {
     border-radius: 9999px;
     border: 1px solid rgba(186, 230, 253, 0.35);
@@ -423,13 +484,11 @@ defineProps({
     color: rgba(224, 242, 254, 0.95);
 }
 
-.dot {
-    margin-top: 0.35rem;
-    height: 0.45rem;
-    width: 0.45rem;
-    border-radius: 9999px;
-    background: rgb(103, 232, 249);
-    flex-shrink: 0;
+.cta-block {
+    border-radius: 1.2rem;
+    border: 1px solid rgba(186, 230, 253, 0.22);
+    background: linear-gradient(180deg, rgba(8, 47, 73, 0.5) 0%, rgba(15, 23, 42, 0.55) 100%);
+    padding: 1.25rem;
 }
 
 .price {
