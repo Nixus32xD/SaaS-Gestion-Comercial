@@ -10,74 +10,74 @@ const pricingSections = [
         description: 'Opciones de arranque para distintos tamanos de comercio y nivel de acompanamiento.',
         plans: [
             {
+                title: 'Plan Express',
+                subtitle: 'Pago unico',
+                description: 'Para comercios chicos que quieren salir a operar con una configuracion base.',
+                price: '95.000',
+                priceLabel: 'ARS',
+                features: [
+                    'Configuracion base del sistema',
+                    'Capacitacion breve de arranque',
+                    'Hasta 30 productos incluidos',
+                    'Acompanamiento inicial',
+                ],
+            },
+            {
                 title: 'Plan Esencial',
                 subtitle: 'Pago unico',
-                description: 'Pensado para negocios que necesitan empezar rapido con una estructura simple.',
+                description: 'La opcion recomendada para la mayoria de los comercios que quieren una puesta en marcha ordenada.',
                 price: '150.000',
                 priceLabel: 'ARS',
                 featured: true,
                 features: [
-                    'Instalacion + Configuracion',
+                    'Instalacion y configuracion inicial',
                     'Capacitacion completa',
                     'Hasta 100 productos incluidos',
-                    'Soporte inicial',
+                    'Ajustes de arranque',
                 ],
             },
             {
                 title: 'Plan Plus',
                 subtitle: 'Pago unico',
-                description: 'Mayor acompanamiento para catalogos mas amplios y una puesta en marcha mas completa.',
+                description: 'Pensado para comercios con catalogo amplio o una operatoria mas exigente desde el inicio.',
                 price: '220.000',
                 priceLabel: 'ARS',
                 features: [
                     'Implementacion completa',
                     'Hasta 250 productos incluidos',
                     'Capacitacion por sectores',
-                    'Ajustes iniciales de trabajo',
-                ],
-            },
-            {
-                title: 'Plan Express',
-                subtitle: 'Pago unico',
-                description: 'Version agil para negocios chicos que quieren salir a operar con una base minima.',
-                price: '95.000',
-                priceLabel: 'ARS',
-                features: [
-                    'Configuracion base',
-                    'Capacitacion breve',
-                    'Hasta 30 productos incluidos',
-                    'Soporte de arranque',
+                    'Ajustes operativos iniciales',
                 ],
             },
         ],
     },
     {
         title: 'Carga de productos',
-        description: 'Alternativas para delegar la carga inicial o ampliar el catalogo cuando tu negocio lo necesite.',
+        description: 'Servicios de ampliacion para productos extra fuera del paquete inicial contratado.',
         plans: [
             {
-                title: 'Carga por unidad',
+                title: 'Carga adicional por unidad',
                 subtitle: 'Flexible',
-                description: 'Ideal para sumar productos puntuales sin contratar un paquete completo.',
+                description: 'Ideal para ampliaciones puntuales o correcciones fuera del paquete incluido.',
                 price: '$500',
                 priceSuffix: 'por producto',
-                features: ['Desde el producto 101', 'Carga manual individual', 'Revision basica de datos'],
+                features: ['Para ampliaciones o ajustes del catalogo', 'Carga manual individual', 'Revision basica de datos'],
             },
             {
                 title: 'Pack 100 productos',
                 subtitle: 'Pago unico',
-                description: 'Una opcion comoda para ampliar el catalogo con un volumen medio de trabajo.',
+                description: 'Pensado para ampliaciones posteriores cuando el catalogo ya supero lo incluido en el plan.',
                 price: '45.000',
                 priceLabel: 'ARS',
-                features: ['Hasta 100 productos', 'Carga estructurada', 'Validacion general del listado'],
+                features: ['100 productos adicionales', 'Carga estructurada', 'Validacion general del listado'],
             },
             {
-                title: 'Pack 250 productos',
+                title: 'Pack 250 adicionales',
                 subtitle: 'Pago unico',
-                description: 'Recomendado para comercios con catalogos amplios que quieren acelerar la puesta en marcha.',
+                description: 'Para ampliaciones grandes sobre un comercio ya implementado, sin reemplazar el plan inicial.',
                 price: '95.000',
                 priceLabel: 'ARS',
-                features: ['Hasta 250 productos', 'Carga masiva asistida', 'Revision de categorias y precios'],
+                features: ['250 productos adicionales', 'Carga masiva asistida', 'Revision de categorias y precios'],
             },
         ],
     },
@@ -91,7 +91,7 @@ const pricingSections = [
                 description: 'Cobertura simple para mantener el sistema estable y con acompanamiento continuo.',
                 price: '25.000',
                 priceSuffix: '/ mes',
-                features: ['Soporte continuo', 'Correccion de errores', 'Mejoras menores', 'Actualizaciones'],
+                features: ['Soporte continuo', 'Correccion de errores', 'Actualizaciones menores', 'Respuesta standard'],
             },
             {
                 title: 'Plan Operativo',
@@ -103,31 +103,24 @@ const pricingSections = [
                     'Todo lo del plan basico',
                     'Prioridad media en soporte',
                     'Revision mensual operativa',
-                    'Descuento en funcionalidades personalizadas segun requerimiento',
+                    'Bonificacion parcial en ajustes menores',
                 ],
             },
             {
                 title: 'Plan Prioritario',
                 subtitle: 'Mensual',
-                description: 'Acompanamiento completo para negocios que necesitan evolucion constante y soporte cercano.',
+                description: 'Para negocios que necesitan seguimiento mas cercano y mayor velocidad de respuesta.',
                 price: '60.000',
                 priceSuffix: '/ mes',
                 features: [
                     'Prioridad alta en soporte',
-                    'Ajustes menores incluidos',
                     'Seguimiento mas cercano',
-                    'Funcionalidades personalizadas totalmente incluidas',
+                    'Bolsa mensual para ajustes menores',
+                    'Planificacion de mejoras puntuales',
                 ],
             },
         ],
     },
-];
-
-const pricingNotes = [
-    'Los valores de implementacion cambian segun el alcance inicial y el volumen de productos.',
-    'La carga de productos puede contratarse por unidad o por paquetes segun necesidad.',
-    'No incluye desarrollos personalizados ni integraciones a medida.',
-    'Desde el plan mensual de ARS 45.000 se contemplan beneficios sobre funcionalidades personalizadas.',
 ];
 
 const heroHighlights = [
@@ -145,56 +138,38 @@ const heroHighlights = [
     },
 ];
 
-const productModules = [
+const coreFeatures = [
+    'Ventas y compras con impacto automatico en stock.',
+    'Productos, categorias, proveedores y usuarios internos.',
+    'Lotes, vencimientos y alertas por mail configurables.',
+    'Operacion por comercio lista para correr en Laravel Cloud.',
+];
+
+const planSummaries = [
     {
-        title: 'Ventas y compras',
-        description: 'Registro operativo con impacto automatico en stock y numeracion por comercio.',
+        title: 'Implementacion inicial',
+        price: 'Desde ARS 95.000',
+        description: 'Tres planes cerrados segun el volumen inicial del catalogo: 30, 100 o 250 productos.',
     },
     {
-        title: 'Stock y catalogo',
-        description: 'Productos, categorias y proveedores listos para trabajar en la operatoria diaria.',
+        title: 'Carga adicional',
+        price: 'Desde $500 por producto',
+        description: 'Disponible para ampliaciones posteriores, no como reemplazo del plan inicial.',
     },
     {
-        title: 'Lotes y vencimientos',
-        description: 'Control de proximos vencimientos y productos vencidos para evitar perdida operativa.',
-    },
-    {
-        title: 'Usuarios y permisos',
-        description: 'Roles admin y staff para organizar el trabajo interno del comercio.',
-    },
-    {
-        title: 'Dashboard operativo',
-        description: 'Metricas visibles por comercio con foco en seguimiento diario y decisiones rapidas.',
-    },
-    {
-        title: 'Notificaciones por mail',
-        description: 'Destinatarios, horarios y pausa manual configurables desde el mismo sistema.',
+        title: 'Mantenimiento mensual',
+        price: 'Desde ARS 25.000 / mes',
+        description: 'Soporte, correcciones y mejoras menores para sostener la operacion.',
     },
 ];
 
-const notificationFlow = [
-    'Resumen por mail de stock bajo, agotado y vencimientos.',
-    'Ventana horaria configurable por comercio para evitar avisos fuera de turno.',
-    'Envio al email principal, admins activos y correos adicionales.',
-    'Historial reciente de envios para revisar que paso en cada comercio.',
+const pricingNotes = [
+    'Los valores finales dependen del alcance inicial y del volumen de productos.',
+    'La carga adicional aplica solo para productos extra fuera del plan inicial contratado.',
+    'No incluye desarrollos personalizados ni integraciones a medida.',
 ];
 
-const implementationPillars = [
-    {
-        title: 'Puesta en marcha guiada',
-        description: 'Configuracion inicial, parametros base y capacitacion para empezar a operar.',
-    },
-    {
-        title: 'Carga opcional del catalogo',
-        description: 'Si el comercio no quiere cargar productos manualmente, puede delegarlo como servicio.',
-    },
-    {
-        title: 'Infraestructura lista para Cloud',
-        description: 'Base preparada para funcionar con scheduler, colas y envio de correos en Laravel Cloud.',
-    },
-];
-
-const businessTypes = ['Kioscos', 'Tiendas', 'Ferreterias', 'Petshops', 'Regalerias', 'Autoservicios', 'Y mas'];
+const businessTypes = ['Kioscos', 'Tiendas', 'Ferreterias', 'Petshops', 'Regalerias', 'Autoservicios'];
 
 defineProps({
     canLogin: { type: Boolean, default: false },
@@ -230,16 +205,15 @@ defineProps({
                 </nav>
             </header>
 
-            <main class="my-auto grid gap-6 py-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
+            <main class="my-auto grid gap-6 py-10 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
                 <section class="entry panel" style="animation-delay: 80ms">
                     <p class="eyebrow text-sm uppercase tracking-[0.2em] text-cyan-200/90">Sistema listo para operar</p>
                     <h2 class="title mt-3 text-3xl font-bold leading-tight md:text-5xl">
-                        Ventas, stock, vencimientos y alertas en un mismo flujo
+                        Ventas, stock y alertas claras para tu comercio
                     </h2>
-                    <p class="mt-5 max-w-2xl text-base text-slate-200/90 md:text-lg">
-                        El producto ya resuelve la operacion diaria del comercio con una base clara:
-                        compras, ventas, productos, proveedores, usuarios internos, dashboard y notificaciones
-                        por mail configurables para stock y vencimientos.
+                    <p class="mt-5 max-w-2xl text-base leading-7 text-slate-200/90 md:text-lg">
+                        Un sistema simple para ordenar la operacion diaria: compras, ventas, productos,
+                        vencimientos y notificaciones por mail cuando hace falta actuar.
                     </p>
 
                     <div class="mt-8 grid gap-4 md:grid-cols-3">
@@ -250,49 +224,23 @@ defineProps({
                     </div>
 
                     <article class="box mt-4">
-                        <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h3 class="title text-lg font-semibold">Que incluye hoy</h3>
-                                <p class="mt-2 text-sm text-slate-200/80">
-                                    Funcionalidad real del MVP, sin prometer modulos que todavia no estan cerrados.
-                                </p>
+                                <p class="mt-2 text-sm text-slate-200/80">Lo importante del MVP, sin relleno.</p>
                             </div>
                             <span class="tag">MVP activo</span>
                         </div>
 
-                        <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <article v-for="module in productModules" :key="module.title" class="module-card">
-                                <h4 class="title text-base font-semibold">{{ module.title }}</h4>
-                                <p class="mt-2 text-sm leading-6 text-slate-200/85">{{ module.description }}</p>
-                            </article>
-                        </div>
-                    </article>
-
-                    <article class="box mt-4">
-                        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                            <div>
-                                <h3 class="title text-lg font-semibold">Alertas operativas listas</h3>
-                                <p class="mt-2 text-sm text-slate-200/85">
-                                    El sistema ya puede avisar automaticamente cuando un comercio necesita reaccionar.
-                                </p>
-                            </div>
-                            <span class="tag">Mail configurable</span>
-                        </div>
-
                         <ul class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <li
-                                v-for="item in notificationFlow"
-                                :key="item"
-                                class="notice-card"
-                            >
-                                {{ item }}
+                            <li v-for="feature in coreFeatures" :key="feature" class="notice-card">
+                                {{ feature }}
                             </li>
                         </ul>
                     </article>
 
                     <article class="box mt-4">
-                        <h3 class="title text-lg font-semibold">Alcance</h3>
-                        <p class="mt-2 text-sm text-slate-200/85">Ideal para negocios minoristas y de mostrador que necesitan ordenar la operatoria diaria.</p>
+                        <h3 class="title text-lg font-semibold">Ideal para</h3>
                         <div class="mt-3 flex flex-wrap gap-2">
                             <span v-for="businessType in businessTypes" :key="businessType" class="tag">{{ businessType }}</span>
                         </div>
@@ -301,33 +249,32 @@ defineProps({
 
                 <section class="entry panel price" style="animation-delay: 180ms">
                     <p class="eyebrow text-sm uppercase tracking-[0.2em] text-cyan-100/90">Propuesta comercial</p>
-                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion clara, simple y acompanada</h3>
+                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion simple y acompanada</h3>
                     <p class="mt-4 text-sm leading-6 text-slate-200/90">
-                        Pensado para comercios que necesitan ordenar ventas, stock, vencimientos y seguimiento diario
-                        sin entrar en procesos largos ni en una implementacion pesada.
+                        Tres formas de contratar el servicio segun la etapa en la que este tu comercio.
                     </p>
 
                     <div class="mt-6 space-y-3">
-                        <article
-                            v-for="(pillar, index) in implementationPillars"
-                            :key="pillar.title"
-                            class="rounded-2xl p-5 ring-1"
-                            :class="index === implementationPillars.length - 1
-                                ? 'bg-cyan-300/15 ring-cyan-100/30'
-                                : 'bg-white/10 ring-white/15'"
-                        >
-                            <p class="text-sm text-cyan-100/90">Pilar {{ index + 1 }}</p>
-                            <h4 class="title mt-2 text-lg font-semibold text-white">{{ pillar.title }}</h4>
-                            <p class="mt-2 text-sm text-slate-200/90">
-                                {{ pillar.description }}
-                            </p>
+                        <article v-for="plan in planSummaries" :key="plan.title" class="summary-card">
+                            <p class="text-sm text-cyan-100/85">{{ plan.title }}</p>
+                            <h4 class="title mt-2 text-2xl font-bold text-white">{{ plan.price }}</h4>
+                            <p class="mt-2 text-sm leading-6 text-slate-200/90">{{ plan.description }}</p>
                         </article>
+                    </div>
+
+                    <div class="mt-6 rounded-2xl border border-cyan-100/15 bg-slate-950/30 px-4 py-4">
+                        <ul class="space-y-2 text-sm text-slate-300">
+                            <li v-for="note in pricingNotes" :key="note" class="flex items-start gap-3">
+                                <span class="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-cyan-300" />
+                                <span>{{ note }}</span>
+                            </li>
+                        </ul>
                     </div>
 
                     <div class="cta-block mt-6">
                         <p class="title text-lg font-semibold text-white">Listo para avanzar</p>
                         <p class="mt-2 text-sm leading-6 text-slate-200/90">
-                            Si queres implementar el sistema o definir un plan segun tu catalogo, te respondo por WhatsApp.
+                            Si queres implementarlo o definir el plan adecuado, te respondo por WhatsApp.
                         </p>
                         <a
                             :href="whatsappUrl"
@@ -341,15 +288,15 @@ defineProps({
                 </section>
             </main>
 
-            <section class="entry mx-auto mt-4 w-full max-w-6xl px-4 pb-10" style="animation-delay: 260ms">
+            <section class="entry mx-auto mt-2 w-full max-w-6xl px-4 pb-10" style="animation-delay: 260ms">
                 <div class="rounded-[2rem] border border-white/10 bg-white/95 px-6 py-10 text-slate-900 shadow-2xl shadow-slate-950/20 md:px-10">
                     <div class="mx-auto max-w-3xl text-center">
-                        <p class="title text-sm uppercase tracking-[0.25em] text-cyan-700">Precios</p>
+                        <p class="eyebrow text-sm uppercase tracking-[0.25em] text-cyan-700">Grilla de precios</p>
                         <h2 class="title mt-3 text-3xl font-bold text-slate-950 md:text-4xl">
                             Planes del Sistema de Gestion Comercial
                         </h2>
-                        <p class="mt-4 text-base text-slate-600 md:text-lg">
-                            Solucion para controlar ventas, compras, stock, vencimientos y alertas en tu comercio
+                        <p class="mt-4 text-base leading-7 text-slate-600 md:text-lg">
+                            Si queres ver el detalle completo, aca tenes la grilla por instalacion, carga y mantenimiento.
                         </p>
                     </div>
 
@@ -377,18 +324,20 @@ defineProps({
                                         <p class="mt-3 text-sm leading-6 text-slate-600">{{ plan.description }}</p>
 
                                         <div class="mt-6">
-                                            <p
-                                                v-if="plan.priceLabel"
-                                                class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"
-                                            >
-                                                {{ plan.priceLabel }}
-                                            </p>
-                                            <p class="title mt-1 text-3xl font-semibold text-slate-950">
-                                                {{ plan.price }}
-                                                <span v-if="plan.priceSuffix" class="ml-1 text-base font-medium text-slate-500">
+                                            <div class="flex flex-wrap items-baseline gap-2">
+                                                <span
+                                                    v-if="plan.priceLabel"
+                                                    class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"
+                                                >
+                                                    {{ plan.priceLabel }}
+                                                </span>
+                                                <p class="title text-3xl font-semibold text-slate-950">
+                                                    {{ plan.price }}
+                                                </p>
+                                                <span v-if="plan.priceSuffix" class="text-base font-medium text-slate-500">
                                                     {{ plan.priceSuffix }}
                                                 </span>
-                                            </p>
+                                            </div>
                                         </div>
 
                                         <ul v-if="plan.features.length" class="mt-6 space-y-3 text-sm text-slate-700">
@@ -401,15 +350,6 @@ defineProps({
                                 </article>
                             </div>
                         </section>
-                    </div>
-
-                    <div class="mt-8 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-                        <ul class="space-y-2 text-sm text-slate-500">
-                            <li v-for="note in pricingNotes" :key="note" class="flex items-start gap-3">
-                                <span class="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
-                                <span>{{ note }}</span>
-                            </li>
-                        </ul>
                     </div>
                 </div>
             </section>
@@ -457,13 +397,6 @@ defineProps({
     background: rgba(9, 16, 30, 0.35);
 }
 
-.module-card {
-    border-radius: 1rem;
-    border: 1px solid rgba(186, 230, 253, 0.14);
-    background: rgba(2, 6, 23, 0.2);
-    padding: 1rem;
-}
-
 .notice-card {
     border-radius: 1rem;
     border: 1px solid rgba(186, 230, 253, 0.15);
@@ -472,6 +405,13 @@ defineProps({
     font-size: 0.9rem;
     line-height: 1.6;
     color: rgba(226, 232, 240, 0.92);
+}
+
+.summary-card {
+    border-radius: 1rem;
+    border: 1px solid rgba(186, 230, 253, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1rem 1.1rem;
 }
 
 .tag {

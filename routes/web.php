@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\BusinessSalesSettingsController;
+use App\Http\Controllers\Admin\CommercialGuideController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
 use App\Http\Controllers\Categories\CategoryController;
 use App\Http\Controllers\Dashboard\DashboardController;
@@ -33,6 +34,7 @@ Route::middleware(['auth', 'superadmin'])
         Route::put('/businesses/{business}/sales-settings', [BusinessSalesSettingsController::class, 'update'])->name('businesses.sales-settings.update');
         Route::get('/global-products', [GlobalProductCatalogController::class, 'index'])->name('global-products.index');
         Route::post('/global-products/sync', [GlobalProductCatalogController::class, 'sync'])->name('global-products.sync');
+        Route::get('/commercial-guide', [CommercialGuideController::class, 'index'])->name('commercial-guide.index');
     });
 
 Route::middleware(['auth', 'business'])->group(function (): void {
