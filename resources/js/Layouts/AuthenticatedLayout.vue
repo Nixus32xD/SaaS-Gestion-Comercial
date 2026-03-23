@@ -27,6 +27,7 @@ const navigation = computed(() => {
         { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },
         { label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' },
         ...(canManageUsers.value ? [{ label: 'Usuarios', route: 'users.index', pattern: 'users.*', icon: 'US' }] : []),
+        ...(canManageUsers.value ? [{ label: 'Notificaciones', route: 'notifications.edit', pattern: 'notifications.*', icon: 'NT' }] : []),
         { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
     ];
 });

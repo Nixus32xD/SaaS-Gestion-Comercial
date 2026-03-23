@@ -17,6 +17,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Notification Queue Name
+    |--------------------------------------------------------------------------
+    |
+    | Operational alerts are pushed to this queue so a dedicated worker can
+    | process email delivery without slowing down the scheduler command.
+    |
+    */
+
+    'notifications_queue' => env('NOTIFICATIONS_QUEUE', 'notifications'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |

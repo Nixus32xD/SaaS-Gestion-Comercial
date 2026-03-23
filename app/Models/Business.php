@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Business extends Model
@@ -97,6 +98,22 @@ class Business extends Model
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
+    }
+
+    /**
+     * @return HasOne<BusinessNotificationSetting, $this>
+     */
+    public function notificationSetting(): HasOne
+    {
+        return $this->hasOne(BusinessNotificationSetting::class);
+    }
+
+    /**
+     * @return HasMany<BusinessNotificationDispatch, $this>
+     */
+    public function notificationDispatches(): HasMany
+    {
+        return $this->hasMany(BusinessNotificationDispatch::class);
     }
 
     public function hasFeature(string $feature): bool

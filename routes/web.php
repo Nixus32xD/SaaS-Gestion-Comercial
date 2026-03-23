@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
 use App\Http\Controllers\Categories\CategoryController;
 use App\Http\Controllers\Dashboard\DashboardController;
+use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchases\PurchaseController;
@@ -72,6 +73,8 @@ Route::middleware(['auth', 'business', 'business.admin'])->group(function (): vo
     Route::get('/users', [BusinessUserController::class, 'index'])->name('users.index');
     Route::post('/users', [BusinessUserController::class, 'store'])->name('users.store');
     Route::patch('/users/{user}/status', [BusinessUserController::class, 'updateStatus'])->name('users.status');
+    Route::get('/notifications', [NotificationSettingsController::class, 'edit'])->name('notifications.edit');
+    Route::put('/notifications', [NotificationSettingsController::class, 'update'])->name('notifications.update');
 });
 
 Route::middleware('auth')->group(function () {
