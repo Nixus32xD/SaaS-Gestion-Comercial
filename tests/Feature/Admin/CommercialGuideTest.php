@@ -13,7 +13,8 @@ test('superadmin can view the commercial guide', function () {
             ->component('Admin/CommercialGuide/Index')
             ->has('quick_rules', 3)
             ->has('sections', 3)
-            ->has('whatsapp_templates', 5)
+            ->has('internal_checklists', 2)
+            ->has('whatsapp_templates', 7)
         );
 });
 

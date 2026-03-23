@@ -1,9 +1,13 @@
 <?php
 
+use App\Mail\BusinessUserAccessMail;
 use App\Models\Business;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 
 test('business admin can create staff users inside their business', function () {
+    Mail::fake();
+
     $business = Business::factory()->create();
     $admin = User::factory()->businessAdmin($business->id)->create();
 
@@ -27,6 +31,7 @@ test('business admin can create staff users inside their business', function () 
     expect($user->business_id)->toBe($business->id);
     expect($user->role)->toBe('staff');
     expect($user->is_active)->toBeTrue();
+    Mail::assertQueued(BusinessUserAccessMail::class, fn (BusinessUserAccessMail $mail) => $mail->hasTo('caja1@example.com') && $mail->roleLabel === 'Staff del comercio');
 });
 
 test('staff can not access business user management', function () {

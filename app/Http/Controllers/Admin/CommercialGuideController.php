@@ -102,6 +102,35 @@ class CommercialGuideController extends Controller
                     ],
                 ],
             ],
+            'internal_checklists' => [
+                [
+                    'title' => 'Checklist interno del Plan Plus',
+                    'description' => 'Paso a paso sugerido para ejecutar una implementacion Plus con criterio uniforme.',
+                    'items' => [
+                        'Relevar cantidad estimada de productos, responsables y forma de trabajo del comercio.',
+                        'Confirmar si van a usar control de vencimientos, lotes, sectores de venta o destinos de cobro.',
+                        'Crear el comercio, usuario admin y configuracion inicial del sistema.',
+                        'Preparar categorias base y estructura inicial del catalogo.',
+                        'Cargar o coordinar hasta 250 productos iniciales con sus datos operativos.',
+                        'Definir stock inicial, stock minimo y datos comerciales por producto.',
+                        'Configurar proveedores clave y validar el flujo de compras.',
+                        'Probar compras, ventas y ajuste de stock con ejemplos reales del negocio.',
+                        'Configurar notificaciones por mail y destinatarios principales.',
+                        'Dar capacitacion por sectores o por roles segun como trabaje el comercio.',
+                        'Hacer una revision final de salida a operacion con el cliente.',
+                        'Acompanhar los primeros dias para resolver dudas o ajustes menores de arranque.',
+                    ],
+                ],
+                [
+                    'title' => 'Que incluye cada mantenimiento',
+                    'description' => 'Referencia interna para saber que tareas deberias absorber en cada nivel.',
+                    'items' => [
+                        'Basico: responder consultas, corregir errores, aplicar ajustes menores simples y mantener la app estable.',
+                        'Operativo: todo lo del basico, mas seguimiento mas frecuente, revision operativa mensual y prioridad media.',
+                        'Prioritario: todo lo del operativo, mas prioridad alta, seguimiento cercano y una bolsa mensual para pequenos ajustes.',
+                    ],
+                ],
+            ],
             'whatsapp_templates' => [
                 [
                     'key' => 'general',
@@ -132,6 +161,18 @@ class CommercialGuideController extends Controller
                     'title' => 'Cuando comparan Express + carga vs Plus',
                     'description' => 'Para responder la objecion mas comun.',
                     'message' => "Express mas carga adicional puede servir si queres arrancar simple y despues ampliar catalogo. Pero el Plan Plus no vende solo mas productos: tambien incluye una implementacion mas completa, mejor capacitacion y una puesta en marcha mas profunda. Por eso una cosa suma productos y la otra mejora el nivel de arranque.",
+                ],
+                [
+                    'key' => 'plus_execution',
+                    'title' => 'Como explicar que hago en un Plan Plus',
+                    'description' => 'Para cuando te preguntan concretamente que incluye tu trabajo.',
+                    'message' => "Si elegis el Plan Plus, yo me encargo de una puesta en marcha mas completa: relevamiento inicial, configuracion del sistema, carga de hasta 250 productos, ajustes operativos, capacitacion por sectores y acompanamiento de arranque para que el comercio quede listo para trabajar.",
+                ],
+                [
+                    'key' => 'maintenance_scope',
+                    'title' => 'Como explicar que hago en cada mantenimiento',
+                    'description' => 'Respuesta corta para diferenciar basico, operativo y prioritario.',
+                    'message' => "El mantenimiento cambia segun el nivel de acompanamiento. En el Basico me ocupo de soporte, correccion de errores y estabilidad general. En el Operativo sumo mas seguimiento y prioridad media. En el Prioritario agrego acompanamiento mas cercano, prioridad alta y una capacidad mayor para ajustes menores en el dia a dia.",
                 ],
             ],
         ]);

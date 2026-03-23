@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\Businesses\UpdateBusinessRequest;
 use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Models\User;
+use App\Services\UserAccessMailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -17,6 +18,10 @@ use Inertia\Response;
 
 class BusinessController extends Controller
 {
+    public function __construct(private readonly UserAccessMailService $userAccessMailService)
+    {
+    }
+
     public function index(): Response
     {
         $businesses = Business::query()
@@ -75,8 +80,9 @@ class BusinessController extends Controller
     public function store(StoreBusinessRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $plainPassword = (string) $data['admin']['password'];
 
-        DB::transaction(function () use ($data): void {
+        [$business, $adminUser] = DB::transaction(function () use ($data): array {
             $business = Business::query()->create([
                 'name' => $data['name'],
                 'slug' => $this->buildUniqueSlug($data['slug'] ?: $data['name']),
@@ -87,7 +93,7 @@ class BusinessController extends Controller
                 'is_active' => (bool) ($data['is_active'] ?? true),
             ]);
 
-            User::query()->create([
+            $adminUser = User::query()->create([
                 'business_id' => $business->id,
                 'name' => $data['admin']['name'],
                 'email' => $data['admin']['email'],
@@ -96,7 +102,11 @@ class BusinessController extends Controller
                 'is_active' => true,
                 'email_verified_at' => now(),
             ]);
+
+            return [$business, $adminUser];
         });
+
+        $this->userAccessMailService->sendBusinessCreatedMail($business, $adminUser, $plainPassword);
 
         return redirect()
             ->route('admin.businesses.index')

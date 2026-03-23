@@ -6,6 +6,7 @@ import { reactive } from 'vue';
 const props = defineProps({
     quick_rules: { type: Array, default: () => [] },
     sections: { type: Array, default: () => [] },
+    internal_checklists: { type: Array, default: () => [] },
     whatsapp_templates: { type: Array, default: () => [] },
 });
 
@@ -100,6 +101,32 @@ const copyTemplate = async (key, value) => {
                             </ul>
                         </article>
                     </div>
+                </article>
+            </section>
+
+            <section class="grid gap-4">
+                <article
+                    v-for="checklist in internal_checklists"
+                    :key="checklist.title"
+                    class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur"
+                >
+                    <div class="max-w-3xl">
+                        <h3 class="text-lg font-semibold text-slate-100">{{ checklist.title }}</h3>
+                        <p class="mt-1 text-sm leading-6 text-slate-300/80">{{ checklist.description }}</p>
+                    </div>
+
+                    <ol class="mt-4 grid gap-3 text-sm text-slate-200/90">
+                        <li
+                            v-for="(item, index) in checklist.items"
+                            :key="`${checklist.title}-${index}`"
+                            class="flex items-start gap-3 rounded-xl border border-cyan-100/10 bg-slate-950/30 px-4 py-3"
+                        >
+                            <span class="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-cyan-300/15 text-xs font-semibold text-cyan-100">
+                                {{ index + 1 }}
+                            </span>
+                            <span class="leading-6">{{ item }}</span>
+                        </li>
+                    </ol>
                 </article>
             </section>
 

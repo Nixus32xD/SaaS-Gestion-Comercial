@@ -100,6 +100,12 @@ const submit = () => {
                     </label>
 
                     <div class="flex items-center justify-between gap-3 pt-2">
+                        <Link
+                            :href="route('password.request')"
+                            class="text-sm font-semibold text-cyan-100/85 transition hover:text-cyan-50"
+                        >
+                            Olvide mi contrasena
+                        </Link>
                         <button
                             type="submit"
                             class="title rounded-lg bg-cyan-300 px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"

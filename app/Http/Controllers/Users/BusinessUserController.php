@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Users\StoreBusinessUserRequest;
 use App\Http\Requests\Users\UpdateBusinessUserStatusRequest;
 use App\Models\User;
+use App\Services\UserAccessMailService;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Hash;
@@ -14,6 +15,10 @@ use Inertia\Response;
 
 class BusinessUserController extends Controller
 {
+    public function __construct(private readonly UserAccessMailService $userAccessMailService)
+    {
+    }
+
     public function index(CurrentBusiness $currentBusiness): Response
     {
         $business = $currentBusiness->get();
@@ -43,8 +48,9 @@ class BusinessUserController extends Controller
         abort_if($business === null, 404);
 
         $data = $request->validated();
+        $plainPassword = (string) $data['password'];
 
-        User::query()->create([
+        $user = User::query()->create([
             'business_id' => $business->id,
             'name' => $data['name'],
             'email' => $data['email'],
@@ -53,6 +59,8 @@ class BusinessUserController extends Controller
             'is_active' => (bool) $data['is_active'],
             'email_verified_at' => now(),
         ]);
+
+        $this->userAccessMailService->sendBusinessUserCreatedMail($business, $user, $plainPassword);
 
         return back()->with('success', 'Usuario creado correctamente.');
     }
