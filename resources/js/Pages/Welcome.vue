@@ -130,6 +130,43 @@ const pricingNotes = [
     'Desde el plan mensual de ARS 45.000 se contemplan beneficios sobre funcionalidades personalizadas.',
 ];
 
+const productHighlights = [
+    {
+        title: 'Operacion diaria',
+        description: 'Ventas, compras y stock por comercio con impacto automatico en cada movimiento.',
+    },
+    {
+        title: 'Control fino de inventario',
+        description: 'Productos, categorias, proveedores, lotes y vencimientos en un mismo flujo.',
+    },
+    {
+        title: 'Seguimiento y alertas',
+        description: 'Dashboard operativo y correos configurables para stock bajo, agotados y vencimientos.',
+    },
+];
+
+const currentCapabilities = [
+    'Dashboard con metricas operativas y alertas visibles por comercio.',
+    'Gestion de categorias, productos y proveedores.',
+    'Ventas y compras con actualizacion automatica de stock.',
+    'Control de lotes con proximos vencimientos y productos vencidos.',
+    'Usuarios internos con roles admin y staff.',
+    'Notificaciones por mail con destinatarios, horarios y pausado manual.',
+];
+
+const notificationHighlights = [
+    'Resumen por mail de stock bajo, agotado y vencimientos.',
+    'Horario configurable por comercio para evitar avisos fuera de turno.',
+    'Envio a email principal, admins y correos adicionales.',
+    'Historial reciente de envios desde la configuracion del comercio.',
+];
+
+const implementationPillars = [
+    'Puesta en marcha guiada y capacitacion inicial.',
+    'Carga de productos opcional si el comercio quiere delegarla.',
+    'Base preparada para operar en Laravel Cloud con scheduler y colas.',
+];
+
 defineProps({
     canLogin: { type: Boolean, default: false },
 });
@@ -168,30 +205,50 @@ defineProps({
                 <section class="entry panel lg:col-span-2" style="animation-delay: 80ms">
                     <p class="title text-sm uppercase tracking-[0.2em] text-cyan-200/90">Que ofrezco</p>
                     <h2 class="title mt-3 text-3xl font-bold leading-tight md:text-5xl">
-                        Sistema de gestion comercial listo para usar
+                        Ventas, stock y alertas operativas en un solo sistema
                     </h2>
                     <p class="mt-5 max-w-2xl text-base text-slate-200/90 md:text-lg">
-                        Implementacion, configuracion inicial y puesta en marcha para ventas, compras y stock.
-                        La carga masiva de productos puede contratarse como servicio opcional.
+                        El MVP ya resuelve la operacion diaria del comercio: productos, categorias, proveedores,
+                        compras, ventas, dashboard, usuarios internos y notificaciones por mail para stock y
+                        vencimientos. La carga masiva de productos sigue disponible como servicio opcional.
                     </p>
 
-                    <div class="mt-8 grid gap-4 sm:grid-cols-2">
-                        <article class="box">
-                            <h3 class="title text-lg font-semibold">Puesta en marcha</h3>
-                            <p class="mt-2 text-sm text-slate-200/85">Configuracion, parametros iniciales y capacitacion.</p>
-                        </article>
-                        <article class="box">
-                            <h3 class="title text-lg font-semibold">Carga opcional</h3>
-                            <p class="mt-2 text-sm text-slate-200/85">Si queres, cargo tus productos para que arranques mas rapido.</p>
+                    <div class="mt-8 grid gap-4 md:grid-cols-3">
+                        <article v-for="highlight in productHighlights" :key="highlight.title" class="box">
+                            <h3 class="title text-lg font-semibold">{{ highlight.title }}</h3>
+                            <p class="mt-2 text-sm text-slate-200/85">{{ highlight.description }}</p>
                         </article>
                     </div>
 
                     <article class="box mt-4">
                         <h3 class="title text-lg font-semibold">Que incluye hoy</h3>
                         <ul class="mt-3 space-y-2 text-sm text-slate-200/90">
-                            <li class="flex items-start gap-2"><span class="dot" />Gestion de ventas, compras y stock.</li>
-                            <li class="flex items-start gap-2"><span class="dot" />Control de productos y proveedores.</li>
-                            <li class="flex items-start gap-2"><span class="dot" />Reportes operativos para seguimiento diario.</li>
+                            <li v-for="capability in currentCapabilities" :key="capability" class="flex items-start gap-2">
+                                <span class="dot" />
+                                <span>{{ capability }}</span>
+                            </li>
+                        </ul>
+                    </article>
+
+                    <article class="box mt-4">
+                        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                                <h3 class="title text-lg font-semibold">Alertas operativas listas</h3>
+                                <p class="mt-2 text-sm text-slate-200/85">
+                                    El sistema ya puede avisar automaticamente cuando un comercio necesita reaccionar.
+                                </p>
+                            </div>
+                            <span class="tag">Mail configurable</span>
+                        </div>
+
+                        <ul class="mt-4 grid gap-3 sm:grid-cols-2">
+                            <li
+                                v-for="item in notificationHighlights"
+                                :key="item"
+                                class="rounded-2xl border border-cyan-100/15 bg-slate-950/35 px-4 py-3 text-sm text-slate-200/90"
+                            >
+                                {{ item }}
+                            </li>
                         </ul>
                     </article>
 
@@ -212,31 +269,24 @@ defineProps({
 
                 <section class="entry panel price" style="animation-delay: 180ms">
                     <p class="title text-sm uppercase tracking-[0.2em] text-cyan-100/90">Propuesta comercial</p>
-                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion clara, simple y acompanada</h3>
+                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion clara, simple y enfocada en operar</h3>
                     <p class="mt-4 text-sm leading-6 text-slate-200/90">
-                        Un esquema pensado para comercios que necesitan ordenar ventas, stock y productos sin entrar en
-                        procesos largos ni presupuestos dificiles de entender.
+                        Pensado para comercios que necesitan ordenar ventas, stock, vencimientos y seguimiento diario
+                        sin entrar en procesos largos ni en una implementacion pesada.
                     </p>
 
                     <div class="mt-6 space-y-3">
-                        <article class="rounded-2xl bg-white/10 p-5 ring-1 ring-white/15">
-                            <p class="text-sm text-cyan-100/90">Inicio rapido</p>
+                        <article
+                            v-for="(pillar, index) in implementationPillars"
+                            :key="pillar"
+                            class="rounded-2xl p-5 ring-1"
+                            :class="index === implementationPillars.length - 1
+                                ? 'bg-cyan-300/15 ring-cyan-100/30'
+                                : 'bg-white/10 ring-white/15'"
+                        >
+                            <p class="text-sm text-cyan-100/90">Pilar {{ index + 1 }}</p>
                             <p class="mt-2 text-sm text-slate-200/90">
-                                Instalacion, configuracion y capacitacion para salir a operar con una base solida.
-                            </p>
-                        </article>
-
-                        <article class="rounded-2xl bg-white/10 p-5 ring-1 ring-white/15">
-                            <p class="text-sm text-cyan-100/90">Escala segun tu catalogo</p>
-                            <p class="mt-2 text-sm text-slate-200/90">
-                                La implementacion incluye hasta 100 productos y podes sumar carga adicional cuando la necesites.
-                            </p>
-                        </article>
-
-                        <article class="rounded-2xl bg-cyan-300/15 p-5 ring-1 ring-cyan-100/30">
-                            <p class="text-sm text-cyan-100/90">Soporte mensual</p>
-                            <p class="mt-2 text-sm text-slate-200/90">
-                                Mantenimiento continuo para sostener el sistema estable, actualizado y con respuesta rapida.
+                                {{ pillar }}
                             </p>
                         </article>
                     </div>
@@ -260,7 +310,7 @@ defineProps({
                             Planes del Sistema de Gestion Comercial
                         </h2>
                         <p class="mt-4 text-base text-slate-600 md:text-lg">
-                            Solucion completa para controlar stock, ventas y productos en tu comercio
+                            Solucion para controlar ventas, compras, stock, vencimientos y alertas en tu comercio
                         </p>
                     </div>
 
