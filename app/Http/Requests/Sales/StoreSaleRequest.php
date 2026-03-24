@@ -5,6 +5,7 @@ namespace App\Http\Requests\Sales;
 use App\Models\BusinessFeature;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreSaleRequest extends FormRequest
 {
@@ -56,7 +57,14 @@ class StoreSaleRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:1000'],
             'sold_at' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer'],
+            'items.*.product_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('products', 'id')->where(
+                    fn ($query) => $query->where('business_id', $businessId)
+                ),
+            ],
+            'items.*.product_name' => ['nullable', 'string', 'max:255'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_price' => ['nullable', 'numeric', 'gte:0'],
         ];
@@ -64,6 +72,25 @@ class StoreSaleRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $items = collect((array) $this->input('items', []))
+            ->map(function (mixed $item): array {
+                $row = is_array($item) ? $item : [];
+                $productId = $row['product_id'] ?? null;
+                $productName = trim((string) ($row['product_name'] ?? ''));
+
+                return [
+                    ...$row,
+                    'product_id' => filled($productId) ? (int) $productId : null,
+                    'product_name' => $productName !== '' ? $productName : null,
+                    'quantity' => $row['quantity'] ?? 1,
+                    'unit_price' => filled($row['unit_price'] ?? null)
+                        ? $row['unit_price']
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
+
         $this->merge([
             'payment_method' => $this->filled('payment_method')
                 ? (string) $this->input('payment_method')
@@ -77,6 +104,32 @@ class StoreSaleRequest extends FormRequest
             'amount_received' => $this->filled('amount_received')
                 ? $this->input('amount_received')
                 : null,
+            'items' => $items,
         ]);
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            foreach ((array) $this->input('items', []) as $index => $item) {
+                $productId = (int) ($item['product_id'] ?? 0);
+                $productName = trim((string) ($item['product_name'] ?? ''));
+                $unitPrice = $item['unit_price'] ?? null;
+
+                if ($productId <= 0 && $productName === '') {
+                    $validator->errors()->add(
+                        "items.{$index}.product_name",
+                        'Los items manuales deben incluir un detalle.'
+                    );
+                }
+
+                if ($productId <= 0 && ($unitPrice === null || $unitPrice === '')) {
+                    $validator->errors()->add(
+                        "items.{$index}.unit_price",
+                        'Los items manuales deben incluir un monto.'
+                    );
+                }
+            }
+        });
     }
 }

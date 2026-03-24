@@ -5,6 +5,7 @@ use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\StockMovement;
 use App\Models\User;
 
 test('sale decrements stock and stores business on items', function () {
@@ -192,6 +193,55 @@ test('gram-based weighted sale calculates subtotal and stock correctly', functio
     expect((float) $sale->total)->toBe(4500.0);
     expect((float) $sale->change_amount)->toBe(500.0);
     expect($product->fresh()->stock)->toBe('1250.000');
+});
+
+test('sale can include manual items without affecting stock', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Pan lactal',
+        'slug' => 'pan-lactal-manual-sale',
+        'unit_type' => 'unit',
+        'sale_price' => 1500,
+        'cost_price' => 900,
+        'stock' => 10,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/sales', [
+            'payment_method' => 'cash',
+            'amount_received' => 7000,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 2,
+                    'unit_price' => 1500,
+                ],
+                [
+                    'product_id' => null,
+                    'product_name' => 'Verdura suelta',
+                    'quantity' => 1,
+                    'unit_price' => 3200,
+                ],
+            ],
+        ])
+        ->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+    $manualItem = SaleItem::query()->whereNull('product_id')->firstOrFail();
+
+    expect((float) $sale->subtotal)->toBe(6200.0);
+    expect((float) $sale->total)->toBe(6200.0);
+    expect((float) $sale->change_amount)->toBe(800.0);
+    expect($product->fresh()->stock)->toBe('8.000');
+    expect($manualItem->business_id)->toBe($business->id);
+    expect($manualItem->product_name)->toBe('Verdura suelta');
+    expect((float) $manualItem->subtotal)->toBe(3200.0);
+    expect(StockMovement::query()->count())->toBe(1);
 });
 
 test('sale numbering is sequential per business', function () {

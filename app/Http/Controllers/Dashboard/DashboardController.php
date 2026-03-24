@@ -74,6 +74,7 @@ class DashboardController extends Controller
             ])
             ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
             ->forBusiness($business->id)
+            ->whereNotNull('sale_items.product_id')
             ->groupBy('sale_items.product_id', 'sale_items.product_name', 'products.unit_type', 'products.weight_unit')
             ->orderByDesc('sold_quantity')
             ->limit(8)

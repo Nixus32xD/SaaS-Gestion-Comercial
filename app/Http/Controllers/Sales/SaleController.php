@@ -229,11 +229,16 @@ class SaleController extends Controller
                 'items' => $sale->items->map(fn ($item) => [
                     'id' => $item->id,
                     'product_name' => $item->product_name,
+                    'is_manual' => $item->product_id === null,
                     'quantity' => (float) $item->quantity,
                     'unit_price' => (float) $item->unit_price,
                     'subtotal' => (float) $item->subtotal,
-                    'quantity_label' => ProductMeasurement::quantityLabel($item->product?->unit_type, $item->product?->weight_unit),
-                    'price_label' => ProductMeasurement::priceLabel($item->product?->unit_type, $item->product?->weight_unit),
+                    'quantity_label' => $item->product_id === null
+                        ? 'sin stock'
+                        : ProductMeasurement::quantityLabel($item->product?->unit_type, $item->product?->weight_unit),
+                    'price_label' => $item->product_id === null
+                        ? ''
+                        : ProductMeasurement::priceLabel($item->product?->unit_type, $item->product?->weight_unit),
                 ]),
             ],
         ]);

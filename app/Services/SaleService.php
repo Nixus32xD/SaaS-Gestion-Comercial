@@ -29,16 +29,21 @@ class SaleService
     {
         return DB::transaction(function () use ($business, $user, $payload): Sale {
             $items = collect((array) ($payload['items'] ?? []));
-            $productIds = $items->pluck('product_id')->map(fn ($id) => (int) $id)->unique()->values();
+            $productItems = $items
+                ->filter(fn (array $item): bool => (int) ($item['product_id'] ?? 0) > 0)
+                ->values();
+            $productIds = $productItems->pluck('product_id')->map(fn ($id) => (int) $id)->unique()->values();
 
             /** @var Collection<int, Product> $products */
-            $products = Product::query()
-                ->forBusiness($business->id)
-                ->whereIn('id', $productIds)
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
+            $products = $productIds->isEmpty()
+                ? collect()
+                : Product::query()
+                    ->forBusiness($business->id)
+                    ->whereIn('id', $productIds)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
 
             if ($products->count() !== $productIds->count()) {
                 throw ValidationException::withMessages([
@@ -47,7 +52,22 @@ class SaleService
             }
 
             $lineItems = $items->map(function (array $item) use ($products): array {
-                $productId = (int) $item['product_id'];
+                $productId = (int) ($item['product_id'] ?? 0);
+
+                if ($productId <= 0) {
+                    $quantity = 1.0;
+                    $unitPrice = round((float) ($item['unit_price'] ?? 0), 2);
+
+                    return [
+                        'product_id' => null,
+                        'product_name' => trim((string) ($item['product_name'] ?? 'Item manual')),
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'subtotal' => ProductMeasurement::calculateSubtotal($quantity, $unitPrice, null, null),
+                        'affects_stock' => false,
+                    ];
+                }
+
                 $product = $products->get($productId);
 
                 if ($product === null) {
@@ -73,10 +93,12 @@ class SaleService
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'subtotal' => $subtotal,
+                    'affects_stock' => true,
                 ];
             });
 
             $requestedByProduct = $lineItems
+                ->filter(fn (array $lineItem): bool => $lineItem['affects_stock'] === true)
                 ->groupBy('product_id')
                 ->map(fn (Collection $rows): float => round((float) $rows->sum('quantity'), 3));
 
@@ -125,6 +147,20 @@ class SaleService
             );
 
             foreach ($lineItems as $lineItem) {
+                /** @var SaleItem $saleItem */
+                $saleItem = $sale->items()->create([
+                    'business_id' => $business->id,
+                    'product_id' => $lineItem['product_id'],
+                    'product_name' => $lineItem['product_name'],
+                    'quantity' => $lineItem['quantity'],
+                    'unit_price' => $lineItem['unit_price'],
+                    'subtotal' => $lineItem['subtotal'],
+                ]);
+
+                if ($lineItem['affects_stock'] !== true) {
+                    continue;
+                }
+
                 $productId = (int) $lineItem['product_id'];
                 $before = (float) $stocks->get($productId, 0);
                 $after = round($before - (float) $lineItem['quantity'], 3);
@@ -136,16 +172,6 @@ class SaleService
                 }
 
                 $stocks->put($productId, $after);
-
-                /** @var SaleItem $saleItem */
-                $saleItem = $sale->items()->create([
-                    'business_id' => $business->id,
-                    'product_id' => $productId,
-                    'product_name' => $lineItem['product_name'],
-                    'quantity' => $lineItem['quantity'],
-                    'unit_price' => $lineItem['unit_price'],
-                    'subtotal' => $lineItem['subtotal'],
-                ]);
 
                 $this->productBatchService->consumeStock($business, $products->get($productId), (float) $lineItem['quantity'], [
                     'movement_type' => 'sale',

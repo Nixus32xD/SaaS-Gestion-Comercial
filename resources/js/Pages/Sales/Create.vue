@@ -11,6 +11,8 @@ const props = defineProps({
 const state = reactive({
     search: '',
     quantity: 1,
+    manualItemName: '',
+    manualItemAmount: '',
     highlightedIndex: 0,
     activeProductId: null,
     helperMessage: 'Busca por nombre, codigo de barras o SKU. Presiona Enter para agregar.',
@@ -18,6 +20,7 @@ const state = reactive({
 
 const searchInput = ref(null);
 const quantityInput = ref(null);
+const manualAmountInput = ref(null);
 const knownProducts = ref([...(props.products || [])]);
 const searchResults = ref([...(props.products || [])]);
 const isLoadingProducts = ref(false);
@@ -166,6 +169,7 @@ const addProductToCart = (product, source = 'manual') => {
         form.items.push({
             product_id: product.id,
             product_name: product.name,
+            is_manual: false,
             quantity: Number(qty.toFixed(3)),
             unit_price: Number(product.sale_price),
             unit_type: product.unit_type,
@@ -182,6 +186,47 @@ const addProductToCart = (product, source = 'manual') => {
     state.helperMessage = source === 'scanner'
         ? `Producto agregado por codigo: ${product.name}`
         : `Producto agregado: ${product.name}`;
+
+    nextTick(() => {
+        searchInput.value?.focus();
+    });
+};
+
+const applyManualPreset = (label) => {
+    state.manualItemName = label;
+
+    nextTick(() => {
+        manualAmountInput.value?.focus();
+    });
+};
+
+const addManualItem = () => {
+    const detail = String(state.manualItemName || '').trim();
+    const amount = Number(state.manualItemAmount || 0);
+
+    if (detail === '') {
+        state.helperMessage = 'Escribe un detalle para la venta manual.';
+        return;
+    }
+
+    if (amount <= 0) {
+        state.helperMessage = 'El monto manual debe ser mayor a 0.';
+        return;
+    }
+
+    form.items.push({
+        product_id: null,
+        product_name: detail,
+        is_manual: true,
+        quantity: 1,
+        unit_price: Number(amount.toFixed(2)),
+        quantity_label: 'sin stock',
+        price_label: '',
+    });
+
+    state.manualItemName = '';
+    state.manualItemAmount = '';
+    state.helperMessage = `Item manual agregado: ${detail}`;
 
     nextTick(() => {
         searchInput.value?.focus();
@@ -283,13 +328,25 @@ const removeItem = (index) => {
     form.items.splice(index, 1);
 };
 
-const getProductMeta = (product) => ({
-    quantityLabel: product?.quantity_label || 'un',
-    priceLabel: product?.price_label || 'por unidad',
-    quantityStep: product?.quantity_step || '1',
-    quantityMin: product?.quantity_min || '1',
-    isGrams: product?.unit_type === 'weight' && product?.weight_unit === 'g',
-});
+const getProductMeta = (product) => {
+    if (product?.is_manual) {
+        return {
+            quantityLabel: 'sin stock',
+            priceLabel: '',
+            quantityStep: '1',
+            quantityMin: '1',
+            isGrams: false,
+        };
+    }
+
+    return {
+        quantityLabel: product?.quantity_label || 'un',
+        priceLabel: product?.price_label || 'por unidad',
+        quantityStep: product?.quantity_step || '1',
+        quantityMin: product?.quantity_min || '1',
+        isGrams: product?.unit_type === 'weight' && product?.weight_unit === 'g',
+    };
+};
 
 const getDisplayedStock = (product) => {
     const meta = getProductMeta(product);
@@ -342,6 +399,12 @@ const canSubmit = computed(() => (
     && (!advancedSaleSettingsEnabled.value || (form.sale_sector_id && form.payment_destination_id))
     && (!isCashPayment.value || remaining.value === 0)
 ));
+const itemErrorMessages = computed(() => Array.from(new Set(
+    Object.entries(form.errors || {})
+        .filter(([key]) => key === 'items' || key.startsWith('items.'))
+        .map(([, message]) => message)
+        .filter(Boolean),
+)));
 
 const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -378,6 +441,7 @@ const submit = () => {
             payment_destination_id: advancedSaleSettingsEnabled.value ? data.payment_destination_id : null,
             items: data.items.map((item) => ({
                 product_id: item.product_id,
+                product_name: item.product_id === null ? item.product_name : null,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
             })),
@@ -524,14 +588,72 @@ onBeforeUnmount(() => {
                     </p>
                 </div>
 
+                <div class="mt-4 rounded-xl border border-amber-200/20 bg-amber-300/10 p-4">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 class="text-sm font-semibold text-amber-100">Venta rapida sin stock</h3>
+                            <p class="mt-1 text-xs text-amber-50/80">Para verdura, fiambre suelto u otros importes que queres registrar sin manejar stock en la app.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" class="rounded-full border border-amber-100/25 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-200/10" @click="applyManualPreset('Verdura suelta')">Verdura</button>
+                            <button type="button" class="rounded-full border border-amber-100/25 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-200/10" @click="applyManualPreset('Fiambre suelto')">Fiambre</button>
+                            <button type="button" class="rounded-full border border-amber-100/25 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-200/10" @click="applyManualPreset('Otro manual')">Otro</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]">
+                        <div>
+                            <label for="manual-item-name" class="mb-1 block text-sm font-medium text-amber-50/90">Detalle</label>
+                            <input
+                                id="manual-item-name"
+                                v-model="state.manualItemName"
+                                type="text"
+                                class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                placeholder="Ej. Verdura suelta"
+                                @keydown.enter.prevent="addManualItem"
+                            >
+                        </div>
+                        <div>
+                            <label for="manual-item-amount" class="mb-1 block text-sm font-medium text-amber-50/90">Monto</label>
+                            <input
+                                id="manual-item-amount"
+                                ref="manualAmountInput"
+                                v-model="state.manualItemAmount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                placeholder="0.00"
+                                @keydown.enter.prevent="addManualItem"
+                            >
+                        </div>
+                        <div class="flex items-end">
+                            <button
+                                type="button"
+                                class="w-full rounded-xl border border-amber-100/25 px-3 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-200/10"
+                                @click="addManualItem"
+                            >
+                                Agregar monto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div v-if="form.items.length" class="mt-4 grid gap-3 md:hidden">
                     <article v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
                         <div class="flex items-start justify-between gap-3">
                             <div>
-                                <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
+                                    <span v-if="item.is_manual" class="rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">Sin stock</span>
+                                </div>
                                 <p class="mt-1 text-xs text-slate-400">
-                                    {{ item.quantity }} {{ item.quantity_label }}
-                                    - {{ money(item.unit_price) }} {{ item.price_label }}
+                                    <template v-if="item.is_manual">
+                                        Monto fijo - {{ money(item.unit_price) }}
+                                    </template>
+                                    <template v-else>
+                                        {{ item.quantity }} {{ item.quantity_label }} - {{ money(item.unit_price) }} {{ item.price_label }}
+                                    </template>
                                 </p>
                             </div>
                             <button type="button" class="shrink-0 rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
@@ -553,14 +675,24 @@ onBeforeUnmount(() => {
                         </thead>
                         <tbody v-if="form.items.length" class="divide-y divide-slate-100">
                             <tr v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`">
-                                <td class="px-3 py-2 font-semibold text-slate-100">{{ item.product_name }}</td>
+                                <td class="px-3 py-2 font-semibold text-slate-100">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span>{{ item.product_name }}</span>
+                                        <span v-if="item.is_manual" class="rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">Sin stock</span>
+                                    </div>
+                                </td>
                                 <td class="px-3 py-2">
-                                    {{ item.quantity }}
-                                    <span class="text-xs text-slate-400">{{ item.quantity_label }}</span>
+                                    <template v-if="item.is_manual">
+                                        <span class="text-xs text-slate-400">Monto fijo</span>
+                                    </template>
+                                    <template v-else>
+                                        {{ item.quantity }}
+                                        <span class="text-xs text-slate-400">{{ item.quantity_label }}</span>
+                                    </template>
                                 </td>
                                 <td class="px-3 py-2">
                                     {{ money(item.unit_price) }}
-                                    <span class="text-xs text-slate-400">{{ item.price_label }}</span>
+                                    <span v-if="item.price_label" class="text-xs text-slate-400">{{ item.price_label }}</span>
                                 </td>
                                 <td class="px-3 py-2">{{ money(getLineSubtotal(item)) }}</td>
                                 <td class="px-3 py-2 text-right">
@@ -574,6 +706,10 @@ onBeforeUnmount(() => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div v-if="itemErrorMessages.length" class="mt-3 rounded-xl border border-rose-300/35 bg-rose-400/10 p-3 text-sm text-rose-100">
+                    <p v-for="(message, index) in itemErrorMessages" :key="`${message}-${index}`">{{ message }}</p>
                 </div>
             </section>
 

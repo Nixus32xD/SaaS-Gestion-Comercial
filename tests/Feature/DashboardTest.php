@@ -150,6 +150,16 @@ test('dashboard normalizes gram-based top sold products to kilograms', function 
         'subtotal' => 20000,
     ]);
 
+    SaleItem::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'product_id' => null,
+        'product_name' => 'Verdura suelta',
+        'quantity' => 999,
+        'unit_price' => 100,
+        'subtotal' => 99900,
+    ]);
+
     $this->actingAs($admin)->get('/dashboard')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page

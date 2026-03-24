@@ -88,9 +88,22 @@ onBeforeUnmount(() => {
                 <h3 class="text-base font-semibold text-slate-100">Items</h3>
                 <div class="mt-4 grid gap-3 md:hidden">
                     <article v-for="item in sale.items" :key="item.id" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
-                        <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
-                        <p class="mt-1 text-xs text-slate-400">{{ item.quantity }} {{ item.quantity_label }}</p>
-                        <p class="mt-1 text-xs text-slate-400">{{ money(item.unit_price) }} {{ item.price_label }}</p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
+                            <span v-if="item.is_manual" class="rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">Sin stock</span>
+                        </div>
+                        <p class="mt-1 text-xs text-slate-400">
+                            <template v-if="item.is_manual">
+                                Monto fijo
+                            </template>
+                            <template v-else>
+                                {{ item.quantity }} {{ item.quantity_label }}
+                            </template>
+                        </p>
+                        <p class="mt-1 text-xs text-slate-400">
+                            {{ money(item.unit_price) }}
+                            <span v-if="item.price_label">{{ item.price_label }}</span>
+                        </p>
                         <p class="mt-3 text-sm">Subtotal: <strong class="text-slate-100">{{ money(item.subtotal) }}</strong></p>
                     </article>
                 </div>
@@ -107,9 +120,24 @@ onBeforeUnmount(() => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="item in sale.items" :key="item.id">
-                                <td class="px-3 py-2 font-semibold text-slate-100">{{ item.product_name }}</td>
-                                <td class="px-3 py-2">{{ item.quantity }} <span class="text-xs text-slate-400">{{ item.quantity_label }}</span></td>
-                                <td class="px-3 py-2">{{ money(item.unit_price) }} <span class="text-xs text-slate-400">{{ item.price_label }}</span></td>
+                                <td class="px-3 py-2 font-semibold text-slate-100">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span>{{ item.product_name }}</span>
+                                        <span v-if="item.is_manual" class="rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">Sin stock</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <template v-if="item.is_manual">
+                                        <span class="text-xs text-slate-400">Monto fijo</span>
+                                    </template>
+                                    <template v-else>
+                                        {{ item.quantity }} <span class="text-xs text-slate-400">{{ item.quantity_label }}</span>
+                                    </template>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {{ money(item.unit_price) }}
+                                    <span v-if="item.price_label" class="text-xs text-slate-400">{{ item.price_label }}</span>
+                                </td>
                                 <td class="px-3 py-2">{{ money(item.subtotal) }}</td>
                             </tr>
                         </tbody>
