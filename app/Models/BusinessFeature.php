@@ -15,6 +15,16 @@ class BusinessFeature extends Model
 
     public const GLOBAL_PRODUCT_CATALOG = 'global_product_catalog';
 
+    public const STOCK = 'stock';
+
+    public const APPOINTMENTS = 'appointments';
+
+    public const POS = 'pos';
+
+    public const REPORTS = 'reports';
+
+    public const PUBLIC_BOOKING = 'public_booking';
+
     /**
      * @var list<string>
      */
