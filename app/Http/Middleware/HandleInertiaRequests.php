@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\BusinessBillingService;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -67,6 +68,7 @@ class HandleInertiaRequests extends Middleware
                 'reports' => $business->hasFeature(\App\Models\BusinessFeature::REPORTS),
                 'public_booking' => $business->hasFeature(\App\Models\BusinessFeature::PUBLIC_BOOKING),
             ] : null,
+            'business_subscription' => $business ? app(BusinessBillingService::class)->maintenanceSummary($business) : null,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

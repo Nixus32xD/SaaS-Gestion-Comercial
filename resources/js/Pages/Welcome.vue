@@ -1,178 +1,15 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
 
-const whatsappUrl =
-    'https://wa.me/542612476927?text=Hola%2C%20vi%20la%20landing%20del%20sistema%20de%20gestion%20comercial%20y%20quiero%20consultar%20por%20la%20implementacion%20y%20los%20planes%20disponibles.';
-
-const pricingSections = [
-    {
-        title: 'Instalacion inicial',
-        description: 'Opciones de arranque para distintos tamanos de comercio y nivel de acompanamiento.',
-        plans: [
-            {
-                title: 'Plan Express',
-                subtitle: 'Pago unico',
-                description: 'Para comercios chicos que quieren salir a operar con una configuracion base.',
-                price: '95.000',
-                priceLabel: 'ARS',
-                features: [
-                    'Configuracion base del sistema',
-                    'Capacitacion breve de arranque',
-                    'Hasta 30 productos incluidos',
-                    'Acompanamiento inicial',
-                ],
-            },
-            {
-                title: 'Plan Esencial',
-                subtitle: 'Pago unico',
-                description: 'La opcion recomendada para la mayoria de los comercios que quieren una puesta en marcha ordenada.',
-                price: '150.000',
-                priceLabel: 'ARS',
-                featured: true,
-                features: [
-                    'Instalacion y configuracion inicial',
-                    'Capacitacion completa',
-                    'Hasta 100 productos incluidos',
-                    'Ajustes de arranque',
-                ],
-            },
-            {
-                title: 'Plan Plus',
-                subtitle: 'Pago unico',
-                description: 'Pensado para comercios con catalogo amplio o una operatoria mas exigente desde el inicio.',
-                price: '220.000',
-                priceLabel: 'ARS',
-                features: [
-                    'Implementacion completa',
-                    'Hasta 250 productos incluidos',
-                    'Capacitacion por sectores',
-                    'Ajustes operativos iniciales',
-                ],
-            },
-        ],
-    },
-    {
-        title: 'Carga de productos',
-        description: 'Servicios de ampliacion para productos extra fuera del paquete inicial contratado.',
-        plans: [
-            {
-                title: 'Carga adicional por unidad',
-                subtitle: 'Flexible',
-                description: 'Ideal para ampliaciones puntuales o correcciones fuera del paquete incluido.',
-                price: '$500',
-                priceSuffix: 'por producto',
-                features: ['Para ampliaciones o ajustes del catalogo', 'Carga manual individual', 'Revision basica de datos'],
-            },
-            {
-                title: 'Pack 100 productos',
-                subtitle: 'Pago unico',
-                description: 'Pensado para ampliaciones posteriores cuando el catalogo ya supero lo incluido en el plan.',
-                price: '45.000',
-                priceLabel: 'ARS',
-                features: ['100 productos adicionales', 'Carga estructurada', 'Validacion general del listado'],
-            },
-            {
-                title: 'Pack 250 adicionales',
-                subtitle: 'Pago unico',
-                description: 'Para ampliaciones grandes sobre un comercio ya implementado, sin reemplazar el plan inicial.',
-                price: '95.000',
-                priceLabel: 'ARS',
-                features: ['250 productos adicionales', 'Carga masiva asistida', 'Revision de categorias y precios'],
-            },
-        ],
-    },
-    {
-        title: 'Mantenimiento mensual',
-        description: 'Niveles de soporte para sostener la operacion, resolver incidentes y sumar mejoras menores.',
-        plans: [
-            {
-                title: 'Plan Basico',
-                subtitle: 'Mensual',
-                description: 'Cobertura simple para mantener el sistema estable y con acompanamiento continuo.',
-                price: '25.000',
-                priceSuffix: '/ mes',
-                features: ['Soporte continuo', 'Correccion de errores', 'Actualizaciones menores', 'Respuesta standard'],
-            },
-            {
-                title: 'Plan Operativo',
-                subtitle: 'Mensual',
-                description: 'Mas seguimiento para comercios con mayor uso diario y necesidad de respuesta frecuente.',
-                price: '45.000',
-                priceSuffix: '/ mes',
-                features: [
-                    'Todo lo del plan basico',
-                    'Prioridad media en soporte',
-                    'Revision mensual operativa',
-                    'Bonificacion parcial en ajustes menores',
-                ],
-            },
-            {
-                title: 'Plan Prioritario',
-                subtitle: 'Mensual',
-                description: 'Para negocios que necesitan seguimiento mas cercano y mayor velocidad de respuesta.',
-                price: '60.000',
-                priceSuffix: '/ mes',
-                features: [
-                    'Prioridad alta en soporte',
-                    'Seguimiento mas cercano',
-                    'Bolsa mensual para ajustes menores',
-                    'Planificacion de mejoras puntuales',
-                ],
-            },
-        ],
-    },
-];
-
-const heroHighlights = [
-    {
-        title: 'Operacion diaria ordenada',
-        description: 'Ventas, compras y stock sincronizados por comercio desde un solo lugar.',
-    },
-    {
-        title: 'Inventario mas controlado',
-        description: 'Productos, categorias, proveedores, lotes y vencimientos dentro del mismo flujo.',
-    },
-    {
-        title: 'Seguimiento automatico',
-        description: 'Dashboard operativo y alertas por mail para actuar antes de que aparezca el problema.',
-    },
-];
-
-const coreFeatures = [
-    'Ventas y compras con impacto automatico en stock.',
-    'Productos, categorias, proveedores y usuarios internos.',
-    'Lotes, vencimientos y alertas por mail configurables.',
-    'Operacion por comercio lista para correr en Laravel Cloud.',
-];
-
-const planSummaries = [
-    {
-        title: 'Implementacion inicial',
-        price: 'Desde ARS 95.000',
-        description: 'Tres planes cerrados segun el volumen inicial del catalogo: 30, 100 o 250 productos.',
-    },
-    {
-        title: 'Carga adicional',
-        price: 'Desde $500 por producto',
-        description: 'Disponible para ampliaciones posteriores, no como reemplazo del plan inicial.',
-    },
-    {
-        title: 'Mantenimiento mensual',
-        price: 'Desde ARS 25.000 / mes',
-        description: 'Soporte, correcciones y mejoras menores para sostener la operacion.',
-    },
-];
-
-const pricingNotes = [
-    'Los valores finales dependen del alcance inicial y del volumen de productos.',
-    'La carga adicional aplica solo para productos extra fuera del plan inicial contratado.',
-    'No incluye desarrollos personalizados ni integraciones a medida.',
-];
-
-const businessTypes = ['Kioscos', 'Tiendas', 'Ferreterias', 'Petshops', 'Regalerias', 'Autoservicios'];
-
-defineProps({
+const props = defineProps({
     canLogin: { type: Boolean, default: false },
+    whatsappUrl: { type: String, default: '' },
+    pricingSections: { type: Array, default: () => [] },
+    heroHighlights: { type: Array, default: () => [] },
+    coreFeatures: { type: Array, default: () => [] },
+    planSummaries: { type: Array, default: () => [] },
+    pricingNotes: { type: Array, default: () => [] },
+    businessTypes: { type: Array, default: () => [] },
 });
 </script>
 
@@ -187,7 +24,7 @@ defineProps({
                     <h1 class="title mt-2 text-xl font-bold md:text-2xl">Gestor Comercial</h1>
                 </div>
 
-                <nav v-if="canLogin">
+                <nav v-if="props.canLogin">
                     <Link
                         v-if="$page.props.auth.user"
                         :href="$page.props.auth?.is_super_admin ? route('admin.businesses.index') : route('dashboard')"
@@ -217,7 +54,7 @@ defineProps({
                     </p>
 
                     <div class="mt-8 grid gap-4 md:grid-cols-3">
-                        <article v-for="highlight in heroHighlights" :key="highlight.title" class="box subtle-box">
+                        <article v-for="highlight in props.heroHighlights" :key="highlight.title" class="box subtle-box">
                             <h3 class="title text-lg font-semibold">{{ highlight.title }}</h3>
                             <p class="mt-2 text-sm leading-6 text-slate-200/85">{{ highlight.description }}</p>
                         </article>
@@ -233,7 +70,7 @@ defineProps({
                         </div>
 
                         <ul class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <li v-for="feature in coreFeatures" :key="feature" class="notice-card">
+                            <li v-for="feature in props.coreFeatures" :key="feature" class="notice-card">
                                 {{ feature }}
                             </li>
                         </ul>
@@ -242,7 +79,7 @@ defineProps({
                     <article class="box mt-4">
                         <h3 class="title text-lg font-semibold">Ideal para</h3>
                         <div class="mt-3 flex flex-wrap gap-2">
-                            <span v-for="businessType in businessTypes" :key="businessType" class="tag">{{ businessType }}</span>
+                            <span v-for="businessType in props.businessTypes" :key="businessType" class="tag">{{ businessType }}</span>
                         </div>
                     </article>
                 </section>
@@ -255,7 +92,7 @@ defineProps({
                     </p>
 
                     <div class="mt-6 space-y-3">
-                        <article v-for="plan in planSummaries" :key="plan.title" class="summary-card">
+                        <article v-for="plan in props.planSummaries" :key="plan.title" class="summary-card">
                             <p class="text-sm text-cyan-100/85">{{ plan.title }}</p>
                             <h4 class="title mt-2 text-2xl font-bold text-white">{{ plan.price }}</h4>
                             <p class="mt-2 text-sm leading-6 text-slate-200/90">{{ plan.description }}</p>
@@ -264,7 +101,7 @@ defineProps({
 
                     <div class="mt-6 rounded-2xl border border-cyan-100/15 bg-slate-950/30 px-4 py-4">
                         <ul class="space-y-2 text-sm text-slate-300">
-                            <li v-for="note in pricingNotes" :key="note" class="flex items-start gap-3">
+                            <li v-for="note in props.pricingNotes" :key="note" class="flex items-start gap-3">
                                 <span class="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-cyan-300" />
                                 <span>{{ note }}</span>
                             </li>
@@ -277,7 +114,7 @@ defineProps({
                             Si queres implementarlo o definir el plan adecuado, te respondo por WhatsApp.
                         </p>
                         <a
-                            :href="whatsappUrl"
+                            :href="props.whatsappUrl"
                             target="_blank"
                             rel="noopener noreferrer"
                             class="mt-4 inline-flex rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-cyan-200"
@@ -301,7 +138,7 @@ defineProps({
                     </div>
 
                     <div class="mt-10 space-y-10">
-                        <section v-for="section in pricingSections" :key="section.title">
+                        <section v-for="section in props.pricingSections" :key="section.title">
                             <div class="max-w-2xl">
                                 <h3 class="title text-2xl font-bold text-slate-950">{{ section.title }}</h3>
                                 <p class="mt-2 text-sm leading-6 text-slate-600">

@@ -23,6 +23,14 @@ class Business extends Model
         'email',
         'phone',
         'address',
+        'implementation_plan_code',
+        'implementation_amount',
+        'maintenance_plan_code',
+        'maintenance_amount',
+        'maintenance_started_at',
+        'maintenance_ends_at',
+        'subscription_grace_days',
+        'subscription_notes',
         'is_active',
     ];
 
@@ -33,6 +41,11 @@ class Business extends Model
     {
         return [
             'is_active' => 'bool',
+            'implementation_amount' => 'float',
+            'maintenance_amount' => 'float',
+            'maintenance_started_at' => 'date',
+            'maintenance_ends_at' => 'date',
+            'subscription_grace_days' => 'int',
         ];
     }
 
@@ -98,6 +111,14 @@ class Business extends Model
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
+    }
+
+    /**
+     * @return HasMany<BusinessPayment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(BusinessPayment::class);
     }
 
     /**

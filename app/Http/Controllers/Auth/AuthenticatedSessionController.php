@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Services\BusinessBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,7 +27,7 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request, BusinessBillingService $billingService): RedirectResponse
     {
         $request->authenticate();
 
@@ -48,6 +49,16 @@ class AuthenticatedSessionController extends Controller
 
                     throw ValidationException::withMessages([
                         'email' => 'Tu comercio esta inactivo o no esta asignado.',
+                    ]);
+                }
+
+                if ($billingService->shouldBlockBusinessAccess($business)) {
+                    Auth::guard('web')->logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+
+                    throw ValidationException::withMessages([
+                        'email' => 'El abono del comercio vencio y supero la gracia de 7 dias. Contactanos para reactivarlo.',
                     ]);
                 }
 

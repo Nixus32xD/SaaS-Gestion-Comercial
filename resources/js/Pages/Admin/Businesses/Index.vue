@@ -8,6 +8,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    billing_overview: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const search = ref('');
@@ -23,8 +27,18 @@ const filteredBusinesses = computed(() => {
         (business.name || '').toLowerCase().includes(term)
         || (business.slug || '').toLowerCase().includes(term)
         || (business.email || '').toLowerCase().includes(term)
+        || (business.billing?.maintenance?.plan_title || '').toLowerCase().includes(term)
+        || (business.billing?.maintenance?.status_label || '').toLowerCase().includes(term)
     ));
 });
+
+const statusBadgeClass = (tone) => {
+    if (tone === 'emerald') return 'bg-emerald-100 text-emerald-700';
+    if (tone === 'amber') return 'bg-amber-100 text-amber-700';
+    if (tone === 'rose') return 'bg-rose-100 text-rose-700';
+
+    return 'bg-slate-200 text-slate-700';
+};
 </script>
 
 <template>
@@ -47,13 +61,24 @@ const filteredBusinesses = computed(() => {
         </template>
 
         <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <div class="grid gap-3 md:grid-cols-5">
+                <article
+                    v-for="item in props.billing_overview"
+                    :key="item.key"
+                    class="rounded-2xl border border-cyan-100/15 bg-slate-950/35 p-4"
+                >
+                    <p class="text-xs uppercase tracking-[0.2em] text-slate-400">{{ item.label }}</p>
+                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ item.value }}</p>
+                </article>
+            </div>
+
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <h3 class="text-base font-semibold text-slate-100">Listado</h3>
                 <input
                     v-model="search"
                     type="text"
                     class="rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400"
-                    placeholder="Buscar por nombre, slug o email"
+                    placeholder="Buscar por nombre, slug, email o plan"
                 >
             </div>
 
@@ -64,6 +89,7 @@ const filteredBusinesses = computed(() => {
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Comercio</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Admin inicial</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Estado</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Abono</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Ventas avanzadas</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Productos</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Proveedores</th>
@@ -90,6 +116,17 @@ const filteredBusinesses = computed(() => {
                                 </span>
                             </td>
                             <td class="px-3 py-2">
+                                <p class="font-medium text-slate-200">{{ business.billing?.maintenance?.plan_title || 'Sin plan' }}</p>
+                                <span
+                                    class="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                                    :class="statusBadgeClass(business.billing?.maintenance?.tone)"
+                                >
+                                    {{ business.billing?.maintenance?.status_label || 'Sin configurar' }}
+                                </span>
+                                <p class="mt-1 text-xs text-slate-300/80">{{ business.billing?.maintenance?.amount_label || '-' }}</p>
+                                <p class="mt-1 text-xs text-slate-300/80">{{ business.billing?.maintenance?.status_message }}</p>
+                            </td>
+                            <td class="px-3 py-2">
                                 <span
                                     class="rounded-full px-2 py-1 text-xs font-semibold"
                                     :class="business.advanced_sale_settings_enabled ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-200 text-slate-700'"
@@ -114,7 +151,7 @@ const filteredBusinesses = computed(() => {
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="7" class="px-3 py-6 text-center text-slate-400">No se encontraron comercios.</td>
+                            <td colspan="8" class="px-3 py-6 text-center text-slate-400">No se encontraron comercios.</td>
                         </tr>
                     </tbody>
                 </table>

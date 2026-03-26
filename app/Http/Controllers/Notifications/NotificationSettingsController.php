@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Notifications;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Notifications\UpdateNotificationSettingsRequest;
 use App\Models\BusinessNotificationDispatch;
+use App\Services\BusinessBillingService;
 use App\Services\BusinessNotificationSettingsService;
 use App\Services\OperationalAlertNotificationService;
 use App\Support\CurrentBusiness;
@@ -17,6 +18,7 @@ class NotificationSettingsController extends Controller
     public function __construct(
         private readonly BusinessNotificationSettingsService $settingsService,
         private readonly OperationalAlertNotificationService $notificationService,
+        private readonly BusinessBillingService $billingService,
     ) {
     }
 
@@ -31,12 +33,16 @@ class NotificationSettingsController extends Controller
 
         $recentDispatches = BusinessNotificationDispatch::query()
             ->forBusiness($business->id)
-            ->where('notification_type', BusinessNotificationDispatch::TYPE_OPERATIONAL_ALERTS)
+            ->whereIn('notification_type', [
+                BusinessNotificationDispatch::TYPE_OPERATIONAL_ALERTS,
+                BusinessNotificationDispatch::TYPE_MAINTENANCE_DUE_REMINDER,
+            ])
             ->latest('attempted_at')
             ->limit(6)
             ->get()
             ->map(fn (BusinessNotificationDispatch $dispatch): array => [
                 'id' => $dispatch->id,
+                'notification_type' => $dispatch->notification_type,
                 'status' => $dispatch->status,
                 'subject' => $dispatch->subject,
                 'attempted_at' => $dispatch->attempted_at?->format('Y-m-d H:i'),
@@ -53,6 +59,7 @@ class NotificationSettingsController extends Controller
                 'send_to_admin_users' => (bool) $settings->send_to_admin_users,
                 'low_stock_enabled' => (bool) $settings->low_stock_enabled,
                 'expiration_enabled' => (bool) $settings->expiration_enabled,
+                'maintenance_due_enabled' => (bool) $settings->maintenance_due_enabled,
                 'minimum_hours_between_alerts' => (int) $settings->minimum_hours_between_alerts,
                 'notification_window_start_hour' => (int) $settings->notification_window_start_hour,
                 'notification_window_end_hour' => (int) $settings->notification_window_end_hour,
@@ -60,6 +67,7 @@ class NotificationSettingsController extends Controller
             ],
             'recipient_preview' => $recipients,
             'alerts_preview' => $preview,
+            'maintenance_preview' => $this->billingService->maintenanceSummary($business),
             'recent_dispatches' => $recentDispatches,
         ]);
     }
