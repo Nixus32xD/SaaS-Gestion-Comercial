@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', WelcomeController::class);
 
+require __DIR__.'/superadmin.php';
+require __DIR__.'/core.php';
+require __DIR__.'/stock.php';
+require __DIR__.'/appointments.php';
 Route::middleware(['auth', 'superadmin'])
     ->prefix('admin')
     ->as('admin.')

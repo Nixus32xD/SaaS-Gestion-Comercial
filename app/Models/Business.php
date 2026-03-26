@@ -149,10 +149,16 @@ class Business extends Model
             }
         }
 
-        return $this->features()
+        $exists = $this->features()
             ->where('feature', $feature)
             ->where('is_enabled', true)
             ->exists();
+
+        if (! $exists && $feature === BusinessFeature::STOCK) {
+            return ! $this->features()->where('feature', $feature)->exists();
+        }
+
+        return $exists;
     }
 
     public function hasAdvancedSaleSettings(): bool
@@ -163,5 +169,16 @@ class Business extends Model
     public function hasGlobalProductCatalog(): bool
     {
         return $this->hasFeature(BusinessFeature::GLOBAL_PRODUCT_CATALOG);
+    }
+
+
+    public function hasStockModule(): bool
+    {
+        return $this->hasFeature(BusinessFeature::STOCK);
+    }
+
+    public function hasAppointmentsModule(): bool
+    {
+        return $this->hasFeature(BusinessFeature::APPOINTMENTS);
     }
 }

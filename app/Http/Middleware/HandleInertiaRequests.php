@@ -60,6 +60,14 @@ class HandleInertiaRequests extends Middleware
                 'slug' => $business->slug,
                 'is_active' => $business->is_active,
             ] : null,
+
+            'features' => $business ? [
+                'stock' => $business->hasStockModule(),
+                'appointments' => $business->hasAppointmentsModule(),
+                'pos' => $business->hasFeature(\App\Models\BusinessFeature::POS),
+                'reports' => $business->hasFeature(\App\Models\BusinessFeature::REPORTS),
+                'public_booking' => $business->hasFeature(\App\Models\BusinessFeature::PUBLIC_BOOKING),
+            ] : null,
             'business_subscription' => $business ? app(BusinessBillingService::class)->maintenanceSummary($business) : null,
             'flash' => [
                 'success' => $request->session()->get('success'),

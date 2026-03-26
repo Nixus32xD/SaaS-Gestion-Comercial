@@ -133,6 +133,16 @@ class BusinessController extends Controller
                 'email_verified_at' => now(),
             ]);
 
+            BusinessFeature::query()->updateOrCreate([
+                'business_id' => $business->id,
+                'feature' => BusinessFeature::STOCK,
+            ], ['is_enabled' => true]);
+
+            BusinessFeature::query()->updateOrCreate([
+                'business_id' => $business->id,
+                'feature' => BusinessFeature::APPOINTMENTS,
+            ], ['is_enabled' => false]);
+
             return [$business, $adminUser];
         });
 
