@@ -36,6 +36,7 @@ test('business admin can view notification settings for current business', funct
             ->where('settings.notifications_enabled', true)
             ->where('settings.minimum_hours_between_alerts', 8)
             ->where('settings.expiration_enabled', false)
+            ->where('settings.maintenance_due_enabled', true)
             ->where('settings.notification_window_start_hour', 9)
             ->where('settings.notification_window_end_hour', 18)
             ->has('recipient_preview', 3)
@@ -52,6 +53,7 @@ test('business admin can update notification settings', function () {
         'send_to_admin_users' => false,
         'low_stock_enabled' => true,
         'expiration_enabled' => true,
+        'maintenance_due_enabled' => false,
         'minimum_hours_between_alerts' => 24,
         'notification_window_start_hour' => 10,
         'notification_window_end_hour' => 20,
@@ -64,6 +66,7 @@ test('business admin can update notification settings', function () {
     expect($settings?->notifications_enabled)->toBeFalse();
     expect($settings?->send_to_admin_users)->toBeFalse();
     expect($settings?->minimum_hours_between_alerts)->toBe(24);
+    expect($settings?->maintenance_due_enabled)->toBeFalse();
     expect($settings?->notification_window_start_hour)->toBe(10);
     expect($settings?->notification_window_end_hour)->toBe(20);
     expect($settings?->extra_recipients)->toBe([
@@ -82,6 +85,7 @@ test('business admin can save a notification window that crosses midnight', func
         'send_to_admin_users' => false,
         'low_stock_enabled' => true,
         'expiration_enabled' => true,
+        'maintenance_due_enabled' => true,
         'minimum_hours_between_alerts' => 12,
         'notification_window_start_hour' => 22,
         'notification_window_end_hour' => 6,

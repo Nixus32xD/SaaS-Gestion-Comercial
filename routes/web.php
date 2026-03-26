@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\BusinessController;
+use App\Http\Controllers\Admin\BusinessBillingController;
 use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\CommercialGuideController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
@@ -13,14 +14,10 @@ use App\Http\Controllers\Purchases\PurchaseController;
 use App\Http\Controllers\Sales\SaleController;
 use App\Http\Controllers\Suppliers\SupplierController;
 use App\Http\Controllers\Users\BusinessUserController;
+use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-    ]);
-});
+Route::get('/', WelcomeController::class);
 
 Route::middleware(['auth', 'superadmin'])
     ->prefix('admin')
@@ -31,6 +28,8 @@ Route::middleware(['auth', 'superadmin'])
         Route::post('/businesses', [BusinessController::class, 'store'])->name('businesses.store');
         Route::get('/businesses/{business}/edit', [BusinessController::class, 'edit'])->name('businesses.edit');
         Route::put('/businesses/{business}', [BusinessController::class, 'update'])->name('businesses.update');
+        Route::put('/businesses/{business}/billing', [BusinessBillingController::class, 'update'])->name('businesses.billing.update');
+        Route::post('/businesses/{business}/payments', [BusinessBillingController::class, 'storePayment'])->name('businesses.payments.store');
         Route::put('/businesses/{business}/sales-settings', [BusinessSalesSettingsController::class, 'update'])->name('businesses.sales-settings.update');
         Route::get('/global-products', [GlobalProductCatalogController::class, 'index'])->name('global-products.index');
         Route::post('/global-products/sync', [GlobalProductCatalogController::class, 'sync'])->name('global-products.sync');

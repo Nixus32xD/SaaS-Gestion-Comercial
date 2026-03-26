@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\BusinessBillingService;
 use App\Support\CurrentBusiness;
 use Closure;
 use Illuminate\Http\Request;
@@ -36,6 +37,10 @@ class EnsureBusinessContext
 
         if (! $business->is_active) {
             abort(403, 'El comercio esta inactivo.');
+        }
+
+        if (app(BusinessBillingService::class)->shouldBlockBusinessAccess($business)) {
+            abort(403, 'El abono del comercio vencio y supero la gracia disponible. Contacta al administrador para reactivarlo.');
         }
 
         $request->session()->put('business_id', $business->id);

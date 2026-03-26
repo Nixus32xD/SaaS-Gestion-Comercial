@@ -17,6 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->hourly()
             ->onOneServer()
             ->withoutOverlapping();
+
+        $schedule->command('notifications:send-maintenance-reminders')
+            ->hourly()
+            ->onOneServer()
+            ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

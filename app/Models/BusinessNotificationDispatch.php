@@ -13,6 +13,8 @@ class BusinessNotificationDispatch extends Model
 
     public const TYPE_OPERATIONAL_ALERTS = 'operational_alerts';
 
+    public const TYPE_MAINTENANCE_DUE_REMINDER = 'maintenance_due_reminder';
+
     public const STATUS_SENT = 'sent';
 
     public const STATUS_PARTIAL = 'partial';

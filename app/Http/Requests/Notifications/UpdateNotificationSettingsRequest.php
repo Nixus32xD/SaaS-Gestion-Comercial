@@ -22,6 +22,7 @@ class UpdateNotificationSettingsRequest extends FormRequest
             'send_to_admin_users' => ['required', 'boolean'],
             'low_stock_enabled' => ['required', 'boolean'],
             'expiration_enabled' => ['required', 'boolean'],
+            'maintenance_due_enabled' => ['required', 'boolean'],
             'minimum_hours_between_alerts' => ['required', 'integer', 'min:1', 'max:168'],
             'notification_window_start_hour' => ['required', 'integer', 'min:0', 'max:23'],
             'notification_window_end_hour' => ['required', 'integer', 'min:0', 'max:23'],
@@ -46,6 +47,7 @@ class UpdateNotificationSettingsRequest extends FormRequest
             'send_to_admin_users' => $this->boolean('send_to_admin_users'),
             'low_stock_enabled' => $this->boolean('low_stock_enabled'),
             'expiration_enabled' => $this->boolean('expiration_enabled'),
+            'maintenance_due_enabled' => $this->boolean('maintenance_due_enabled'),
             'extra_recipients' => $recipients,
         ]);
     }

@@ -9,6 +9,19 @@ const page = usePage();
 
 const isSuperAdmin = computed(() => Boolean(page.props.auth?.is_super_admin));
 const canManageUsers = computed(() => page.props.auth?.role === 'admin');
+const subscriptionNotice = computed(() => (
+    !isSuperAdmin.value && page.props.business_subscription?.show_notice
+        ? page.props.business_subscription
+        : null
+));
+
+const subscriptionNoticeClass = computed(() => {
+    if (!subscriptionNotice.value) return '';
+
+    return subscriptionNotice.value.tone === 'rose'
+        ? 'border-rose-200/45 bg-rose-400/15 text-rose-100'
+        : 'border-amber-200/45 bg-amber-400/15 text-amber-50';
+});
 
 const navigation = computed(() => {
     if (isSuperAdmin.value) {
@@ -132,6 +145,14 @@ const closeSidebar = () => {
                 >
                     <slot name="header" />
                 </header>
+                <section
+                    v-if="subscriptionNotice"
+                    class="mb-6 rounded-2xl border p-4 text-sm"
+                    :class="subscriptionNoticeClass"
+                >
+                    <p class="font-semibold">{{ subscriptionNotice.status_label }}</p>
+                    <p class="mt-1">{{ subscriptionNotice.client_notice || subscriptionNotice.status_message }}</p>
+                </section>
                 <section
                     v-if="$page.props.flash?.success || $page.props.flash?.error"
                     class="mb-6 rounded-2xl border p-4 text-sm"

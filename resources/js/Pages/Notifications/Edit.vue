@@ -7,6 +7,7 @@ const props = defineProps({
     settings: { type: Object, required: true },
     recipient_preview: { type: Array, default: () => [] },
     alerts_preview: { type: Object, default: () => ({ low_stock: { summary: {}, items: [] }, expiration: { summary: {}, items: [] } }) },
+    maintenance_preview: { type: Object, default: () => ({}) },
     recent_dispatches: { type: Array, default: () => [] },
 });
 
@@ -16,6 +17,7 @@ const form = useForm({
     send_to_admin_users: Boolean(props.settings.send_to_admin_users),
     low_stock_enabled: Boolean(props.settings.low_stock_enabled),
     expiration_enabled: Boolean(props.settings.expiration_enabled),
+    maintenance_due_enabled: Boolean(props.settings.maintenance_due_enabled),
     minimum_hours_between_alerts: Number(props.settings.minimum_hours_between_alerts || 12),
     notification_window_start_hour: Number(props.settings.notification_window_start_hour ?? 9),
     notification_window_end_hour: Number(props.settings.notification_window_end_hour ?? 18),
@@ -35,6 +37,10 @@ const formattedWindow = computed(() => {
         ? `${startHour}:00 a ${endHour}:00 (cruza medianoche)`
         : `${startHour}:00 a ${endHour}:00`;
 });
+
+const hasAnyAutomaticMailEnabled = computed(() => (
+    Boolean(form.notifications_enabled) || Boolean(form.maintenance_due_enabled)
+));
 
 const dispatchBadgeClass = (status) => {
     if (status === 'sent') {
@@ -67,6 +73,14 @@ const dispatchStatusLabel = (status) => {
 
     return 'fallido';
 };
+
+const dispatchTypeLabel = (type) => {
+    if (type === 'maintenance_due_reminder') {
+        return 'mantenimiento';
+    }
+
+    return 'operativa';
+};
 </script>
 
 <template>
@@ -76,7 +90,7 @@ const dispatchStatusLabel = (status) => {
         <template #header>
             <div>
                 <h2 class="text-2xl font-bold text-slate-100">Notificaciones</h2>
-                <p class="mt-1 text-sm text-slate-300">Define a quien avisar y con que frecuencia enviar alertas operativas.</p>
+                <p class="mt-1 text-sm text-slate-300">Define a quien avisar y con que frecuencia enviar alertas operativas y recordatorios de abono.</p>
             </div>
         </template>
 
@@ -101,8 +115,8 @@ const dispatchStatusLabel = (status) => {
                         <label class="flex items-start gap-3 rounded-xl border border-cyan-100/15 bg-slate-950/35 px-4 py-3 text-sm text-slate-100 md:col-span-2">
                             <input v-model="form.notifications_enabled" type="checkbox" class="mt-0.5 rounded border-cyan-100/25 bg-slate-950/35 text-cyan-300 focus:ring-cyan-300" />
                             <span>
-                                <span class="block font-medium text-slate-100">Notificaciones activas</span>
-                                <span class="mt-1 block text-xs text-slate-400">Si se desactiva, el comercio no recibira correos automaticos aunque existan alertas.</span>
+                                <span class="block font-medium text-slate-100">Notificaciones operativas activas</span>
+                                <span class="mt-1 block text-xs text-slate-400">Controla solo las alertas automaticas de stock y vencimientos. El recordatorio de mantenimiento se maneja aparte.</span>
                             </span>
                         </label>
 
@@ -135,6 +149,14 @@ const dispatchStatusLabel = (status) => {
                             <span>
                                 <span class="block font-medium text-slate-100">Alertas de vencimientos</span>
                                 <span class="mt-1 block text-xs text-slate-400">Incluye lotes vencidos y proximos a vencer segun el umbral del producto.</span>
+                            </span>
+                        </label>
+
+                        <label class="flex items-start gap-3 rounded-xl border border-cyan-100/15 bg-slate-950/35 px-4 py-3 text-sm text-slate-100 md:col-span-2">
+                            <input v-model="form.maintenance_due_enabled" type="checkbox" class="mt-0.5 rounded border-cyan-100/25 bg-slate-950/35 text-cyan-300 focus:ring-cyan-300" />
+                            <span>
+                                <span class="block font-medium text-slate-100">Recordatorio de mantenimiento por vencer</span>
+                                <span class="mt-1 block text-xs text-slate-400">Envia un correo automatico cuando faltan 7 dias para el vencimiento del abono mensual.</span>
                             </span>
                         </label>
                     </div>
@@ -198,20 +220,20 @@ const dispatchStatusLabel = (status) => {
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h3 class="text-base font-semibold text-slate-100">Destinatarios resueltos</h3>
-                            <p class="mt-1 text-sm text-slate-300">Vista previa de quienes recibirian el proximo envio.</p>
+                            <p class="mt-1 text-sm text-slate-300">Vista previa de quienes recibirian el proximo envio operativo o el recordatorio de mantenimiento.</p>
                         </div>
                         <span class="inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold"
-                            :class="form.notifications_enabled
+                            :class="hasAnyAutomaticMailEnabled
                                 ? 'border-cyan-100/20 bg-cyan-400/10 text-cyan-100'
                                 : 'border-slate-100/15 bg-slate-800/60 text-slate-300'"
                         >
-                            {{ form.notifications_enabled ? `${recipient_preview.length} destinatarios` : 'Pausadas' }}
+                            {{ hasAnyAutomaticMailEnabled ? `${recipient_preview.length} destinatarios` : 'Pausadas' }}
                         </span>
                     </div>
                     <p class="mt-2 text-xs text-cyan-100/70">Ventana activa: {{ formattedWindow }}</p>
 
-                    <p v-if="!form.notifications_enabled" class="mt-4 rounded-xl border border-slate-100/10 bg-slate-950/35 px-3 py-3 text-sm text-slate-300">
-                        Las notificaciones automaticas estan pausadas para este comercio.
+                    <p v-if="!hasAnyAutomaticMailEnabled" class="mt-4 rounded-xl border border-slate-100/10 bg-slate-950/35 px-3 py-3 text-sm text-slate-300">
+                        No hay envios automaticos activos para este comercio.
                     </p>
 
                     <ul v-else-if="recipient_preview.length" class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
@@ -228,6 +250,44 @@ const dispatchStatusLabel = (status) => {
                         No hay destinatarios configurados. La tarea automatica se omitira hasta que agregues al menos uno.
                     </p>
                 </aside>
+            </section>
+
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-4 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur sm:p-5">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-100">Vista previa de mantenimiento</h3>
+                        <p class="mt-1 text-sm text-slate-300">Referencia del estado actual del abono y del proximo recordatorio por mail.</p>
+                    </div>
+                    <span class="inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold"
+                        :class="maintenance_preview.tone === 'emerald'
+                            ? 'border-emerald-200/30 bg-emerald-400/10 text-emerald-100'
+                            : maintenance_preview.tone === 'amber'
+                                ? 'border-amber-200/30 bg-amber-400/10 text-amber-100'
+                                : maintenance_preview.tone === 'rose'
+                                    ? 'border-rose-200/30 bg-rose-400/10 text-rose-100'
+                                    : 'border-slate-100/15 bg-slate-800/60 text-slate-300'"
+                    >
+                        {{ maintenance_preview.status_label || 'Sin mantenimiento' }}
+                    </span>
+                </div>
+
+                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                    <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-4">
+                        <p class="text-xs uppercase tracking-wide text-slate-400">Plan</p>
+                        <p class="mt-2 text-base font-semibold text-slate-100">{{ maintenance_preview.plan_title || '-' }}</p>
+                    </div>
+                    <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-4">
+                        <p class="text-xs uppercase tracking-wide text-slate-400">Vencimiento</p>
+                        <p class="mt-2 text-base font-semibold text-slate-100">{{ maintenance_preview.ends_at_label || '-' }}</p>
+                    </div>
+                    <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-4">
+                        <p class="text-xs uppercase tracking-wide text-slate-400">Importe</p>
+                        <p class="mt-2 text-base font-semibold text-slate-100">{{ maintenance_preview.amount_label || '-' }}</p>
+                    </div>
+                </div>
+
+                <p class="mt-4 text-sm text-slate-300">{{ maintenance_preview.status_message || 'Todavia no hay un mantenimiento mensual cargado.' }}</p>
+                <p class="mt-2 text-xs text-cyan-100/70">El aviso por correo sale 7 dias antes del vencimiento y usa los mismos destinatarios resueltos de esta pantalla, aunque las alertas operativas esten pausadas.</p>
             </section>
 
             <section class="grid gap-4 xl:grid-cols-2">
@@ -288,6 +348,7 @@ const dispatchStatusLabel = (status) => {
                         <thead class="bg-slate-950/45">
                             <tr>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300">Fecha</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300">Tipo</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300">Estado</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300">Asunto</th>
                                 <th class="px-3 py-2 text-right font-medium text-slate-300">OK</th>
@@ -297,6 +358,7 @@ const dispatchStatusLabel = (status) => {
                         <tbody v-if="recent_dispatches.length" class="divide-y divide-cyan-100/10 bg-slate-900/25">
                             <tr v-for="dispatch in recent_dispatches" :key="dispatch.id">
                                 <td class="px-3 py-2 text-slate-200">{{ dispatch.attempted_at }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ dispatchTypeLabel(dispatch.notification_type) }}</td>
                                 <td class="px-3 py-2">
                                     <span
                                         class="rounded-full px-2 py-1 text-xs font-semibold"
@@ -312,7 +374,7 @@ const dispatchStatusLabel = (status) => {
                         </tbody>
                         <tbody v-else>
                             <tr>
-                                <td colspan="5" class="px-3 py-6 text-center text-slate-300">Todavia no hay envios registrados.</td>
+                                <td colspan="6" class="px-3 py-6 text-center text-slate-300">Todavia no hay envios registrados.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -323,6 +385,7 @@ const dispatchStatusLabel = (status) => {
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p class="text-xs uppercase tracking-wide text-slate-400">{{ dispatch.attempted_at }}</p>
+                                <p class="mt-1 text-xs uppercase tracking-wide text-cyan-100/70">{{ dispatchTypeLabel(dispatch.notification_type) }}</p>
                                 <p class="mt-1 font-medium text-slate-100">{{ dispatch.subject || '-' }}</p>
                             </div>
                             <span

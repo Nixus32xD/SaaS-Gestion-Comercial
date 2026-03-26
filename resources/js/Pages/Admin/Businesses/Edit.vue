@@ -1,4 +1,5 @@
 <script setup>
+import { computed, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
@@ -8,6 +9,14 @@ const props = defineProps({
         required: true,
     },
     sales_settings: {
+        type: Object,
+        required: true,
+    },
+    commercial_catalog: {
+        type: Object,
+        required: true,
+    },
+    billing: {
         type: Object,
         required: true,
     },
@@ -39,6 +48,17 @@ const form = useForm({
     is_active: Boolean(props.business.is_active),
 });
 
+const billingForm = useForm({
+    implementation_plan_code: props.billing.implementation?.plan_code || '',
+    implementation_amount: props.billing.implementation?.amount ?? '',
+    maintenance_plan_code: props.billing.maintenance?.plan_code || '',
+    maintenance_amount: props.billing.maintenance?.amount ?? '',
+    maintenance_started_at: props.billing.maintenance?.started_at || '',
+    maintenance_ends_at: props.billing.maintenance?.ends_at || '',
+    subscription_grace_days: props.billing.maintenance?.grace_days ?? 7,
+    subscription_notes: props.billing.subscription_notes || '',
+});
+
 const salesSettingsForm = useForm({
     advanced_sale_settings_enabled: Boolean(props.sales_settings.advanced_sale_settings_enabled),
     global_product_catalog_enabled: Boolean(props.sales_settings.global_product_catalog_enabled),
@@ -58,12 +78,35 @@ const salesSettingsForm = useForm({
     })),
 });
 
+const paymentForm = useForm({
+    type: 'maintenance',
+    plan_code: '',
+    amount: '',
+    paid_at: props.billing.payment_defaults?.today || '',
+    coverage_ends_at: '',
+    notes: '',
+});
+
+const implementationPlans = computed(() => props.commercial_catalog?.implementation_plans || []);
+const maintenancePlans = computed(() => props.commercial_catalog?.maintenance_plans || []);
+const availablePaymentPlans = computed(() => (
+    paymentForm.type === 'maintenance' ? maintenancePlans.value : implementationPlans.value
+));
+
 const submit = () => {
     form.put(route('admin.businesses.update', props.business.id));
 };
 
+const submitBilling = () => {
+    billingForm.put(route('admin.businesses.billing.update', props.business.id));
+};
+
 const submitSalesSettings = () => {
     salesSettingsForm.put(route('admin.businesses.sales-settings.update', props.business.id));
+};
+
+const submitPayment = () => {
+    paymentForm.post(route('admin.businesses.payments.store', props.business.id));
 };
 
 const addSector = () => {
@@ -95,6 +138,36 @@ const removePaymentDestination = (index) => {
 
     salesSettingsForm.payment_destinations.splice(index, 1);
 };
+
+const syncPaymentDefaults = (type) => {
+    if (type === 'implementation') {
+        paymentForm.plan_code = props.billing.payment_defaults?.implementation_plan_code || '';
+        paymentForm.amount = props.billing.payment_defaults?.implementation_amount ?? '';
+        paymentForm.coverage_ends_at = '';
+        return;
+    }
+
+    paymentForm.plan_code = props.billing.payment_defaults?.maintenance_plan_code || '';
+    paymentForm.amount = props.billing.payment_defaults?.maintenance_amount ?? '';
+    paymentForm.coverage_ends_at = props.billing.payment_defaults?.maintenance_coverage_end || '';
+};
+
+watch(() => paymentForm.type, syncPaymentDefaults, { immediate: true });
+
+const statusBadgeClass = (tone) => {
+    if (tone === 'emerald') return 'bg-emerald-100 text-emerald-700';
+    if (tone === 'amber') return 'bg-amber-100 text-amber-700';
+    if (tone === 'rose') return 'bg-rose-100 text-rose-700';
+
+    return 'bg-slate-200 text-slate-700';
+};
+
+const planLabel = (plan) => {
+    const priceLabel = plan.priceLabel ? `${plan.priceLabel} ` : '';
+    const priceSuffix = plan.priceSuffix ? ` ${plan.priceSuffix}` : '';
+
+    return `${plan.title}${plan.price ? ` - ${priceLabel}${plan.price}${priceSuffix}` : ''}`;
+};
 </script>
 
 <template>
@@ -105,7 +178,7 @@ const removePaymentDestination = (index) => {
             <div class="flex items-center justify-between gap-3">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Editar comercio</h2>
-                    <p class="mt-1 text-sm text-slate-300/80">Actualiza datos generales y estado.</p>
+                    <p class="mt-1 text-sm text-slate-300/80">Actualiza datos generales, abonos y configuraciones del negocio.</p>
                 </div>
                 <Link
                     :href="route('admin.businesses.index')"
@@ -117,6 +190,144 @@ const removePaymentDestination = (index) => {
         </template>
 
         <div class="grid gap-6">
+            <section class="grid gap-4 xl:grid-cols-2">
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.25em] text-cyan-100/70">Implementacion</p>
+                            <h3 class="mt-2 text-lg font-semibold text-slate-100">{{ billing.implementation.plan_title || 'Sin plan cargado' }}</h3>
+                        </div>
+                        <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusBadgeClass(billing.implementation.status === 'paid' ? 'emerald' : billing.implementation.status === 'partial' ? 'amber' : 'slate')">
+                            {{ billing.implementation.status_label }}
+                        </span>
+                    </div>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-3">
+                            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Monto pactado</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ billing.implementation.amount_label || '-' }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-3">
+                            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Pagado</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ billing.implementation.paid_amount_label || '-' }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-3">
+                            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Saldo</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ billing.implementation.balance_label || '-' }}</p>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.25em] text-cyan-100/70">Mantenimiento</p>
+                            <h3 class="mt-2 text-lg font-semibold text-slate-100">{{ billing.maintenance.plan_title || 'Sin plan cargado' }}</h3>
+                        </div>
+                        <span class="rounded-full px-3 py-1 text-xs font-semibold" :class="statusBadgeClass(billing.maintenance.tone)">
+                            {{ billing.maintenance.status_label }}
+                        </span>
+                    </div>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-3">
+                            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Monto mensual</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ billing.maintenance.amount_label || '-' }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-3">
+                            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Vence</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ billing.maintenance.ends_at_label || '-' }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/15 bg-slate-950/35 p-3">
+                            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Gracia</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ billing.maintenance.grace_ends_at_label || '-' }}</p>
+                        </div>
+                    </div>
+                    <p class="mt-4 text-sm text-slate-300/80">{{ billing.maintenance.status_message }}</p>
+                </article>
+            </section>
+
+            <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submitBilling">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100">Planes y abonos</h3>
+                        <p class="mt-1 text-sm text-slate-300/80">Define lo pactado con el cliente y la ventana de gracia del comercio.</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid gap-6 xl:grid-cols-2">
+                    <section class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                        <h4 class="text-base font-semibold text-slate-100">Implementacion inicial</h4>
+                        <p class="mt-1 text-xs text-slate-400">Express, Esencial o Plus, con posibilidad de ajustar el precio acordado.</p>
+
+                        <div class="mt-4 grid gap-3">
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">Plan inicial</label>
+                                <select v-model="billingForm.implementation_plan_code" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                    <option value="">Sin definir</option>
+                                    <option v-for="plan in implementationPlans" :key="plan.code" :value="plan.code">{{ planLabel(plan) }}</option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">Monto pactado</label>
+                                <input v-model="billingForm.implementation_amount" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. 150000" />
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                        <h4 class="text-base font-semibold text-slate-100">Mantenimiento mensual</h4>
+                        <p class="mt-1 text-xs text-slate-400">Este plan define el abono mensual y el vencimiento operativo del comercio.</p>
+
+                        <div class="mt-4 grid gap-3">
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">Plan mensual</label>
+                                <select v-model="billingForm.maintenance_plan_code" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                    <option value="">Sin definir</option>
+                                    <option v-for="plan in maintenancePlans" :key="plan.code" :value="plan.code">{{ planLabel(plan) }}</option>
+                                </select>
+                            </div>
+
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Monto mensual pactado</label>
+                                    <input v-model="billingForm.maintenance_amount" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. 25000" />
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Dias de gracia</label>
+                                    <input v-model="billingForm.subscription_grace_days" type="number" min="0" max="30" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                                </div>
+                            </div>
+
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Inicio del mantenimiento</label>
+                                    <input v-model="billingForm.maintenance_started_at" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Vence el</label>
+                                    <input v-model="billingForm.maintenance_ends_at" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                                </div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">Notas internas</label>
+                                <textarea v-model="billingForm.subscription_notes" rows="3" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Ej. Cliente referido, precio promocional, paga por transferencia..." />
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="mt-5 flex justify-end">
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        :disabled="billingForm.processing"
+                    >
+                        Guardar planes y abonos
+                    </button>
+                </div>
+            </form>
+
             <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submit">
                 <div class="flex items-start justify-between gap-3">
                     <div>
@@ -167,6 +378,105 @@ const removePaymentDestination = (index) => {
                     </button>
                 </div>
             </form>
+
+            <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submitPayment">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100">Registrar pago manual</h3>
+                        <p class="mt-1 text-sm text-slate-300/80">Cada pago queda asentado y, si es mantenimiento, actualiza la cobertura del comercio.</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid gap-3 xl:grid-cols-2">
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-300">Concepto</label>
+                        <select v-model="paymentForm.type" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                            <option value="maintenance">Mantenimiento mensual</option>
+                            <option value="implementation">Implementacion inicial</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-300">Plan asociado</label>
+                        <select v-model="paymentForm.plan_code" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                            <option value="">Sin plan</option>
+                            <option v-for="plan in availablePaymentPlans" :key="plan.code" :value="plan.code">{{ planLabel(plan) }}</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-300">Monto pagado</label>
+                        <input v-model="paymentForm.amount" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. 25000" />
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-slate-300">Fecha de pago</label>
+                        <input v-model="paymentForm.paid_at" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                    </div>
+
+                    <div v-if="paymentForm.type === 'maintenance'" class="space-y-1 xl:col-span-2">
+                        <label class="text-sm font-medium text-slate-300">Mantenimiento cubierto hasta</label>
+                        <input v-model="paymentForm.coverage_ends_at" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        <p class="text-xs text-slate-400">Sugerencia actual: {{ billing.maintenance.recommended_coverage_end_label }}. Despues de esa fecha corre la gracia de {{ billing.maintenance.grace_days }} dias.</p>
+                    </div>
+
+                    <div class="space-y-1 xl:col-span-2">
+                        <label class="text-sm font-medium text-slate-300">Observaciones</label>
+                        <textarea v-model="paymentForm.notes" rows="3" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Ej. Pago por transferencia, promo de lanzamiento, pago parcial..." />
+                    </div>
+                </div>
+
+                <div class="mt-5 flex justify-end">
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
+                        :disabled="paymentForm.processing"
+                    >
+                        Registrar pago
+                    </button>
+                </div>
+            </form>
+
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-100">Historial de pagos</h3>
+                        <p class="mt-1 text-sm text-slate-300/80">Ultimos movimientos registrados manualmente para este comercio.</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-950/35">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Fecha</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Concepto</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Plan</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Monto</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cubre hasta</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Registrado por</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Notas</th>
+                            </tr>
+                        </thead>
+                        <tbody v-if="billing.payment_history?.length" class="divide-y divide-slate-100">
+                            <tr v-for="payment in billing.payment_history" :key="payment.id">
+                                <td class="px-3 py-2 text-slate-200">{{ payment.paid_at_label }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ payment.type_label }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ payment.plan_title || '-' }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ payment.amount_label }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ payment.coverage_ends_at_label || '-' }}</td>
+                                <td class="px-3 py-2 text-slate-200">{{ payment.recorded_by || '-' }}</td>
+                                <td class="px-3 py-2 text-slate-300/80">{{ payment.notes || '-' }}</td>
+                            </tr>
+                        </tbody>
+                        <tbody v-else>
+                            <tr>
+                                <td colspan="7" class="px-3 py-6 text-center text-slate-400">Todavia no hay pagos registrados para este comercio.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
             <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submitSalesSettings">
                 <div class="flex flex-wrap items-start justify-between gap-3">
