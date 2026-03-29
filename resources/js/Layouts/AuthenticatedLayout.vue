@@ -37,6 +37,8 @@ const navigation = computed(() => {
         { label: 'Dashboard', route: 'dashboard', pattern: 'dashboard', icon: 'DB' },
         { label: 'Categorias', route: 'categories.index', pattern: 'categories.*', icon: 'CT' },
         { label: 'Productos', route: 'products.index', pattern: 'products.*', icon: 'PR' },
+        { label: 'Clientes', route: 'customers.index', pattern: 'customers.*', icon: 'CL' },
+        { label: 'Cuenta corriente', route: 'customer-accounts.index', pattern: 'customer-accounts.*', icon: 'CC' },
         { label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' },
         { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },
         { label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' },

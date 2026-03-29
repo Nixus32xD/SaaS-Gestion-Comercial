@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Business;
 use App\Models\BusinessPaymentDestination;
 use App\Models\BusinessSaleSector;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -19,7 +20,8 @@ class SaleService
 {
     public function __construct(
         private readonly DocumentNumberService $documentNumberService,
-        private readonly ProductBatchService $productBatchService
+        private readonly ProductBatchService $productBatchService,
+        private readonly CustomerAccountService $customerAccountService,
     ) {}
 
     /**
@@ -118,23 +120,27 @@ class SaleService
             $subtotal = round((float) $lineItems->sum('subtotal'), 2);
             $discount = min(round((float) ($payload['discount'] ?? 0), 2), $subtotal);
             $total = round($subtotal - $discount, 2);
-            $paymentMethod = $this->resolvePaymentMethod($payload['payment_method'] ?? null);
-            [$amountReceived, $changeAmount] = $this->resolvePaymentAmounts(
-                $paymentMethod,
-                $payload['amount_received'] ?? null,
-                $total
+            $customer = $this->resolveCustomer($business, $payload['customer_id'] ?? null);
+            [$paymentStatus, $paymentMethod, $paidAmount, $pendingAmount, $amountReceived, $changeAmount] = $this->resolvePaymentData(
+                $payload,
+                $total,
+                $customer
             );
-            [$saleSectorId, $paymentDestinationId] = $this->resolveAdvancedSaleContext($business, $payload);
+            [$saleSectorId, $paymentDestinationId] = $this->resolveAdvancedSaleContext($business, $payload, $paidAmount);
 
             $sale = Sale::query()->create([
                 'business_id' => $business->id,
                 'user_id' => $user->id,
                 'sale_sector_id' => $saleSectorId,
+                'customer_id' => $customer?->id,
                 'sale_number' => $this->documentNumberService->nextSaleNumber($business->id),
                 'payment_method' => $paymentMethod,
+                'payment_status' => $paymentStatus,
                 'payment_destination_id' => $paymentDestinationId,
                 'amount_received' => $amountReceived,
                 'change_amount' => $changeAmount,
+                'paid_amount' => $paidAmount,
+                'pending_amount' => $pendingAmount,
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'total' => $total,
@@ -200,7 +206,17 @@ class SaleService
                 $product->save();
             }
 
-            return $sale->load(['items', 'user', 'saleSector', 'paymentDestination']);
+            if ($pendingAmount > 0 && $customer !== null) {
+                $this->customerAccountService->recordDebtForSale(
+                    $business,
+                    $sale,
+                    $customer,
+                    $user,
+                    $pendingAmount
+                );
+            }
+
+            return $sale->load(['items', 'user', 'saleSector', 'paymentDestination', 'customer']);
         });
     }
 
@@ -217,38 +233,147 @@ class SaleService
         return $value;
     }
 
-    private function resolvePaymentMethod(mixed $value): string
+    private function resolvePaymentMethod(mixed $value): ?string
     {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
         return $value === 'transfer' ? 'transfer' : 'cash';
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{0: string, 1: string|null, 2: float, 3: float, 4: float|null, 5: float|null}
+     */
+    private function resolvePaymentData(array $payload, float $total, ?Customer $customer): array
+    {
+        $paymentStatus = $this->resolvePaymentStatus($payload['payment_status'] ?? null);
+        $paymentMethod = $this->resolvePaymentMethod($payload['payment_method'] ?? null);
+
+        return match ($paymentStatus) {
+            Sale::PAYMENT_STATUS_PENDING => $this->resolvePendingPaymentData($customer, $total),
+            Sale::PAYMENT_STATUS_PARTIAL => $this->resolvePartialPaymentData($payload, $total, $paymentMethod, $customer),
+            default => $this->resolvePaidPaymentData($payload, $total, $paymentMethod),
+        };
+    }
+
+    private function resolvePaymentStatus(mixed $value): string
+    {
+        return match ($value) {
+            Sale::PAYMENT_STATUS_PARTIAL => Sale::PAYMENT_STATUS_PARTIAL,
+            Sale::PAYMENT_STATUS_PENDING => Sale::PAYMENT_STATUS_PENDING,
+            default => Sale::PAYMENT_STATUS_PAID,
+        };
+    }
+
+    /**
+     * @return array{0: string, 1: string|null, 2: float, 3: float, 4: float|null, 5: float|null}
+     */
+    private function resolvePaidPaymentData(array $payload, float $total, ?string $paymentMethod): array
+    {
+        if ($paymentMethod === null) {
+            throw ValidationException::withMessages([
+                'payment_method' => 'Debes seleccionar un medio de pago para ventas pagadas.',
+            ]);
+        }
+
+        [$amountReceived, $changeAmount] = $this->resolveCollectedAmounts(
+            $paymentMethod,
+            $payload['amount_received'] ?? null,
+            $total
+        );
+
+        return [Sale::PAYMENT_STATUS_PAID, $paymentMethod, $total, 0.0, $amountReceived, $changeAmount];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{0: string, 1: string|null, 2: float, 3: float, 4: float|null, 5: float|null}
+     */
+    private function resolvePartialPaymentData(
+        array $payload,
+        float $total,
+        ?string $paymentMethod,
+        ?Customer $customer
+    ): array {
+        if ($customer === null) {
+            throw ValidationException::withMessages([
+                'customer_id' => 'Debes seleccionar un cliente para registrar un saldo pendiente.',
+            ]);
+        }
+
+        if ($paymentMethod === null) {
+            throw ValidationException::withMessages([
+                'payment_method' => 'Debes seleccionar un medio de pago para el cobro inicial.',
+            ]);
+        }
+
+        $paidAmount = round((float) ($payload['paid_amount'] ?? 0), 2);
+
+        if ($paidAmount <= 0 || $paidAmount >= $total) {
+            throw ValidationException::withMessages([
+                'paid_amount' => 'El monto abonado debe ser mayor a 0 y menor al total de la venta.',
+            ]);
+        }
+
+        [$amountReceived, $changeAmount] = $this->resolveCollectedAmounts(
+            $paymentMethod,
+            $payload['amount_received'] ?? null,
+            $paidAmount
+        );
+
+        return [
+            Sale::PAYMENT_STATUS_PARTIAL,
+            $paymentMethod,
+            $paidAmount,
+            round($total - $paidAmount, 2),
+            $amountReceived,
+            $changeAmount,
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: string|null, 2: float, 3: float, 4: float|null, 5: float|null}
+     */
+    private function resolvePendingPaymentData(?Customer $customer, float $total): array
+    {
+        if ($customer === null) {
+            throw ValidationException::withMessages([
+                'customer_id' => 'Debes seleccionar un cliente para registrar una venta fiada.',
+            ]);
+        }
+
+        return [Sale::PAYMENT_STATUS_PENDING, null, 0.0, $total, null, null];
     }
 
     /**
      * @return array{0: float|null, 1: float|null}
      */
-    private function resolvePaymentAmounts(string $paymentMethod, mixed $amountReceivedValue, float $total): array
+    private function resolveCollectedAmounts(?string $paymentMethod, mixed $amountReceivedValue, float $expectedAmount): array
     {
         if ($paymentMethod !== 'cash') {
             return [null, null];
         }
 
         $amountReceived = $amountReceivedValue === null || $amountReceivedValue === ''
-            ? $total
+            ? $expectedAmount
             : round((float) $amountReceivedValue, 2);
 
-        if ($amountReceived < $total) {
+        if ($amountReceived < $expectedAmount) {
             throw ValidationException::withMessages([
-                'amount_received' => 'El monto recibido no puede ser menor al total de la venta.',
+                'amount_received' => 'El monto recibido no puede ser menor al cobro informado.',
             ]);
         }
 
-        return [$amountReceived, round($amountReceived - $total, 2)];
+        return [$amountReceived, round($amountReceived - $expectedAmount, 2)];
     }
 
     /**
      * @param  array<string, mixed>  $payload
      * @return array{0: int|null, 1: int|null}
      */
-    private function resolveAdvancedSaleContext(Business $business, array $payload): array
+    private function resolveAdvancedSaleContext(Business $business, array $payload, float $paidAmount): array
     {
         if (! $business->hasAdvancedSaleSettings()) {
             return [null, null];
@@ -269,6 +394,10 @@ class SaleService
             ]);
         }
 
+        if ($paidAmount <= 0) {
+            return [$saleSectorId, null];
+        }
+
         $paymentDestinationExists = BusinessPaymentDestination::query()
             ->forBusiness($business->id)
             ->whereKey($paymentDestinationId)
@@ -282,5 +411,25 @@ class SaleService
         }
 
         return [$saleSectorId, $paymentDestinationId];
+    }
+
+    private function resolveCustomer(Business $business, mixed $customerId): ?Customer
+    {
+        if ($customerId === null || $customerId === '') {
+            return null;
+        }
+
+        $customer = Customer::query()
+            ->forBusiness($business->id)
+            ->whereKey((int) $customerId)
+            ->first();
+
+        if ($customer === null) {
+            throw ValidationException::withMessages([
+                'customer_id' => 'El cliente seleccionado no pertenece a este comercio.',
+            ]);
+        }
+
+        return $customer;
     }
 }

@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\CommercialGuideController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
 use App\Http\Controllers\Categories\CategoryController;
+use App\Http\Controllers\Customers\CustomerAccountController;
+use App\Http\Controllers\Customers\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Products\ProductController;
@@ -57,6 +59,19 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::post('/suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
     Route::get('/suppliers/{supplier}/edit', [SupplierController::class, 'edit'])->name('suppliers.edit');
     Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
+
+    Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
+    Route::get('/customers/debtors', [CustomerController::class, 'debtors'])->name('customers.debtors');
+    Route::get('/customers/create', [CustomerController::class, 'create'])->name('customers.create');
+    Route::post('/customers', [CustomerController::class, 'store'])->name('customers.store');
+    Route::get('/customers/{customer}', [CustomerController::class, 'show'])->name('customers.show');
+    Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->name('customers.edit');
+    Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
+    Route::post('/customers/{customer}/payments', [CustomerAccountController::class, 'storePayment'])->name('customers.payments.store');
+    Route::get('/customers/{customer}/reminders/whatsapp', [CustomerAccountController::class, 'launchWhatsappReminder'])->name('customers.reminders.whatsapp');
+    Route::post('/customers/{customer}/reminders/email', [CustomerAccountController::class, 'sendEmailReminder'])->name('customers.reminders.email');
+    Route::get('/customer-accounts', [CustomerAccountController::class, 'index'])->name('customer-accounts.index');
+    Route::get('/customer-accounts/{customer}', [CustomerAccountController::class, 'show'])->name('customer-accounts.show');
 
     Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
     Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');

@@ -19,6 +19,12 @@ const paymentMethodLabel = computed(() => (
     props.sale.payment_method === 'transfer' ? 'Transferencia' : 'Efectivo'
 ));
 
+const paymentStatusLabel = computed(() => {
+    if (props.sale.payment_status === 'partial') return 'Pago parcial';
+    if (props.sale.payment_status === 'pending') return 'Fiada';
+    return 'Pagada';
+});
+
 const redirectSeconds = ref(5);
 const showAutoBackMessage = computed(() => props.auto_back === true);
 
@@ -72,14 +78,18 @@ onBeforeUnmount(() => {
 
                 <div class="grid gap-2 text-sm text-slate-300">
                     <p>Vendedor: <strong>{{ sale.user || '-' }}</strong></p>
+                    <p>Cliente: <strong>{{ sale.customer || '-' }}</strong></p>
                     <p v-if="advanced_sale_settings_enabled">Sector / punto de venta: <strong>{{ sale.sale_sector || '-' }}</strong></p>
                     <p v-if="advanced_sale_settings_enabled">Cuenta de cobro / destino: <strong>{{ sale.payment_destination || '-' }}</strong></p>
-                    <p>Medio de pago: <strong>{{ paymentMethodLabel }}</strong></p>
+                    <p>Estado de pago: <strong>{{ paymentStatusLabel }}</strong></p>
+                    <p>Medio de pago inicial: <strong>{{ sale.payment_method ? paymentMethodLabel : 'Sin cobro inicial' }}</strong></p>
                     <p>Subtotal: <strong>{{ money(sale.subtotal) }}</strong></p>
                     <p>Descuento: <strong>{{ money(sale.discount) }}</strong></p>
                     <p>Total: <strong>{{ money(sale.total) }}</strong></p>
-                    <p v-if="sale.payment_method === 'cash'">Recibido: <strong>{{ money(sale.amount_received) }}</strong></p>
-                    <p v-if="sale.payment_method === 'cash'">Vuelto: <strong>{{ money(sale.change_amount) }}</strong></p>
+                    <p>Pagado acumulado: <strong>{{ money(sale.paid_amount) }}</strong></p>
+                    <p>Pendiente actual: <strong>{{ money(sale.pending_amount) }}</strong></p>
+                    <p v-if="sale.payment_method === 'cash' && sale.amount_received > 0">Recibido al momento: <strong>{{ money(sale.amount_received) }}</strong></p>
+                    <p v-if="sale.payment_method === 'cash' && sale.amount_received > 0">Vuelto inicial: <strong>{{ money(sale.change_amount) }}</strong></p>
                     <p>Notas: <strong>{{ sale.notes || '-' }}</strong></p>
                 </div>
             </section>
@@ -147,4 +157,3 @@ onBeforeUnmount(() => {
         </div>
     </AuthenticatedLayout>
 </template>
-

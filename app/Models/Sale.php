@@ -13,6 +13,12 @@ class Sale extends Model
     use BelongsToBusiness;
     use HasFactory;
 
+    public const PAYMENT_STATUS_PAID = 'paid';
+
+    public const PAYMENT_STATUS_PARTIAL = 'partial';
+
+    public const PAYMENT_STATUS_PENDING = 'pending';
+
     /**
      * @var list<string>
      */
@@ -20,11 +26,15 @@ class Sale extends Model
         'business_id',
         'user_id',
         'sale_sector_id',
+        'customer_id',
         'sale_number',
         'payment_method',
+        'payment_status',
         'payment_destination_id',
         'amount_received',
         'change_amount',
+        'paid_amount',
+        'pending_amount',
         'subtotal',
         'discount',
         'total',
@@ -39,8 +49,11 @@ class Sale extends Model
     {
         return [
             'payment_method' => 'string',
+            'payment_status' => 'string',
             'amount_received' => 'decimal:2',
             'change_amount' => 'decimal:2',
+            'paid_amount' => 'decimal:2',
+            'pending_amount' => 'decimal:2',
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
@@ -65,6 +78,14 @@ class Sale extends Model
     }
 
     /**
+     * @return BelongsTo<Customer, $this>
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    /**
      * @return BelongsTo<BusinessPaymentDestination, $this>
      */
     public function paymentDestination(): BelongsTo
@@ -78,5 +99,13 @@ class Sale extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+    /**
+     * @return HasMany<CustomerAccountMovement, $this>
+     */
+    public function accountMovements(): HasMany
+    {
+        return $this->hasMany(CustomerAccountMovement::class);
     }
 }

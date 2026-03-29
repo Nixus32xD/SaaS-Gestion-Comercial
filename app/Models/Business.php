@@ -66,6 +66,14 @@ class Business extends Model
     }
 
     /**
+     * @return HasMany<Customer, $this>
+     */
+    public function customers(): HasMany
+    {
+        return $this->hasMany(Customer::class);
+    }
+
+    /**
      * @return HasMany<Category, $this>
      */
     public function categories(): HasMany
@@ -111,6 +119,22 @@ class Business extends Model
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
+    }
+
+    /**
+     * @return HasMany<CustomerAccountMovement, $this>
+     */
+    public function customerAccountMovements(): HasMany
+    {
+        return $this->hasMany(CustomerAccountMovement::class);
+    }
+
+    /**
+     * @return HasMany<CustomerReminder, $this>
+     */
+    public function customerReminders(): HasMany
+    {
+        return $this->hasMany(CustomerReminder::class);
     }
 
     /**

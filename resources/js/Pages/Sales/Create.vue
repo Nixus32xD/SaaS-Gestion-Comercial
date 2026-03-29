@@ -5,6 +5,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
     products: { type: Array, default: () => [] },
+    customers: { type: Array, default: () => [] },
     advanced_sale_settings: { type: Object, default: () => ({ enabled: false, sale_sectors: [], payment_destinations: [] }) },
 });
 
@@ -39,10 +40,13 @@ const nowLocalDateTime = () => {
 };
 
 const form = useForm({
+    customer_id: null,
+    payment_status: 'paid',
     payment_method: 'cash',
     sale_sector_id: null,
     payment_destination_id: null,
     amount_received: '',
+    paid_amount: '',
     sold_at: nowLocalDateTime(),
     discount: 0,
     notes: '',
@@ -145,6 +149,26 @@ watch(() => state.search, (value) => {
 
 watch(filteredProducts, () => {
     syncSelection();
+});
+
+watch(() => form.payment_status, (value) => {
+    if (value === 'pending') {
+        form.payment_method = null;
+        form.amount_received = '';
+        form.paid_amount = '';
+    } else if (!form.payment_method) {
+        form.payment_method = 'cash';
+    }
+
+    if (value !== 'partial') {
+        form.paid_amount = '';
+    }
+});
+
+watch(() => form.payment_method, (value) => {
+    if (value !== 'cash') {
+        form.amount_received = '';
+    }
 });
 
 const addProductToCart = (product, source = 'manual') => {
@@ -378,25 +402,46 @@ const getLineSubtotal = (item) => {
 
 const subtotal = computed(() => form.items.reduce((acc, item) => acc + getLineSubtotal(item), 0));
 const total = computed(() => Math.max(0, subtotal.value - Number(form.discount || 0)));
+const customerOptions = computed(() => props.customers || []);
+const selectedCustomer = computed(() => customerOptions.value.find((customer) => customer.id === form.customer_id) || null);
+const isPendingSale = computed(() => form.payment_status === 'pending');
+const isPartialSale = computed(() => form.payment_status === 'partial');
+const requiresImmediatePayment = computed(() => form.payment_status !== 'pending');
 const isCashPayment = computed(() => form.payment_method === 'cash');
 const advancedSaleSettingsEnabled = computed(() => Boolean(props.advanced_sale_settings?.enabled));
 const saleSectorOptions = computed(() => props.advanced_sale_settings?.sale_sectors || []);
 const paymentDestinationOptions = computed(() => props.advanced_sale_settings?.payment_destinations || []);
+const paidAmount = computed(() => (
+    form.payment_status === 'paid'
+        ? total.value
+        : Math.max(0, Number(form.paid_amount || 0))
+));
+const pendingAmount = computed(() => Math.max(0, Number((total.value - paidAmount.value).toFixed(2))));
 const amountReceived = computed(() => Number(form.amount_received || 0));
+const expectedCashCollection = computed(() => (
+    isCashPayment.value && requiresImmediatePayment.value ? paidAmount.value : 0
+));
 const remaining = computed(() => (
-    isCashPayment.value
-        ? Math.max(0, Number((total.value - amountReceived.value).toFixed(2)))
+    isCashPayment.value && requiresImmediatePayment.value
+        ? Math.max(0, Number((expectedCashCollection.value - amountReceived.value).toFixed(2)))
         : 0
 ));
 const changeAmount = computed(() => (
-    isCashPayment.value
-        ? Math.max(0, Number((amountReceived.value - total.value).toFixed(2)))
+    isCashPayment.value && requiresImmediatePayment.value
+        ? Math.max(0, Number((amountReceived.value - expectedCashCollection.value).toFixed(2)))
         : 0
+));
+const requiresPaymentDestination = computed(() => (
+    advancedSaleSettingsEnabled.value && requiresImmediatePayment.value && paidAmount.value > 0
 ));
 const canSubmit = computed(() => (
     form.items.length > 0
     && !form.processing
-    && (!advancedSaleSettingsEnabled.value || (form.sale_sector_id && form.payment_destination_id))
+    && (!advancedSaleSettingsEnabled.value || form.sale_sector_id)
+    && (!requiresPaymentDestination.value || form.payment_destination_id)
+    && (!requiresImmediatePayment.value || form.payment_method)
+    && (!isPendingSale.value || form.customer_id)
+    && (!isPartialSale.value || (form.customer_id && paidAmount.value > 0 && pendingAmount.value > 0))
     && (!isCashPayment.value || remaining.value === 0)
 ));
 const itemErrorMessages = computed(() => Array.from(new Set(
@@ -405,6 +450,22 @@ const itemErrorMessages = computed(() => Array.from(new Set(
         .map(([, message]) => message)
         .filter(Boolean),
 )));
+
+watch(total, (value) => {
+    if (form.payment_status === 'partial' && Number(form.paid_amount || 0) >= value) {
+        form.paid_amount = value > 0 ? Math.max(value - 1, 0).toFixed(2) : '';
+    }
+
+    if (form.payment_status === 'paid' && isCashPayment.value && (form.amount_received === '' || Number(form.amount_received || 0) < value)) {
+        form.amount_received = value > 0 ? value.toFixed(2) : '';
+    }
+});
+
+watch(requiresPaymentDestination, (value) => {
+    if (!value) {
+        form.payment_destination_id = null;
+    }
+});
 
 const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -417,10 +478,10 @@ const selectedSaleSectorName = computed(() => saleSectorOptions.value.find((item
 const selectedPaymentDestinationName = computed(() => paymentDestinationOptions.value.find((item) => item.id === form.payment_destination_id)?.name || '-');
 
 const applyQuickAmount = (mode, amount = 0) => {
-    if (!isCashPayment.value) return;
+    if (!isCashPayment.value || !requiresImmediatePayment.value) return;
 
     if (mode === 'exact') {
-        form.amount_received = total.value.toFixed(2);
+        form.amount_received = expectedCashCollection.value.toFixed(2);
         return;
     }
 
@@ -437,8 +498,13 @@ const submit = () => {
     form
         .transform((data) => ({
             ...data,
+            customer_id: data.customer_id,
+            payment_status: data.payment_status,
+            payment_method: requiresImmediatePayment.value ? data.payment_method : null,
             sale_sector_id: advancedSaleSettingsEnabled.value ? data.sale_sector_id : null,
-            payment_destination_id: advancedSaleSettingsEnabled.value ? data.payment_destination_id : null,
+            payment_destination_id: requiresPaymentDestination.value ? data.payment_destination_id : null,
+            amount_received: isCashPayment.value && requiresImmediatePayment.value ? data.amount_received : null,
+            paid_amount: data.payment_status === 'partial' ? data.paid_amount : null,
             items: data.items.map((item) => ({
                 product_id: item.product_id,
                 product_name: item.product_id === null ? item.product_name : null,
@@ -746,18 +812,78 @@ onBeforeUnmount(() => {
                             <select
                                 id="payment-destination"
                                 v-model="form.payment_destination_id"
+                                :disabled="!requiresPaymentDestination"
                                 class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
                             >
-                                <option :value="null">Seleccionar cuenta</option>
+                                <option :value="null">{{ requiresPaymentDestination ? 'Seleccionar cuenta' : 'Sin cobro inicial' }}</option>
                                 <option v-for="destination in paymentDestinationOptions" :key="destination.id" :value="destination.id">
                                     {{ destination.name }}
                                 </option>
                             </select>
+                            <p v-if="!requiresPaymentDestination" class="mt-1 text-xs text-slate-400">
+                                La cuenta de cobro se pide solo cuando entra dinero en el momento.
+                            </p>
                             <p v-if="form.errors.payment_destination_id" class="mt-1 text-xs text-rose-300">
                                 {{ form.errors.payment_destination_id }}
                             </p>
                         </div>
                     </div>
+                </div>
+
+                <div class="mb-4 grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                    <article class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <h3 class="text-base font-semibold text-slate-100">Cliente</h3>
+                                <p class="mt-1 text-sm text-slate-300/80">Para ventas fiadas o parciales, el cliente es obligatorio.</p>
+                            </div>
+                            <Link :href="route('customers.create')" class="inline-flex items-center rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">
+                                Nuevo cliente
+                            </Link>
+                        </div>
+
+                        <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                            <div>
+                                <label for="sale-customer" class="mb-1 block text-sm font-medium text-slate-300">Cliente asociado</label>
+                                <select
+                                    id="sale-customer"
+                                    v-model="form.customer_id"
+                                    class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                >
+                                    <option :value="null">Consumidor final / sin cliente</option>
+                                    <option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
+                                        {{ customer.name }}
+                                    </option>
+                                </select>
+                                <p v-if="form.errors.customer_id" class="mt-1 text-xs text-rose-300">
+                                    {{ form.errors.customer_id }}
+                                </p>
+                            </div>
+                            <div v-if="selectedCustomer" class="rounded-xl border border-cyan-100/15 bg-slate-900/45 px-4 py-3 text-sm text-slate-300">
+                                <p class="font-semibold text-slate-100">{{ selectedCustomer.name }}</p>
+                                <p class="mt-1 text-xs text-slate-400">{{ selectedCustomer.phone || 'Sin telefono' }} · {{ selectedCustomer.email || 'Sin email' }}</p>
+                                <p class="mt-2 text-xs">Saldo actual: <strong class="text-slate-100">{{ money(selectedCustomer.current_balance) }}</strong></p>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                        <h3 class="text-base font-semibold text-slate-100">Condicion de pago</h3>
+                        <div class="mt-4 grid gap-3">
+                            <label class="rounded-xl border border-cyan-100/15 bg-slate-900/45 p-3 text-sm text-slate-300">
+                                <input v-model="form.payment_status" type="radio" class="mr-2" value="paid">
+                                Pagado completo
+                            </label>
+                            <label class="rounded-xl border border-cyan-100/15 bg-slate-900/45 p-3 text-sm text-slate-300">
+                                <input v-model="form.payment_status" type="radio" class="mr-2" value="partial">
+                                Pago parcial
+                            </label>
+                            <label class="rounded-xl border border-cyan-100/15 bg-slate-900/45 p-3 text-sm text-slate-300">
+                                <input v-model="form.payment_status" type="radio" class="mr-2" value="pending">
+                                Fiado total
+                            </label>
+                        </div>
+                    </article>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -777,54 +903,80 @@ onBeforeUnmount(() => {
 
                 <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
                     <div>
-                        <label for="payment-method" class="mb-1 block text-sm font-medium text-slate-300">Medio de pago</label>
-                        <select
-                            id="payment-method"
-                            v-model="form.payment_method"
-                            class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
-                        >
-                            <option value="cash">Efectivo</option>
-                            <option value="transfer">Transferencia</option>
-                        </select>
+                        <template v-if="requiresImmediatePayment">
+                            <label for="payment-method" class="mb-1 block text-sm font-medium text-slate-300">Medio de pago del cobro inicial</label>
+                            <select
+                                id="payment-method"
+                                v-model="form.payment_method"
+                                class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                            >
+                                <option value="cash">Efectivo</option>
+                                <option value="transfer">Transferencia</option>
+                            </select>
+                            <p v-if="form.errors.payment_method" class="mt-1 text-xs text-rose-300">
+                                {{ form.errors.payment_method }}
+                            </p>
 
-                        <div v-if="isCashPayment" class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
-                            <div class="grid gap-3">
-                                <div>
-                                    <label for="amount-received" class="mb-1 block text-sm font-medium text-slate-300">Monto recibido</label>
-                                    <input
-                                        id="amount-received"
-                                        v-model="form.amount_received"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
-                                        placeholder="0.00"
-                                    >
-                                    <p v-if="form.errors.amount_received" class="mt-1 text-xs text-rose-300">
-                                        {{ form.errors.amount_received }}
-                                    </p>
-                                </div>
-                                <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('exact')">Exacto</button>
-                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 100)">+100</button>
-                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 500)">+500</button>
-                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 1000)">+1000</button>
-                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 2000)">+2000</button>
-                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 5000)">+5000</button>
-                                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 10000)">+10000</button>
-                                    <button type="button" class="rounded-lg border border-rose-300/45 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="applyQuickAmount('clear')">Limpiar</button>
-                                </div>
-                                <p v-if="remaining > 0" class="text-xs font-medium text-amber-300">
-                                    Faltan {{ money(remaining) }} para completar el cobro.
-                                </p>
-                                <p v-else class="text-xs font-medium text-emerald-300">
-                                    Vuelto calculado: {{ money(changeAmount) }}
+                            <div v-if="isPartialSale" class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                                <label for="paid-amount" class="mb-1 block text-sm font-medium text-slate-300">Monto abonado ahora</label>
+                                <input
+                                    id="paid-amount"
+                                    v-model="form.paid_amount"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                    placeholder="0.00"
+                                >
+                                <p class="mt-2 text-xs text-slate-400">El resto quedara en cuenta corriente del cliente.</p>
+                                <p v-if="form.errors.paid_amount" class="mt-1 text-xs text-rose-300">
+                                    {{ form.errors.paid_amount }}
                                 </p>
                             </div>
-                        </div>
 
-                        <p v-else class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
-                            En transferencia no hace falta calcular vuelto.
+                            <div v-if="isCashPayment" class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                                <div class="grid gap-3">
+                                    <div>
+                                        <label for="amount-received" class="mb-1 block text-sm font-medium text-slate-300">Monto recibido</label>
+                                        <input
+                                            id="amount-received"
+                                            v-model="form.amount_received"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                            placeholder="0.00"
+                                        >
+                                        <p v-if="form.errors.amount_received" class="mt-1 text-xs text-rose-300">
+                                            {{ form.errors.amount_received }}
+                                        </p>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('exact')">Exacto</button>
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 100)">+100</button>
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 500)">+500</button>
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 1000)">+1000</button>
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 2000)">+2000</button>
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 5000)">+5000</button>
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 10000)">+10000</button>
+                                        <button type="button" class="rounded-lg border border-rose-300/45 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="applyQuickAmount('clear')">Limpiar</button>
+                                    </div>
+                                    <p v-if="remaining > 0" class="text-xs font-medium text-amber-300">
+                                        Faltan {{ money(remaining) }} para completar el cobro inicial.
+                                    </p>
+                                    <p v-else class="text-xs font-medium text-emerald-300">
+                                        Vuelto calculado: {{ money(changeAmount) }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p v-else class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
+                                En transferencia no hace falta calcular vuelto.
+                            </p>
+                        </template>
+
+                        <p v-else class="rounded-xl border border-amber-200/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-50">
+                            La venta quedara fiada en su totalidad. El cliente es obligatorio y el saldo pendiente se registrara en cuenta corriente.
                         </p>
                     </div>
 
@@ -834,10 +986,17 @@ onBeforeUnmount(() => {
                         <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
                         <p>Descuento: <strong>{{ money(form.discount) }}</strong></p>
                         <p class="mt-2 text-base text-slate-100">Total: <strong>{{ money(total) }}</strong></p>
-                        <template v-if="isCashPayment">
+                        <p class="mt-2">Estado: <strong>{{ form.payment_status === 'paid' ? 'Pagado completo' : (form.payment_status === 'partial' ? 'Pago parcial' : 'Fiado') }}</strong></p>
+                        <p v-if="selectedCustomer">Cliente: <strong>{{ selectedCustomer.name }}</strong></p>
+                        <template v-if="requiresImmediatePayment">
+                            <p class="mt-2">Abonado ahora: <strong>{{ money(paidAmount) }}</strong></p>
+                            <p>Pendiente: <strong>{{ money(pendingAmount) }}</strong></p>
+                        </template>
+                        <template v-if="isCashPayment && requiresImmediatePayment">
                             <p class="mt-2">Recibido: <strong>{{ money(amountReceived) }}</strong></p>
                             <p>Vuelto: <strong>{{ money(changeAmount) }}</strong></p>
                         </template>
+                        <p v-else-if="isPendingSale" class="mt-2 text-amber-100">Se genera deuda por {{ money(total) }}.</p>
                     </div>
                 </div>
                 <div class="mt-4 flex justify-end">
@@ -849,4 +1008,3 @@ onBeforeUnmount(() => {
         </form>
     </AuthenticatedLayout>
 </template>
-
