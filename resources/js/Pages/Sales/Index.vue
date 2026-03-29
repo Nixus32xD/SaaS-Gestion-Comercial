@@ -42,6 +42,11 @@ const moneyFormatter = new Intl.NumberFormat('es-AR', {
 const money = (value) => moneyFormatter.format(Number(value) || 0);
 
 const paymentMethodLabel = (value) => (value === 'transfer' ? 'Transferencia' : 'Efectivo');
+const paymentStatusLabel = (value) => {
+    if (value === 'partial') return 'Parcial';
+    if (value === 'pending') return 'Fiada';
+    return 'Pagada';
+};
 const advancedSaleSettingsEnabled = computed(() => Boolean(props.advanced_sale_settings?.enabled));
 const saleSectors = computed(() => (props.advanced_sale_settings?.sale_sectors || []).filter((item) => item.is_active));
 const paymentDestinations = computed(() => (props.advanced_sale_settings?.payment_destinations || []).filter((item) => item.is_active));
@@ -128,7 +133,7 @@ const clearFilters = () => {
                         v-model="state.search"
                         type="text"
                         class="min-w-0 rounded-xl border-cyan-100/25 text-sm"
-                        placeholder="Buscar por numero o notas"
+                        placeholder="Buscar por numero, notas o cliente"
                         @keyup.enter="filter"
                     >
                     <input
@@ -169,9 +174,11 @@ const clearFilters = () => {
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Fecha</th>
                             <th v-if="advancedSaleSettingsEnabled" class="px-3 py-2 text-left font-medium text-slate-300/80">Sector</th>
                             <th v-if="advancedSaleSettingsEnabled" class="px-3 py-2 text-left font-medium text-slate-300/80">Cuenta</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cliente</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Pago</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Items</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Total</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Pendiente</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                         </tr>
                     </thead>
@@ -181,9 +188,16 @@ const clearFilters = () => {
                             <td class="px-3 py-2">{{ sale.sold_at || '-' }}</td>
                             <td v-if="advancedSaleSettingsEnabled" class="px-3 py-2">{{ sale.sale_sector || '-' }}</td>
                             <td v-if="advancedSaleSettingsEnabled" class="px-3 py-2">{{ sale.payment_destination || '-' }}</td>
-                            <td class="px-3 py-2">{{ paymentMethodLabel(sale.payment_method) }}</td>
+                            <td class="px-3 py-2">{{ sale.customer || '-' }}</td>
+                            <td class="px-3 py-2">
+                                <div class="flex flex-col">
+                                    <span>{{ paymentStatusLabel(sale.payment_status) }}</span>
+                                    <span class="text-xs text-slate-400">{{ sale.payment_method ? paymentMethodLabel(sale.payment_method) : 'Sin cobro inicial' }}</span>
+                                </div>
+                            </td>
                             <td class="px-3 py-2">{{ sale.items_count }}</td>
                             <td class="px-3 py-2">{{ money(sale.total) }}</td>
+                            <td class="px-3 py-2">{{ money(sale.pending_amount) }}</td>
                             <td class="px-3 py-2 text-right">
                                 <Link :href="route('sales.show', sale.id)" class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">Ver</Link>
                             </td>
@@ -191,7 +205,7 @@ const clearFilters = () => {
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td :colspan="advancedSaleSettingsEnabled ? 8 : 6" class="px-3 py-6 text-center text-slate-400">No hay ventas registradas.</td>
+                            <td :colspan="advancedSaleSettingsEnabled ? 10 : 8" class="px-3 py-6 text-center text-slate-400">No hay ventas registradas.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -212,4 +226,3 @@ const clearFilters = () => {
         </div>
     </AuthenticatedLayout>
 </template>
-

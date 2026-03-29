@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\StoreSaleRequest;
 use App\Models\Business;
 use App\Models\BusinessFeature;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Services\SaleService;
@@ -81,9 +82,13 @@ class SaleController extends Controller
                     'business_id',
                     'user_id',
                     'sale_sector_id',
+                    'customer_id',
                     'sale_number',
                     'payment_method',
+                    'payment_status',
                     'payment_destination_id',
+                    'paid_amount',
+                    'pending_amount',
                     'subtotal',
                     'discount',
                     'total',
@@ -94,13 +99,17 @@ class SaleController extends Controller
                     'user:id,name',
                     'saleSector:id,name',
                     'paymentDestination:id,name',
+                    'customer:id,name',
                 ])
                 ->withCount('items')
                 ->when($search !== '', function ($query) use ($search): void {
                     $query->where(function ($innerQuery) use ($search): void {
                         $innerQuery
                             ->where('sale_number', 'like', "%{$search}%")
-                            ->orWhere('notes', 'like', "%{$search}%");
+                            ->orWhere('notes', 'like', "%{$search}%")
+                            ->orWhereHas('customer', function ($customerQuery) use ($search): void {
+                                $customerQuery->where('name', 'like', "%{$search}%");
+                            });
                     });
                 })
                 ->when($month !== '', function ($query) use ($monthStart, $monthEnd): void {
@@ -119,8 +128,12 @@ class SaleController extends Controller
                     'id' => $sale->id,
                     'sale_number' => $sale->sale_number,
                     'payment_method' => $sale->payment_method,
+                    'payment_status' => $sale->payment_status,
                     'sale_sector' => $sale->saleSector?->name,
                     'payment_destination' => $sale->paymentDestination?->name,
+                    'customer' => $sale->customer?->name,
+                    'paid_amount' => (float) $sale->paid_amount,
+                    'pending_amount' => (float) $sale->pending_amount,
                     'subtotal' => (float) $sale->subtotal,
                     'discount' => (float) $sale->discount,
                     'total' => (float) $sale->total,
@@ -168,6 +181,20 @@ class SaleController extends Controller
 
         return Inertia::render('Sales/Create', [
             'products' => $this->searchProductsPayload($business->id),
+            'customers' => Customer::query()
+                ->forBusiness($business->id)
+                ->withAccountOverview()
+                ->orderBy('name')
+                ->get()
+                ->map(fn (Customer $customer): array => [
+                    'id' => $customer->id,
+                    'name' => $customer->name,
+                    'phone' => $customer->phone,
+                    'email' => $customer->email,
+                    'current_balance' => round((float) ($customer->current_balance ?? 0), 2),
+                ])
+                ->values()
+                ->all(),
             'advanced_sale_settings' => $this->advancedSaleSettingsPayload($business),
         ]);
     }
@@ -207,7 +234,7 @@ class SaleController extends Controller
         abort_if($sale->business_id !== $business->id, 403);
 
         $sale->load(['items.product', 'user']);
-        $sale->loadMissing(['saleSector', 'paymentDestination']);
+        $sale->loadMissing(['saleSector', 'paymentDestination', 'customer']);
 
         return Inertia::render('Sales/Show', [
             'auto_back' => $request->boolean('auto_back'),
@@ -216,10 +243,14 @@ class SaleController extends Controller
                 'id' => $sale->id,
                 'sale_number' => $sale->sale_number,
                 'payment_method' => $sale->payment_method,
+                'payment_status' => $sale->payment_status,
                 'sale_sector' => $sale->saleSector?->name,
                 'payment_destination' => $sale->paymentDestination?->name,
+                'customer' => $sale->customer?->name,
                 'amount_received' => (float) ($sale->amount_received ?? 0),
                 'change_amount' => (float) ($sale->change_amount ?? 0),
+                'paid_amount' => (float) $sale->paid_amount,
+                'pending_amount' => (float) $sale->pending_amount,
                 'subtotal' => (float) $sale->subtotal,
                 'discount' => (float) $sale->discount,
                 'total' => (float) $sale->total,
