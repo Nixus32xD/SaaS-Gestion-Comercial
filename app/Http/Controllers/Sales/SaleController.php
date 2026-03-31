@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\StoreSaleRequest;
+use App\Http\Requests\Sales\StoreSaleReceiptRequest;
 use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\SaleReceiptService;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
@@ -18,19 +20,24 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class SaleController extends Controller
 {
-    public function __construct(private readonly SaleService $saleService)
-    {
-    }
+    public function __construct(
+        private readonly SaleService $saleService,
+        private readonly SaleReceiptService $saleReceiptService,
+    ) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
     {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
+        $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
         $business->load([
             'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
@@ -50,15 +57,8 @@ class SaleController extends Controller
                     ->orderBy('name'),
             ]);
         }
-        $search = trim((string) $request->query('search', ''));
-        $month = trim((string) $request->query('month', ''));
-        $saleSectorId = $advancedSaleSettingsEnabled && $request->filled('sale_sector_id')
-            ? (int) $request->query('sale_sector_id')
-            : null;
-        $paymentDestinationId = $advancedSaleSettingsEnabled && $request->filled('payment_destination_id')
-            ? (int) $request->query('payment_destination_id')
-            : null;
-        [$monthStart, $monthEnd, $summaryMonth] = $this->resolveSummaryMonthRange($month);
+        $filters = $this->saleFilters($request, $advancedSaleSettingsEnabled);
+        [$monthStart, $monthEnd, $summaryMonth] = $this->resolveSummaryMonthRange($filters['month']);
 
         $summaryBaseQuery = Sale::query()
             ->forBusiness($business->id)
@@ -69,78 +69,13 @@ class SaleController extends Controller
             ->first();
 
         return Inertia::render('Sales/Index', [
-            'filters' => [
-                'search' => $search,
-                'month' => $month,
-                'sale_sector_id' => $saleSectorId,
-                'payment_destination_id' => $paymentDestinationId,
-            ],
-            'sales' => fn () => Sale::query()
-                ->forBusiness($business->id)
-                ->select([
-                    'id',
-                    'business_id',
-                    'user_id',
-                    'sale_sector_id',
-                    'customer_id',
-                    'sale_number',
-                    'payment_method',
-                    'payment_status',
-                    'payment_destination_id',
-                    'paid_amount',
-                    'pending_amount',
-                    'subtotal',
-                    'discount',
-                    'total',
-                    'sold_at',
-                    'notes',
-                ])
-                ->with([
-                    'user:id,name',
-                    'saleSector:id,name',
-                    'paymentDestination:id,name',
-                    'customer:id,name',
-                ])
-                ->withCount('items')
-                ->when($search !== '', function ($query) use ($search): void {
-                    $query->where(function ($innerQuery) use ($search): void {
-                        $innerQuery
-                            ->where('sale_number', 'like', "%{$search}%")
-                            ->orWhere('notes', 'like', "%{$search}%")
-                            ->orWhereHas('customer', function ($customerQuery) use ($search): void {
-                                $customerQuery->where('name', 'like', "%{$search}%");
-                            });
-                    });
-                })
-                ->when($month !== '', function ($query) use ($monthStart, $monthEnd): void {
-                    $query->whereBetween('sold_at', [$monthStart, $monthEnd]);
-                })
-                ->when($advancedSaleSettingsEnabled && $saleSectorId !== null, function ($query) use ($saleSectorId): void {
-                    $query->where('sale_sector_id', $saleSectorId);
-                })
-                ->when($advancedSaleSettingsEnabled && $paymentDestinationId !== null, function ($query) use ($paymentDestinationId): void {
-                    $query->where('payment_destination_id', $paymentDestinationId);
-                })
+            'filters' => $filters,
+            'receipt_feature_available' => $receiptFeatureAvailable,
+            'sales' => fn () => $this->salesListingQuery($business, $filters, $advancedSaleSettingsEnabled)
                 ->latest('sold_at')
                 ->paginate(15)
                 ->withQueryString()
-                ->through(fn (Sale $sale) => [
-                    'id' => $sale->id,
-                    'sale_number' => $sale->sale_number,
-                    'payment_method' => $sale->payment_method,
-                    'payment_status' => $sale->payment_status,
-                    'sale_sector' => $sale->saleSector?->name,
-                    'payment_destination' => $sale->paymentDestination?->name,
-                    'customer' => $sale->customer?->name,
-                    'paid_amount' => (float) $sale->paid_amount,
-                    'pending_amount' => (float) $sale->pending_amount,
-                    'subtotal' => (float) $sale->subtotal,
-                    'discount' => (float) $sale->discount,
-                    'total' => (float) $sale->total,
-                    'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
-                    'user' => $sale->user?->name,
-                    'items_count' => $sale->items_count,
-                ]),
+                ->through(fn (Sale $sale) => $this->mapSaleListItem($sale)),
             'advanced_sale_settings' => fn () => [
                 'enabled' => $advancedSaleSettingsEnabled,
                 'sale_sectors' => $business->saleSectors
@@ -196,6 +131,7 @@ class SaleController extends Controller
                 ->values()
                 ->all(),
             'advanced_sale_settings' => $this->advancedSaleSettingsPayload($business),
+            'receipt_feature_available' => $this->saleReceiptsAvailable(),
         ]);
     }
 
@@ -221,10 +157,33 @@ class SaleController extends Controller
         abort_if($business === null || $user === null, 404);
 
         $sale = $this->saleService->createSale($business, $user, $request->validated());
+        $warning = null;
+        $receipt = $request->file('receipt');
+        $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
-        return redirect()
+        if ($receipt !== null) {
+            if (! $receiptFeatureAvailable) {
+                $warning = 'Venta registrada, pero falta correr la migracion de comprobantes para guardar el archivo.';
+            } else {
+                try {
+                    $sale = $this->saleReceiptService->attachReceipt($sale, $receipt);
+                } catch (Throwable $exception) {
+                    report($exception);
+
+                    $warning = 'Venta registrada, pero no se pudo adjuntar el comprobante.';
+                }
+            }
+        }
+
+        $redirect = redirect()
             ->route('sales.show', ['sale' => $sale, 'auto_back' => 1])
             ->with('success', 'Venta registrada correctamente.');
+
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
     }
 
     public function show(Request $request, CurrentBusiness $currentBusiness, Sale $sale): Response
@@ -232,6 +191,7 @@ class SaleController extends Controller
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
         abort_if($sale->business_id !== $business->id, 403);
+        $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
         $sale->load(['items.product', 'user']);
         $sale->loadMissing(['saleSector', 'paymentDestination', 'customer']);
@@ -239,6 +199,7 @@ class SaleController extends Controller
         return Inertia::render('Sales/Show', [
             'auto_back' => $request->boolean('auto_back'),
             'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
+            'receipt_feature_available' => $receiptFeatureAvailable,
             'sale' => [
                 'id' => $sale->id,
                 'sale_number' => $sale->sale_number,
@@ -257,6 +218,128 @@ class SaleController extends Controller
                 'notes' => $sale->notes,
                 'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
                 'user' => $sale->user?->name,
+                'print_url' => route('sales.print.show', $sale),
+                'receipt' => $receiptFeatureAvailable && $sale->hasReceipt() ? [
+                    'original_name' => $sale->receipt_original_name ?: 'Comprobante de venta',
+                    'uploaded_at' => $sale->receipt_uploaded_at?->format('Y-m-d H:i'),
+                    'download_url' => route('sales.receipt.download', $sale),
+                ] : null,
+                'items' => $sale->items->map(fn ($item) => [
+                    'id' => $item->id,
+                    'product_name' => $item->product_name,
+                    'is_manual' => $item->product_id === null,
+                    'quantity' => (float) $item->quantity,
+                    'unit_price' => (float) $item->unit_price,
+                    'subtotal' => (float) $item->subtotal,
+                    'quantity_label' => $item->product_id === null
+                        ? 'sin stock'
+                        : ProductMeasurement::quantityLabel($item->product?->unit_type, $item->product?->weight_unit),
+                    'price_label' => $item->product_id === null
+                        ? ''
+                        : ProductMeasurement::priceLabel($item->product?->unit_type, $item->product?->weight_unit),
+                ]),
+            ],
+        ]);
+    }
+
+    public function storeReceipt(
+        StoreSaleReceiptRequest $request,
+        CurrentBusiness $currentBusiness,
+        Sale $sale
+    ): RedirectResponse {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+        abort_if($sale->business_id !== $business->id, 403);
+        abort_if(! $this->saleReceiptsAvailable(), 404);
+
+        $this->saleReceiptService->attachReceipt($sale, $request->file('receipt'));
+
+        return redirect()
+            ->route('sales.show', $sale)
+            ->with('success', 'Comprobante adjuntado correctamente.');
+    }
+
+    public function downloadReceipt(CurrentBusiness $currentBusiness, Sale $sale): StreamedResponse
+    {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+        abort_if($sale->business_id !== $business->id, 403);
+        abort_if(! $this->saleReceiptsAvailable(), 404);
+        abort_if(! $sale->hasReceipt(), 404);
+
+        return $this->saleReceiptService->downloadReceipt($sale);
+    }
+
+    public function printIndex(Request $request, CurrentBusiness $currentBusiness): Response
+    {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+
+        $business->load([
+            'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
+        ]);
+
+        $advancedSaleSettingsEnabled = $business->hasAdvancedSaleSettings();
+        $filters = $this->saleFilters($request, $advancedSaleSettingsEnabled);
+        [, , $summaryMonth] = $this->resolveSummaryMonthRange($filters['month']);
+        $sales = $this->salesListingQuery($business, $filters, $advancedSaleSettingsEnabled)
+            ->latest('sold_at')
+            ->get()
+            ->map(fn (Sale $sale) => $this->mapSaleListItem($sale))
+            ->values()
+            ->all();
+
+        return Inertia::render('Sales/PrintIndex', [
+            'business_name' => $business->name,
+            'filters' => $filters,
+            'sales' => $sales,
+            'summary' => [
+                'summary_month' => $summaryMonth,
+                'sales_count' => count($sales),
+                'total_amount' => (float) collect($sales)->sum('total'),
+                'pending_amount' => (float) collect($sales)->sum('pending_amount'),
+                'printed_at' => now()->format('Y-m-d H:i'),
+                'advanced_sale_settings_enabled' => $advancedSaleSettingsEnabled,
+            ],
+        ]);
+    }
+
+    public function printShow(CurrentBusiness $currentBusiness, Sale $sale): Response
+    {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+        abort_if($sale->business_id !== $business->id, 403);
+        $receiptFeatureAvailable = $this->saleReceiptsAvailable();
+
+        $business->load([
+            'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
+        ]);
+
+        $sale->load(['items.product', 'user', 'saleSector', 'paymentDestination', 'customer']);
+
+        return Inertia::render('Sales/PrintShow', [
+            'business_name' => $business->name,
+            'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
+            'printed_at' => now()->format('Y-m-d H:i'),
+            'sale' => [
+                'id' => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'payment_method' => $sale->payment_method,
+                'payment_status' => $sale->payment_status,
+                'sale_sector' => $sale->saleSector?->name,
+                'payment_destination' => $sale->paymentDestination?->name,
+                'customer' => $sale->customer?->name,
+                'amount_received' => (float) ($sale->amount_received ?? 0),
+                'change_amount' => (float) ($sale->change_amount ?? 0),
+                'paid_amount' => (float) $sale->paid_amount,
+                'pending_amount' => (float) $sale->pending_amount,
+                'subtotal' => (float) $sale->subtotal,
+                'discount' => (float) $sale->discount,
+                'total' => (float) $sale->total,
+                'notes' => $sale->notes,
+                'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
+                'user' => $sale->user?->name,
+                'receipt_name' => $receiptFeatureAvailable ? $sale->receipt_original_name : null,
                 'items' => $sale->items->map(fn ($item) => [
                     'id' => $item->id,
                     'product_name' => $item->product_name,
@@ -388,6 +471,141 @@ class SaleController extends Controller
             ->filter(fn (array $row): bool => $row['sales_count'] > 0 || $row['is_active'])
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array{search: string, month: string, sale_sector_id: int|null, payment_destination_id: int|null}
+     */
+    private function saleFilters(Request $request, bool $advancedSaleSettingsEnabled): array
+    {
+        return [
+            'search' => trim((string) $request->query('search', '')),
+            'month' => trim((string) $request->query('month', '')),
+            'sale_sector_id' => $advancedSaleSettingsEnabled && $request->filled('sale_sector_id')
+                ? (int) $request->query('sale_sector_id')
+                : null,
+            'payment_destination_id' => $advancedSaleSettingsEnabled && $request->filled('payment_destination_id')
+                ? (int) $request->query('payment_destination_id')
+                : null,
+        ];
+    }
+
+    /**
+     * @param  array{search: string, month: string, sale_sector_id: int|null, payment_destination_id: int|null}  $filters
+     * @return Builder<Sale>
+     */
+    private function salesListingQuery(Business $business, array $filters, bool $advancedSaleSettingsEnabled): Builder
+    {
+        $monthRange = $filters['month'] !== ''
+            ? $this->resolveSummaryMonthRange($filters['month'])
+            : null;
+        $select = [
+            'id',
+            'business_id',
+            'user_id',
+            'sale_sector_id',
+            'customer_id',
+            'sale_number',
+            'payment_method',
+            'payment_status',
+            'payment_destination_id',
+            'paid_amount',
+            'pending_amount',
+            'subtotal',
+            'discount',
+            'total',
+            'sold_at',
+            'notes',
+        ];
+
+        if ($this->saleReceiptsAvailable()) {
+            $select[] = 'receipt_path';
+            $select[] = 'receipt_original_name';
+            $select[] = 'receipt_uploaded_at';
+        }
+
+        return Sale::query()
+            ->forBusiness($business->id)
+            ->select($select)
+            ->with([
+                'user:id,name',
+                'saleSector:id,name',
+                'paymentDestination:id,name',
+                'customer:id,name',
+            ])
+            ->withCount('items')
+            ->when($filters['search'] !== '', function (Builder $query) use ($filters): void {
+                $query->where(function (Builder $innerQuery) use ($filters): void {
+                    $innerQuery
+                        ->where('sale_number', 'like', "%{$filters['search']}%")
+                        ->orWhere('notes', 'like', "%{$filters['search']}%")
+                        ->orWhereHas('customer', function (Builder $customerQuery) use ($filters): void {
+                            $customerQuery->where('name', 'like', "%{$filters['search']}%");
+                        });
+                });
+            })
+            ->when($monthRange !== null, function (Builder $query) use ($monthRange): void {
+                [$monthStart, $monthEnd] = $monthRange;
+
+                $query->whereBetween('sold_at', [$monthStart, $monthEnd]);
+            })
+            ->when($advancedSaleSettingsEnabled && $filters['sale_sector_id'] !== null, function (Builder $query) use ($filters): void {
+                $query->where('sale_sector_id', $filters['sale_sector_id']);
+            })
+            ->when($advancedSaleSettingsEnabled && $filters['payment_destination_id'] !== null, function (Builder $query) use ($filters): void {
+                $query->where('payment_destination_id', $filters['payment_destination_id']);
+            });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapSaleListItem(Sale $sale): array
+    {
+        $hasReceipt = $this->saleReceiptsAvailable() && $sale->hasReceipt();
+
+        return [
+            'id' => $sale->id,
+            'sale_number' => $sale->sale_number,
+            'payment_method' => $sale->payment_method,
+            'payment_status' => $sale->payment_status,
+            'sale_sector' => $sale->saleSector?->name,
+            'payment_destination' => $sale->paymentDestination?->name,
+            'customer' => $sale->customer?->name,
+            'paid_amount' => (float) $sale->paid_amount,
+            'pending_amount' => (float) $sale->pending_amount,
+            'subtotal' => (float) $sale->subtotal,
+            'discount' => (float) $sale->discount,
+            'total' => (float) $sale->total,
+            'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
+            'user' => $sale->user?->name,
+            'items_count' => $sale->items_count,
+            'has_receipt' => $hasReceipt,
+            'receipt_download_url' => $hasReceipt
+                ? route('sales.receipt.download', $sale)
+                : null,
+        ];
+    }
+
+    private function saleReceiptsAvailable(): bool
+    {
+        static $available = null;
+
+        if ($available !== null) {
+            return $available;
+        }
+
+        try {
+            $available = Schema::hasColumns('sales', [
+                'receipt_path',
+                'receipt_original_name',
+                'receipt_uploaded_at',
+            ]);
+        } catch (Throwable) {
+            $available = false;
+        }
+
+        return $available;
     }
 
     /**

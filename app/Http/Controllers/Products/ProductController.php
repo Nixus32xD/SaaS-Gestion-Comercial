@@ -33,74 +33,74 @@ class ProductController extends Controller
 
         $search = trim((string) $request->query('search', ''));
         $categoryId = $this->resolveCategoryFilter($business->id, $request->query('category_id'));
+        $filters = [
+            'search' => $search,
+            'category_id' => $categoryId,
+            'no_price' => $request->boolean('no_price'),
+            'no_cost' => $request->boolean('no_cost'),
+            'no_stock' => $request->boolean('no_stock'),
+            'with_stock' => $request->boolean('with_stock'),
+            'low_stock' => $request->boolean('low_stock'),
+        ];
+
+        $products = Product::query()
+            ->forBusiness($business->id)
+            ->select([
+                'id',
+                'business_id',
+                'category_id',
+                'supplier_id',
+                'name',
+                'barcode',
+                'sku',
+                'unit_type',
+                'weight_unit',
+                'sale_price',
+                'cost_price',
+                'stock',
+                'min_stock',
+                'shelf_life_days',
+                'expiry_alert_days',
+                'is_active',
+            ])
+            ->with([
+                'supplier:id,name',
+                'category:id,name',
+            ])
+            ->filter($filters)
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString()
+            ->through(fn (Product $product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'barcode' => $product->barcode,
+                'sku' => $product->sku,
+                'unit_type' => $product->unit_type,
+                'weight_unit' => $product->weight_unit,
+                'type_label' => ProductMeasurement::typeLabel($product->unit_type, $product->weight_unit),
+                'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
+                'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
+                'sale_price' => (float) $product->sale_price,
+                'cost_price' => (float) $product->cost_price,
+                'stock' => (float) $product->stock,
+                'min_stock' => (float) $product->min_stock,
+                'shelf_life_days' => $product->shelf_life_days,
+                'expiry_alert_days' => $product->expiry_alert_days,
+                'is_active' => $product->is_active,
+                'category' => $product->category?->name,
+                'supplier' => $product->supplier?->name,
+                'has_low_stock' => (float) $product->stock <= (float) $product->min_stock,
+            ]);
 
         return Inertia::render('Products/Index', [
-            'filters' => [
-                'search' => $search,
-                'category_id' => $categoryId,
-            ],
+            'filters' => $filters,
             'categories' => fn () => Category::query()
                 ->forBusiness($business->id)
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            'products' => fn () => Product::query()
-                ->forBusiness($business->id)
-                ->select([
-                    'id',
-                    'business_id',
-                    'category_id',
-                    'supplier_id',
-                    'name',
-                    'barcode',
-                    'sku',
-                    'unit_type',
-                    'weight_unit',
-                    'sale_price',
-                    'cost_price',
-                    'stock',
-                    'min_stock',
-                    'shelf_life_days',
-                    'expiry_alert_days',
-                    'is_active',
-                ])
-                ->with([
-                    'supplier:id,name',
-                    'category:id,name',
-                ])
-                ->when($search !== '', function ($query) use ($search): void {
-                    $query->where(function ($innerQuery) use ($search): void {
-                        $innerQuery
-                            ->where('name', 'like', "%{$search}%")
-                            ->orWhere('barcode', 'like', "%{$search}%")
-                            ->orWhere('sku', 'like', "%{$search}%");
-                    });
-                })
-                ->when($categoryId !== null, fn ($query) => $query->where('category_id', $categoryId))
-                ->orderByDesc('id')
-                ->paginate(15)
-                ->withQueryString()
-                ->through(fn (Product $product) => [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'barcode' => $product->barcode,
-                    'sku' => $product->sku,
-                    'unit_type' => $product->unit_type,
-                    'weight_unit' => $product->weight_unit,
-                    'type_label' => ProductMeasurement::typeLabel($product->unit_type, $product->weight_unit),
-                    'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
-                    'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
-                    'sale_price' => (float) $product->sale_price,
-                    'cost_price' => (float) $product->cost_price,
-                    'stock' => (float) $product->stock,
-                    'min_stock' => (float) $product->min_stock,
-                    'shelf_life_days' => $product->shelf_life_days,
-                    'expiry_alert_days' => $product->expiry_alert_days,
-                    'is_active' => $product->is_active,
-                    'category' => $product->category?->name,
-                    'supplier' => $product->supplier?->name,
-                    'has_low_stock' => (float) $product->stock <= (float) $product->min_stock,
-                ]),
+            'products' => $products,
         ]);
     }
 

@@ -51,3 +51,26 @@ test('business users cannot access customer detail routes from another business'
     $this->actingAs($adminA)->get("/customers/{$foreignCustomer->id}")->assertForbidden();
     $this->actingAs($adminA)->get("/customers/{$foreignCustomer->id}/edit")->assertForbidden();
 });
+
+test('customer creation can return to sales flow with the new customer selected', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    $response = $this
+        ->actingAs($admin)
+        ->post('/customers', [
+            'name' => 'Cliente desde venta',
+            'phone' => '5491111111111',
+            'email' => 'venta@example.com',
+            'address' => 'Mostrador',
+            'notes' => 'Alta durante una venta',
+            'preferred_reminder_channel' => 'whatsapp',
+            'allow_reminders' => true,
+            'reminder_notes' => '',
+            'return_to' => 'sales.create',
+        ]);
+
+    $customer = Customer::query()->where('name', 'Cliente desde venta')->firstOrFail();
+
+    $response->assertRedirect(route('sales.create', ['customer_id' => $customer->id]));
+});

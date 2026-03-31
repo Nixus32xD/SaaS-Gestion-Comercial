@@ -77,6 +77,10 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
     Route::get('/sales/products/search', [SaleController::class, 'searchProducts'])->name('sales.products.search');
     Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+    Route::get('/sales/print', [SaleController::class, 'printIndex'])->name('sales.print.index');
+    Route::get('/sales/{sale}/print', [SaleController::class, 'printShow'])->name('sales.print.show');
+    Route::post('/sales/{sale}/receipt', [SaleController::class, 'storeReceipt'])->name('sales.receipt.store');
+    Route::get('/sales/{sale}/receipt', [SaleController::class, 'downloadReceipt'])->name('sales.receipt.download');
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
 
     Route::get('/purchases', [PurchaseController::class, 'index'])->name('purchases.index');

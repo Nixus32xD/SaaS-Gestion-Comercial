@@ -1,5 +1,8 @@
 <script setup>
+import AppPanel from '@/Components/AppPanel.vue';
+import StatusBadge from '@/Components/StatusBadge.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({
@@ -9,6 +12,15 @@ const form = useForm({
     email: '',
     address: '',
     notes: '',
+});
+
+const supplierWarnings = computed(() => {
+    const warnings = [];
+
+    if (String(form.name || '').trim() === '') warnings.push('Falta el nombre del proveedor.');
+    if (!form.phone && !form.email) warnings.push('Conviene cargar telefono o email para pedidos y reclamos.');
+
+    return warnings;
 });
 
 const submit = () => {
@@ -30,40 +42,70 @@ const submit = () => {
             </div>
         </template>
 
-        <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm" @submit.prevent="submit">
-            <div class="grid gap-3 md:grid-cols-2">
-                <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Nombre</label>
-                    <input v-model="form.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Nombre del proveedor" />
+        <form class="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_20rem]" @submit.prevent="submit">
+            <AppPanel title="Ficha del proveedor" subtitle="Carga los datos que compras necesita ver rapido para pedir, reclamar o coordinar entregas.">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="app-field">
+                        <label class="app-field-label">Nombre</label>
+                        <input v-model="form.name" type="text" class="w-full rounded-xl text-sm" placeholder="Nombre del proveedor" />
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field-label">Contacto</label>
+                        <input v-model="form.contact_name" type="text" class="w-full rounded-xl text-sm" placeholder="Persona de contacto" />
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field-label">Telefono</label>
+                        <input v-model="form.phone" type="text" class="w-full rounded-xl text-sm" placeholder="Opcional" />
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field-label">Email</label>
+                        <input v-model="form.email" type="email" class="w-full rounded-xl text-sm" placeholder="Opcional" />
+                    </div>
+                    <div class="app-field md:col-span-2">
+                        <label class="app-field-label">Direccion</label>
+                        <input v-model="form.address" type="text" class="w-full rounded-xl text-sm" placeholder="Direccion o ubicacion" />
+                    </div>
+                    <div class="app-field md:col-span-2">
+                        <label class="app-field-label">Notas</label>
+                        <textarea v-model="form.notes" rows="3" class="w-full rounded-xl text-sm" placeholder="Observaciones opcionales" />
+                    </div>
                 </div>
-                <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Contacto</label>
-                    <input v-model="form.contact_name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Persona de contacto" />
-                </div>
-                <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Telefono</label>
-                    <input v-model="form.phone" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
-                </div>
-                <div class="space-y-1">
-                    <label class="text-sm font-medium text-slate-300">Email</label>
-                    <input v-model="form.email" type="email" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" />
-                </div>
-                <div class="space-y-1 md:col-span-2">
-                    <label class="text-sm font-medium text-slate-300">Direccion</label>
-                    <input v-model="form.address" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Direccion o ubicacion" />
-                </div>
-                <div class="space-y-1 md:col-span-2">
-                    <label class="text-sm font-medium text-slate-300">Notas</label>
-                    <textarea v-model="form.notes" rows="3" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Observaciones opcionales" />
-                </div>
-            </div>
+            </AppPanel>
 
-            <div class="mt-5 flex justify-end">
-                <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing">
-                    Guardar proveedor
-                </button>
-            </div>
+            <aside class="app-sticky-column">
+                <AppPanel title="Resumen" :tone="supplierWarnings.length ? 'warning' : 'success'" subtitle="Chequeo corto antes de guardar.">
+                    <div class="app-chip-row">
+                        <StatusBadge :tone="form.phone ? 'success' : 'neutral'" :label="form.phone ? 'Con telefono' : 'Sin telefono'" />
+                        <StatusBadge :tone="form.email ? 'info' : 'neutral'" :label="form.email ? 'Con email' : 'Sin email'" />
+                    </div>
+
+                    <div class="mt-4 space-y-3 text-sm text-slate-300">
+                        <div class="flex items-center justify-between gap-3">
+                            <span>Proveedor</span>
+                            <span class="text-right font-semibold text-slate-100">{{ form.name || 'Pendiente' }}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <span>Contacto</span>
+                            <span class="text-right font-semibold text-slate-100">{{ form.contact_name || '-' }}</span>
+                        </div>
+                    </div>
+
+                    <div v-if="supplierWarnings.length" class="mt-4 rounded-xl border border-amber-300/25 bg-amber-400/10 p-3 text-sm text-amber-100">
+                        <p v-for="warning in supplierWarnings" :key="warning">{{ warning }}</p>
+                    </div>
+
+                    <template #footer>
+                        <div class="grid gap-3">
+                            <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing">
+                                Guardar proveedor
+                            </button>
+                            <Link :href="route('suppliers.index')" class="inline-flex w-full items-center justify-center rounded-xl border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70">
+                                Volver
+                            </Link>
+                        </div>
+                    </template>
+                </AppPanel>
+            </aside>
         </form>
     </AuthenticatedLayout>
 </template>
-

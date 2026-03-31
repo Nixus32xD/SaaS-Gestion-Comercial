@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Sales;
 
+use App\Http\Requests\Sales\Concerns\HasSaleReceiptRules;
 use App\Models\BusinessFeature;
 use App\Models\Sale;
 use Illuminate\Foundation\Http\FormRequest;
@@ -10,6 +11,8 @@ use Illuminate\Validation\Validator;
 
 class StoreSaleRequest extends FormRequest
 {
+    use HasSaleReceiptRules;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -78,6 +81,7 @@ class StoreSaleRequest extends FormRequest
             'paid_amount' => [$paymentStatus === Sale::PAYMENT_STATUS_PARTIAL ? 'required' : 'nullable', 'numeric', 'gt:0'],
             'discount' => ['nullable', 'numeric', 'gte:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'receipt' => $this->saleReceiptRules(),
             'sold_at' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => [

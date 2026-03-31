@@ -39,6 +39,9 @@ class Sale extends Model
         'discount',
         'total',
         'notes',
+        'receipt_path',
+        'receipt_original_name',
+        'receipt_uploaded_at',
         'sold_at',
     ];
 
@@ -57,6 +60,7 @@ class Sale extends Model
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
+            'receipt_uploaded_at' => 'datetime',
             'sold_at' => 'datetime',
         ];
     }
@@ -107,5 +111,10 @@ class Sale extends Model
     public function accountMovements(): HasMany
     {
         return $this->hasMany(CustomerAccountMovement::class);
+    }
+
+    public function hasReceipt(): bool
+    {
+        return filled($this->receipt_path);
     }
 }
