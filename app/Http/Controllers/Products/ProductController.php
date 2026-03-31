@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Products;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Products\StoreProductRequest;
+use App\Http\Requests\Products\UpdateProductBatchRequest;
 use App\Http\Requests\Products\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\ProductBatchCorrection;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Services\ProductBatchService;
@@ -237,7 +239,7 @@ class ProductController extends Controller
             'batches' => fn ($query) => $query
                 ->available()
                 ->orderedForOutbound(),
-        ]);
+        ])->loadCount('batchCorrections');
 
         $batchSummary = $this->buildBatchSummary($product);
 
@@ -257,6 +259,7 @@ class ProductController extends Controller
                 'cost_price' => (float) $product->cost_price,
                 'stock' => (float) $product->stock,
                 'batch_summary' => $batchSummary,
+                'batch_corrections_count' => $product->batch_corrections_count,
                 'batches' => $product->batches
                     ->map(fn (ProductBatch $batch) => $this->mapBatchForDisplay($batch, (int) ($product->expiry_alert_days ?? 15)))
                     ->values()
@@ -368,6 +371,82 @@ class ProductController extends Controller
         return redirect()
             ->route('products.index')
             ->with('success', 'Producto actualizado correctamente.');
+    }
+
+    public function batchCorrections(CurrentBusiness $currentBusiness, Product $product): Response
+    {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+        abort_if($product->business_id !== $business->id, 403);
+
+        return Inertia::render('Products/BatchCorrections', [
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'stock' => (float) $product->stock,
+                'batch_corrections_count' => ProductBatchCorrection::query()
+                    ->forBusiness($business->id)
+                    ->where('product_id', $product->id)
+                    ->count(),
+            ],
+            'corrections' => ProductBatchCorrection::query()
+                ->forBusiness($business->id)
+                ->where('product_id', $product->id)
+                ->with([
+                    'batch:id,batch_code',
+                    'corrector:id,name',
+                ])
+                ->latest('id')
+                ->paginate(20)
+                ->withQueryString()
+                ->through(fn (ProductBatchCorrection $correction) => [
+                    'id' => $correction->id,
+                    'batch_id' => $correction->product_batch_id,
+                    'batch_code' => $correction->batch?->batch_code ?: $correction->new_batch_code,
+                    'corrector' => $correction->corrector?->name,
+                    'previous_batch_code' => $correction->previous_batch_code,
+                    'new_batch_code' => $correction->new_batch_code,
+                    'previous_expires_at' => $correction->previous_expires_at?->toDateString(),
+                    'new_expires_at' => $correction->new_expires_at?->toDateString(),
+                    'previous_unit_cost' => $correction->previous_unit_cost !== null ? (float) $correction->previous_unit_cost : null,
+                    'new_unit_cost' => $correction->new_unit_cost !== null ? (float) $correction->new_unit_cost : null,
+                    'reason' => $correction->reason,
+                    'changed_fields' => array_values(array_filter([
+                        $correction->previous_batch_code !== $correction->new_batch_code ? 'codigo' : null,
+                        $correction->previous_expires_at?->toDateString() !== $correction->new_expires_at?->toDateString() ? 'vencimiento' : null,
+                        (float) ($correction->previous_unit_cost ?? -1) !== (float) ($correction->new_unit_cost ?? -1) ? 'costo' : null,
+                    ])),
+                    'created_at' => $correction->created_at?->format('Y-m-d H:i'),
+                ]),
+        ]);
+    }
+
+    public function updateBatch(
+        UpdateProductBatchRequest $request,
+        CurrentBusiness $currentBusiness,
+        Product $product,
+        ProductBatch $batch,
+        ProductBatchService $productBatchService
+    ): RedirectResponse {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+        abort_if($product->business_id !== $business->id, 403);
+        abort_if($batch->business_id !== $business->id, 403);
+        abort_if($batch->product_id !== $product->id, 404);
+
+        $data = $request->validated();
+
+        $productBatchService->correctBatch($business, $product, $batch, [
+            'batch_code' => $data['batch_code'],
+            'expires_at' => $data['expires_at'] ?? null,
+            'unit_cost' => $data['unit_cost'] ?? null,
+            'reason' => $data['reason'] ?? null,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return redirect()
+            ->route('products.edit', $product)
+            ->with('success', 'Lote actualizado correctamente.');
     }
 
     private function resolveGlobalProduct(mixed $globalProductId): ?GlobalProduct

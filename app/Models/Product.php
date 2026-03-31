@@ -98,6 +98,14 @@ class Product extends Model
     }
 
     /**
+     * @return HasMany<ProductBatchCorrection, $this>
+     */
+    public function batchCorrections(): HasMany
+    {
+        return $this->hasMany(ProductBatchCorrection::class);
+    }
+
+    /**
      * @param  Builder<static>  $query
      * @param  array<string, mixed>  $filters
      * @return Builder<static>

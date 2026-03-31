@@ -31,6 +31,12 @@ const form = useForm({
     expiry_alert_days: Number(props.product.expiry_alert_days || 15),
     is_active: Boolean(props.product.is_active),
 });
+const batchForm = useForm({
+    batch_code: '',
+    expires_at: '',
+    unit_cost: '',
+    reason: '',
+});
 
 const dateToYmd = (date) => {
     if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
@@ -65,7 +71,9 @@ const toShelfLifeDays = (dateValue) => {
 };
 
 const shelfLifeDate = ref(shelfLifeDaysToDate(props.product.shelf_life_days));
+const editingBatchId = ref(null);
 const isWeightProduct = computed(() => form.unit_type === 'weight');
+const editingBatch = computed(() => props.product.batches.find((batch) => batch.id === editingBatchId.value) || null);
 const measurementUnitLabel = computed(() => (form.weight_unit === 'g' ? 'g' : 'kg'));
 const priceLabel = computed(() => {
     if (!isWeightProduct.value) return 'Precio de venta';
@@ -122,6 +130,32 @@ const summaryTone = computed(() => {
 const submit = () => {
     form.shelf_life_days = toShelfLifeDays(shelfLifeDate.value);
     form.put(route('products.update', props.product.id));
+};
+
+const startBatchEdit = (batch) => {
+    editingBatchId.value = batch.id;
+    batchForm.batch_code = batch.batch_code || '';
+    batchForm.expires_at = batch.expires_at || '';
+    batchForm.unit_cost = batch.unit_cost ?? '';
+    batchForm.reason = '';
+    batchForm.clearErrors();
+};
+
+const cancelBatchEdit = () => {
+    editingBatchId.value = null;
+    batchForm.reset();
+    batchForm.clearErrors();
+};
+
+const submitBatchEdit = () => {
+    if (!editingBatchId.value) return;
+
+    batchForm.put(route('products.batches.update', [props.product.id, editingBatchId.value]), {
+        preserveScroll: true,
+        onSuccess: () => {
+            cancelBatchEdit();
+        },
+    });
 };
 </script>
 
@@ -353,7 +387,12 @@ const submit = () => {
                     <h3 class="text-base font-semibold text-slate-100">Lotes activos</h3>
                     <p class="mt-1 text-sm text-slate-300/80">Control de cantidades y vencimientos usado por la salida FEFO.</p>
                 </div>
-                <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">{{ props.product.batch_summary.batches_count }} lotes</span>
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <Link :href="route('products.batch-corrections.index', props.product.id)" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">
+                        Historial de correcciones
+                    </Link>
+                    <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">{{ props.product.batch_summary.batches_count }} lotes</span>
+                </div>
             </div>
 
             <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
@@ -365,6 +404,7 @@ const submit = () => {
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Costo</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Vencimiento</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Estado</th>
+                            <th class="px-3 py-2 text-right font-medium text-slate-300/80">Accion</th>
                         </tr>
                     </thead>
                     <tbody v-if="props.product.batches.length" class="divide-y divide-slate-100">
@@ -386,14 +426,71 @@ const submit = () => {
                                     {{ batch.status_label }}
                                 </span>
                             </td>
+                            <td class="px-3 py-2 text-right">
+                                <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="startBatchEdit(batch)">
+                                    Corregir
+                                </button>
+                            </td>
                         </tr>
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="5" class="px-3 py-6 text-center text-slate-400">Este producto todavia no tiene lotes activos cargados.</td>
+                            <td colspan="6" class="px-3 py-6 text-center text-slate-400">Este producto todavia no tiene lotes activos cargados.</td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div v-if="props.product.batches.length" class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                        <h4 class="text-sm font-semibold text-slate-100">Corregir lote cargado</h4>
+                        <p class="mt-1 text-sm text-slate-300/80">Usalo cuando se cargaron mal el codigo, el costo o el ano del vencimiento. No modifica el stock ni los movimientos.</p>
+                    </div>
+                    <button v-if="editingBatch" type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="cancelBatchEdit">
+                        Cancelar
+                    </button>
+                </div>
+
+                <p v-if="!editingBatch" class="mt-4 text-sm text-slate-400">Selecciona <strong class="text-slate-200">Corregir</strong> en el lote que necesites ajustar.</p>
+
+                <form v-else class="mt-4 grid gap-4 md:grid-cols-3" @submit.prevent="submitBatchEdit">
+                    <div class="app-field">
+                        <label class="app-field-label">Lote</label>
+                        <input v-model="batchForm.batch_code" type="text" class="w-full rounded-xl text-sm" placeholder="Codigo del lote" />
+                        <p v-if="batchForm.errors.batch_code" class="text-xs text-rose-300">{{ batchForm.errors.batch_code }}</p>
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field-label">Vencimiento</label>
+                        <input v-model="batchForm.expires_at" type="date" class="w-full rounded-xl text-sm" />
+                        <p v-if="batchForm.errors.expires_at" class="text-xs text-rose-300">{{ batchForm.errors.expires_at }}</p>
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field-label">Costo unitario</label>
+                        <input v-model="batchForm.unit_cost" type="number" min="0" step="0.01" class="w-full rounded-xl text-sm" placeholder="Opcional" />
+                        <p v-if="batchForm.errors.unit_cost" class="text-xs text-rose-300">{{ batchForm.errors.unit_cost }}</p>
+                    </div>
+                    <div class="app-field md:col-span-3">
+                        <label class="app-field-label">Motivo de la correccion</label>
+                        <textarea v-model="batchForm.reason" rows="2" class="w-full rounded-xl text-sm" placeholder="Ej: se cargo mal el ano del vencimiento al recibir la mercaderia" />
+                        <p v-if="batchForm.errors.reason" class="text-xs text-rose-300">{{ batchForm.errors.reason }}</p>
+                    </div>
+
+                    <div class="md:col-span-3 rounded-xl border border-cyan-100/15 bg-slate-900/45 px-4 py-3 text-sm text-slate-300">
+                        <p>Lote actual: <strong class="text-slate-100">{{ editingBatch.batch_code }}</strong></p>
+                        <p class="mt-1">Cantidad activa: <strong class="text-slate-100">{{ editingBatch.quantity }}</strong></p>
+                        <p class="mt-1">Estado actual: <strong class="text-slate-100">{{ editingBatch.status_label }}</strong></p>
+                    </div>
+
+                    <div class="md:col-span-3 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                        <button type="button" class="inline-flex items-center justify-center rounded-xl border border-cyan-100/20 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/60" @click="cancelBatchEdit">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50" :disabled="batchForm.processing">
+                            Guardar lote
+                        </button>
+                    </div>
+                </form>
             </div>
         </section>
     </AuthenticatedLayout>
