@@ -1,4 +1,6 @@
 <script setup>
+import AppPanel from '@/Components/AppPanel.vue';
+import StatusBadge from '@/Components/StatusBadge.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -143,6 +145,47 @@ const lineSubtotal = (item) => {
 };
 
 const total = computed(() => form.items.reduce((acc, item) => acc + lineSubtotal(item), 0));
+const selectedSupplier = computed(() => props.suppliers.find((supplier) => String(supplier.id) === String(form.supplier_id)) || null);
+const purchaseItemsCount = computed(() => form.items.length);
+const newItemsCount = computed(() => form.items.filter((item) => item.product_id === null).length);
+const itemsWithBatch = computed(() => form.items.filter((item) => String(item.batch_code || '').trim() !== '').length);
+const itemsWithExpiry = computed(() => form.items.filter((item) => item.expires_at).length);
+const currentItemPreviewSubtotal = computed(() => {
+    if (Number(state.quantity || 0) <= 0 || Number(state.unit_cost || 0) < 0) {
+        return 0;
+    }
+
+    const previewItem = {
+        product_id: state.mode === 'existing' ? activeProduct.value?.id || null : null,
+        quantity: Number(state.quantity || 0),
+        unit_cost: Number(state.unit_cost || 0),
+        product: state.mode === 'new' ? state.new_product : null,
+    };
+
+    return lineSubtotal(previewItem);
+});
+const purchaseWarnings = computed(() => {
+    const warnings = [];
+
+    if (!form.items.length) {
+        warnings.push('Agrega al menos un item para confirmar la compra.');
+    }
+
+    if (state.mode === 'new' && String(state.new_product.name || '').trim() === '') {
+        warnings.push('Si cargas un producto nuevo, completa el nombre antes de agregarlo.');
+    }
+
+    if (Number(state.quantity || 0) <= 0) {
+        warnings.push('La cantidad a agregar debe ser mayor a 0.');
+    }
+
+    return warnings;
+});
+const purchaseSummaryTone = computed(() => {
+    if (purchaseWarnings.value.length >= 2) return 'danger';
+    if (purchaseWarnings.value.length > 0) return 'warning';
+    return 'success';
+});
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -591,8 +634,9 @@ onBeforeUnmount(() => {
             </div>
         </template>
 
-        <form class="grid gap-6" @submit.prevent="submit">
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
+        <form class="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_22rem]" @submit.prevent="submit">
+            <div class="grid gap-6">
+            <AppPanel title="Datos generales" subtitle="Proveedor, fecha y notas de la reposicion antes de cargar mercaderia.">
                 <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
                     <p class="font-semibold">Atajos</p>
                     <p class="leading-relaxed">F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
@@ -615,9 +659,9 @@ onBeforeUnmount(() => {
                         <input id="purchase_notes" v-model="form.notes" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Observaciones" />
                     </div>
                 </div>
-            </section>
+            </AppPanel>
 
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
+            <AppPanel title="Carga de compra" subtitle="Alterna entre producto existente y nuevo sin salir del mismo flujo de ingreso.">
                 <div class="flex flex-wrap items-center gap-4">
                     <label class="inline-flex w-full items-center gap-2 text-sm text-slate-300 sm:w-auto">
                         <input :checked="state.mode === 'existing'" type="radio" class="border-cyan-100/25" @change="setMode('existing')">
@@ -627,6 +671,12 @@ onBeforeUnmount(() => {
                         <input :checked="state.mode === 'new'" type="radio" class="border-cyan-100/25" @change="setMode('new')">
                         Crear producto nuevo
                     </label>
+                </div>
+
+                <div class="mt-3 app-chip-row">
+                    <StatusBadge :tone="state.mode === 'existing' ? 'info' : 'warning'" :label="state.mode === 'existing' ? 'Producto existente' : 'Producto nuevo'" />
+                    <StatusBadge v-if="selectedSupplier" tone="neutral" :label="selectedSupplier.name" />
+                    <StatusBadge tone="info" :label="`Vista previa ${money(currentItemPreviewSubtotal)}`" />
                 </div>
 
                 <div v-if="state.mode === 'existing'" class="mt-4">
@@ -804,6 +854,11 @@ onBeforeUnmount(() => {
 
                 <p class="mt-2 text-xs text-slate-300/80" aria-live="polite">{{ state.helperMessage }}</p>
 
+                <div class="mt-5">
+                    <h3 class="app-section-title">Items cargados</h3>
+                    <p class="app-section-copy">Revisa costo, lote y vencimiento antes de confirmar la compra.</p>
+                </div>
+
                 <div v-if="form.items.length" class="mt-4 grid gap-3 md:hidden">
                     <article v-for="(item, index) in form.items" :key="`${item.product_id || 'new'}-${index}`" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
                         <div class="flex items-start justify-between gap-3">
@@ -855,17 +910,59 @@ onBeforeUnmount(() => {
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </AppPanel>
+            </div>
 
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
-                <p class="text-sm text-slate-300">Total: <strong>{{ money(total) }}</strong></p>
-                <div class="mt-4 flex justify-end">
-                    <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 sm:w-auto" :disabled="form.processing || !form.items.length">
-                        Confirmar compra
-                    </button>
-                </div>
-            </section>
+            <aside class="app-sticky-column">
+                <AppPanel title="Resumen operativo" :tone="purchaseSummaryTone" subtitle="Control rapido de proveedor, items y total antes de confirmar.">
+                    <div class="app-chip-row">
+                        <StatusBadge tone="info" :label="`${purchaseItemsCount} items`" />
+                        <StatusBadge v-if="newItemsCount" tone="warning" :label="`${newItemsCount} nuevos`" />
+                        <StatusBadge v-if="selectedSupplier" tone="neutral" :label="selectedSupplier.name" />
+                    </div>
+
+                    <div class="mt-4 space-y-3 text-sm text-slate-300">
+                        <div class="flex items-center justify-between gap-3">
+                            <span>Proveedor</span>
+                            <span class="text-right font-semibold text-slate-100">{{ selectedSupplier?.name || 'Sin proveedor' }}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <span>Vista previa actual</span>
+                            <span class="font-semibold text-slate-100">{{ money(currentItemPreviewSubtotal) }}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <span>Con lote</span>
+                            <span class="font-semibold text-slate-100">{{ itemsWithBatch }}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <span>Con vencimiento</span>
+                            <span class="font-semibold text-slate-100">{{ itemsWithExpiry }}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <span>Total</span>
+                            <span class="font-semibold text-slate-100">{{ money(total) }}</span>
+                        </div>
+                    </div>
+
+                    <div v-if="purchaseWarnings.length" class="mt-4 rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-sm text-rose-100">
+                        <p v-for="warning in purchaseWarnings" :key="warning">{{ warning }}</p>
+                    </div>
+                    <div v-else class="mt-4 rounded-xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+                        La compra esta lista para confirmarse.
+                    </div>
+
+                    <template #footer>
+                        <div class="grid gap-3">
+                            <button type="submit" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50" :disabled="form.processing || !form.items.length">
+                                Confirmar compra
+                            </button>
+                            <Link :href="route('purchases.index')" class="inline-flex w-full items-center justify-center rounded-xl border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70">
+                                Volver al listado
+                            </Link>
+                        </div>
+                    </template>
+                </AppPanel>
+            </aside>
         </form>
     </AuthenticatedLayout>
 </template>
-

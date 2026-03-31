@@ -1,4 +1,5 @@
 <script setup>
+import MetricCard from '@/Components/MetricCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
@@ -41,6 +42,10 @@ const formattedWindow = computed(() => {
 const hasAnyAutomaticMailEnabled = computed(() => (
     Boolean(form.notifications_enabled) || Boolean(form.maintenance_due_enabled)
 ));
+const recipientsCount = computed(() => props.recipient_preview.length);
+const lowStockAlertsCount = computed(() => props.alerts_preview?.low_stock?.summary?.total || 0);
+const expirationAlertsCount = computed(() => props.alerts_preview?.expiration?.summary?.total || 0);
+const dispatchesCount = computed(() => props.recent_dispatches.length);
 
 const dispatchBadgeClass = (status) => {
     if (status === 'sent') {
@@ -95,6 +100,13 @@ const dispatchTypeLabel = (type) => {
         </template>
 
         <div class="grid gap-6">
+            <section class="app-kpi-grid">
+                <MetricCard label="Destinatarios" :value="recipientsCount" :hint="hasAnyAutomaticMailEnabled ? 'Correos resueltos para el proximo envio.' : 'Los envios automaticos estan pausados.'" :tone="hasAnyAutomaticMailEnabled ? 'accent' : 'warning'" />
+                <MetricCard label="Alertas de stock" :value="lowStockAlertsCount" hint="Productos detectados con stock bajo o agotado." :tone="lowStockAlertsCount > 0 ? 'warning' : 'success'" />
+                <MetricCard label="Alertas de vencimiento" :value="expirationAlertsCount" hint="Lotes vencidos o proximos a vencer." :tone="expirationAlertsCount > 0 ? 'warning' : 'success'" />
+                <MetricCard label="Ultimos envios" :value="dispatchesCount" hint="Despachos recientes registrados por el sistema." />
+            </section>
+
             <section class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                 <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-4 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur sm:p-5" @submit.prevent="submit">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

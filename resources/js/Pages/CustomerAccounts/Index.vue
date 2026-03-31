@@ -1,7 +1,10 @@
 <script setup>
+import AppPanel from '@/Components/AppPanel.vue';
+import MetricCard from '@/Components/MetricCard.vue';
+import StatusBadge from '@/Components/StatusBadge.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 
 const props = defineProps({
     customers: { type: Object, required: true },
@@ -50,6 +53,30 @@ const sortLabel = (value) => {
     if (value === 'last_activity') return 'Ultima actividad';
     return 'Mayor deuda';
 };
+
+const activeFilters = computed(() => {
+    const filters = [];
+
+    if (state.search) filters.push({ key: 'search', label: `Busqueda: ${state.search}` });
+    if (state.only_with_balance) filters.push({ key: 'only_with_balance', label: 'Solo con deuda' });
+    if (state.date_from) filters.push({ key: 'date_from', label: `Desde ${state.date_from}` });
+    if (state.date_to) filters.push({ key: 'date_to', label: `Hasta ${state.date_to}` });
+    if (state.sort !== 'balance_desc') filters.push({ key: 'sort', label: `Orden: ${sortLabel(state.sort)}` });
+
+    return filters;
+});
+
+const clearSingleFilter = (key) => {
+    if (key === 'only_with_balance') {
+        state.only_with_balance = false;
+    } else if (key === 'sort') {
+        state.sort = 'balance_desc';
+    } else {
+        state[key] = '';
+    }
+
+    applyFilters();
+};
 </script>
 
 <template>
@@ -71,22 +98,14 @@ const sortLabel = (value) => {
         </template>
 
         <div class="grid gap-6">
-            <section class="grid gap-4 md:grid-cols-3">
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Clientes visibles</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ summary.customers_count }}</p>
-                </article>
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Deuda total</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ money(summary.total_debt) }}</p>
-                </article>
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Orden actual</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ sortLabel(state.sort) }}</p>
-                </article>
+            <section class="app-kpi-grid">
+                <MetricCard label="Clientes visibles" :value="summary.customers_count" hint="Cantidad total segun filtros actuales." />
+                <MetricCard label="Deuda total" :value="money(summary.total_debt)" hint="Saldo vivo a seguir en cuenta corriente." :tone="summary.total_debt > 0 ? 'warning' : 'success'" />
+                <MetricCard label="Orden actual" :value="sortLabel(state.sort)" hint="Criterio de prioridad aplicado al listado." />
+                <MetricCard label="Seguimiento activo" :value="activeFilters.length" hint="Filtros visibles para no perder contexto." tone="accent" />
             </section>
 
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <AppPanel title="Filtros de seguimiento" subtitle="Usa esta vista para priorizar cobranza, detectar clientes inactivos y revisar saldos con criterio comercial.">
                 <div class="grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_12rem_12rem_12rem_auto]">
                     <input
                         v-model="state.search"
@@ -116,10 +135,47 @@ const sortLabel = (value) => {
                     <input v-model="state.only_with_balance" type="checkbox" class="rounded border-cyan-200/30 text-cyan-400 focus:ring-cyan-400/50">
                     Solo clientes con deuda
                 </label>
-            </section>
+                <div v-if="activeFilters.length" class="mt-4 app-chip-row">
+                    <button
+                        v-for="filter in activeFilters"
+                        :key="filter.key"
+                        type="button"
+                        class="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-50 hover:bg-cyan-400/20"
+                        @click="clearSingleFilter(filter.key)"
+                    >
+                        {{ filter.label }}
+                        <span aria-hidden="true">x</span>
+                    </button>
+                </div>
+            </AppPanel>
 
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                <div class="overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+            <AppPanel title="Clientes para seguimiento" subtitle="La idea es ver en segundos quien debe, cuanto debe y que accion conviene tomar.">
+                <div class="grid gap-3 md:hidden">
+                    <article v-for="customer in customers.data" :key="customer.id" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="font-semibold text-slate-100">{{ customer.name }}</p>
+                                <p class="mt-1 text-xs text-slate-400">{{ customer.phone || '-' }}</p>
+                                <p class="text-xs text-slate-400">{{ customer.email || 'Sin email' }}</p>
+                            </div>
+                            <Link :href="route('customer-accounts.show', customer.id)" class="shrink-0 rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">
+                                Ver detalle
+                            </Link>
+                        </div>
+
+                        <div class="mt-3 app-chip-row">
+                            <StatusBadge :tone="Number(customer.current_balance) > 0 ? 'warning' : 'success'" :label="Number(customer.current_balance) > 0 ? 'Con deuda' : 'Al dia'" size="sm" />
+                            <StatusBadge tone="neutral" :label="`${customer.open_sales_count} abiertas`" size="sm" />
+                        </div>
+
+                        <div class="mt-3 grid gap-2 text-xs text-slate-400">
+                            <p>Saldo actual: <span class="text-slate-100">{{ money(customer.current_balance) }}</span></p>
+                            <p>Ultima actividad: <span class="text-slate-200">{{ customer.last_activity_at || '-' }}</span></p>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>
@@ -135,7 +191,11 @@ const sortLabel = (value) => {
                             <tr v-for="customer in customers.data" :key="customer.id">
                                 <td class="px-3 py-2">
                                     <p class="font-semibold text-slate-100">{{ customer.name }}</p>
-                                    <p class="mt-1 text-xs text-slate-400">{{ customer.email || 'Sin email' }}</p>
+                                    <div class="mt-2 app-chip-row">
+                                        <StatusBadge :tone="Number(customer.current_balance) > 0 ? 'warning' : 'success'" :label="Number(customer.current_balance) > 0 ? 'Con deuda' : 'Al dia'" size="sm" />
+                                        <StatusBadge tone="neutral" :label="`${customer.open_sales_count} abiertas`" size="sm" />
+                                    </div>
+                                    <p class="mt-2 text-xs text-slate-400">{{ customer.email || 'Sin email' }}</p>
                                 </td>
                                 <td class="px-3 py-2">{{ customer.phone || '-' }}</td>
                                 <td class="px-3 py-2 font-semibold text-slate-100">{{ money(customer.current_balance) }}</td>
@@ -167,7 +227,7 @@ const sortLabel = (value) => {
                         v-html="link.label"
                     />
                 </div>
-            </section>
+            </AppPanel>
         </div>
     </AuthenticatedLayout>
 </template>

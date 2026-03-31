@@ -102,7 +102,56 @@ const sendEmailReminder = (customerId) => {
             </section>
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm">
-                <div class="overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                <div class="grid gap-3 md:hidden">
+                    <article v-for="customer in customers.data" :key="customer.id" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="font-semibold text-slate-100">{{ customer.name }}</p>
+                                <p class="mt-1 text-xs text-slate-400">{{ customer.preferred_reminder_channel }}</p>
+                            </div>
+                            <p class="text-sm font-semibold text-slate-100">{{ money(customer.current_balance) }}</p>
+                        </div>
+
+                        <div class="mt-3 grid gap-2 text-xs text-slate-400">
+                            <p>Telefono: <span class="text-slate-200">{{ customer.phone || '-' }}</span></p>
+                            <p>Email: <span class="text-slate-200">{{ customer.email || '-' }}</span></p>
+                            <p>Ultimo movimiento: <span class="text-slate-200">{{ customer.last_movement_at || '-' }}</span></p>
+                            <p>Ultima venta fiada: <span class="text-slate-200">{{ customer.last_open_sale_at || '-' }}</span></p>
+                            <p>Ultimo recordatorio: <span class="text-slate-200">{{ customer.last_reminder_sent_at || '-' }}</span></p>
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <Link :href="route('customers.show', customer.id)" class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">
+                                Ver
+                            </Link>
+                            <Link :href="`${route('customers.show', customer.id)}#register-payment`" class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">
+                                Registrar pago
+                            </Link>
+                            <a
+                                :href="route('customers.reminders.whatsapp', customer.id)"
+                                target="_blank"
+                                rel="noreferrer"
+                                class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70"
+                                :class="{ 'pointer-events-none opacity-50': !customer.phone || !customer.allow_reminders || customer.preferred_reminder_channel === 'none' }"
+                            >
+                                WhatsApp
+                            </a>
+                            <button
+                                type="button"
+                                class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70 disabled:opacity-50"
+                                :disabled="!customer.email || !customer.allow_reminders || customer.preferred_reminder_channel === 'none'"
+                                @click="sendEmailReminder(customer.id)"
+                            >
+                                Email
+                            </button>
+                            <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="copySummary(customer.summary_copy)">
+                                Copiar resumen
+                            </button>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>

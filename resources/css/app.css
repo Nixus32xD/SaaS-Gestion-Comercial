@@ -22,6 +22,42 @@
         @apply rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-4 text-slate-100 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur sm:p-5;
     }
 
+    .app-subsection {
+        @apply rounded-2xl border border-cyan-100/15 bg-slate-950/35 p-4 text-slate-100;
+    }
+
+    .app-section-title {
+        @apply text-base font-semibold text-slate-100;
+    }
+
+    .app-section-copy {
+        @apply mt-1 text-sm text-slate-300/80;
+    }
+
+    .app-field {
+        @apply space-y-1;
+    }
+
+    .app-field-label {
+        @apply text-sm font-medium text-slate-300;
+    }
+
+    .app-field-help {
+        @apply text-xs text-slate-400;
+    }
+
+    .app-kpi-grid {
+        @apply grid gap-4 md:grid-cols-2 xl:grid-cols-4;
+    }
+
+    .app-sticky-column {
+        @apply self-start lg:sticky lg:top-24;
+    }
+
+    .app-chip-row {
+        @apply flex flex-wrap items-center gap-2;
+    }
+
     .app-form-grid {
         @apply grid gap-4 sm:grid-cols-2;
     }

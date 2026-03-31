@@ -123,7 +123,7 @@ const closeSidebar = () => {
 
         <div class="lg:pl-72">
             <header class="sticky top-0 z-20 border-b border-cyan-100/15 bg-slate-950/45 backdrop-blur-xl">
-                <div class="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+                <div class="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
                     <button
                         type="button"
                         class="inline-flex items-center justify-center rounded-lg border border-cyan-100/20 bg-slate-900/60 p-2 text-cyan-100 shadow-sm lg:hidden"
@@ -133,9 +133,9 @@ const closeSidebar = () => {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                     </button>
-                    <div class="ml-3">
-                        <p class="text-sm font-semibold text-slate-100">{{ isSuperAdmin ? 'Panel superadmin' : ($page.props.business?.name ?? 'Comercio') }}</p>
-                        <p class="text-xs text-slate-300">{{ $page.props.auth.user?.email }}</p>
+                    <div class="ml-3 min-w-0 flex-1">
+                        <p class="truncate text-sm font-semibold text-slate-100">{{ isSuperAdmin ? 'Panel superadmin' : ($page.props.business?.name ?? 'Comercio') }}</p>
+                        <p class="truncate text-xs text-slate-300">{{ $page.props.auth.user?.email }}</p>
                     </div>
                 </div>
             </header>

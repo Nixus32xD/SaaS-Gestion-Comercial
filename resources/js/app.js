@@ -9,6 +9,7 @@ import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const pageModules = import.meta.glob([
     './Pages/**/*.vue',
+    '!./Pages/Customers/Show.responsive.vue',
     '!./Pages/Auth/Register.vue',
     '!./Pages/Catalog/**/*.vue',
     '!./Pages/Dashboard.vue',

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToBusiness;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -94,5 +95,49 @@ class Product extends Model
     public function batches(): HasMany
     {
         return $this->hasMany(ProductBatch::class);
+    }
+
+    /**
+     * @param  Builder<static>  $query
+     * @param  array<string, mixed>  $filters
+     * @return Builder<static>
+     */
+    public function scopeFilter(Builder $query, array $filters): Builder
+    {
+        $search = trim((string) ($filters['search'] ?? ''));
+        $categoryId = $filters['category_id'] ?? null;
+        $noPrice = (bool) ($filters['no_price'] ?? false);
+        $noCost = (bool) ($filters['no_cost'] ?? false);
+        $noStock = (bool) ($filters['no_stock'] ?? false);
+        $withStock = (bool) ($filters['with_stock'] ?? false);
+        $lowStock = (bool) ($filters['low_stock'] ?? false);
+
+        return $query
+            ->when($search !== '', function (Builder $builder) use ($search): void {
+                $builder->where(function (Builder $innerQuery) use ($search): void {
+                    $innerQuery
+                        ->where('name', 'like', "%{$search}%")
+                        ->orWhere('barcode', 'like', "%{$search}%")
+                        ->orWhere('sku', 'like', "%{$search}%");
+                });
+            })
+            ->when($categoryId !== null && $categoryId !== '', fn (Builder $builder) => $builder->where('category_id', $categoryId))
+            ->when($noPrice, function (Builder $builder): void {
+                $builder->where(function (Builder $innerQuery): void {
+                    $innerQuery
+                        ->whereNull('sale_price')
+                        ->orWhere('sale_price', 0);
+                });
+            })
+            ->when($noCost, function (Builder $builder): void {
+                $builder->where(function (Builder $innerQuery): void {
+                    $innerQuery
+                        ->whereNull('cost_price')
+                        ->orWhere('cost_price', 0);
+                });
+            })
+            ->when($noStock, fn (Builder $builder) => $builder->where('stock', '<=', 0))
+            ->when($withStock, fn (Builder $builder) => $builder->where('stock', '>', 0))
+            ->when($lowStock, fn (Builder $builder) => $builder->whereColumn('stock', '<=', 'min_stock'));
     }
 }

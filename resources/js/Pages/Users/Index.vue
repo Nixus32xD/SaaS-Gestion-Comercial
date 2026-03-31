@@ -118,7 +118,37 @@ const toggleStatus = (user) => {
                     <p class="text-xs text-slate-300">{{ page.props.business?.name }}</p>
                 </div>
 
-                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20">
+                <div class="mt-4 grid gap-3 md:hidden">
+                    <article v-for="user in users" :key="user.id" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="font-semibold text-slate-100">{{ user.name }}</p>
+                                <p class="mt-1 break-all text-xs text-slate-400">{{ user.email }}</p>
+                                <p class="mt-1 text-xs text-slate-400">{{ user.role === 'admin' ? 'Admin' : 'Staff' }}</p>
+                            </div>
+                            <span
+                                class="rounded-full px-2 py-1 text-xs font-semibold"
+                                :class="user.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'"
+                            >
+                                {{ user.is_active ? 'Activo' : 'Inactivo' }}
+                            </span>
+                        </div>
+
+                        <p class="mt-3 text-xs text-slate-400">Ultimo acceso: <span class="text-slate-200">{{ user.last_login_at ?? 'Sin ingreso' }}</span></p>
+
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-100 hover:bg-slate-800/60"
+                                @click="toggleStatus(user)"
+                            >
+                                {{ user.is_active ? 'Desactivar' : 'Activar' }}
+                            </button>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="mt-4 hidden overflow-x-auto rounded-xl border border-cyan-100/20 md:block">
                     <table class="min-w-full divide-y divide-cyan-100/15 text-sm">
                         <thead class="bg-slate-950/45">
                             <tr>

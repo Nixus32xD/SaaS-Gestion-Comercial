@@ -56,9 +56,11 @@ class CustomerController extends Controller
         return Inertia::location(route('customer-accounts.index', $request->query()));
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('Customers/Create');
+        return Inertia::render('Customers/Create', [
+            'return_to' => $this->sanitizeReturnTo($request->query('return_to')),
+        ]);
     }
 
     public function store(StoreCustomerRequest $request, CurrentBusiness $currentBusiness): RedirectResponse
@@ -70,6 +72,14 @@ class CustomerController extends Controller
             ...$request->validated(),
             'business_id' => $business->id,
         ]);
+
+        $returnTo = $this->sanitizeReturnTo($request->input('return_to'));
+
+        if ($returnTo === 'sales.create') {
+            return redirect()
+                ->route('sales.create', ['customer_id' => $customer->id])
+                ->with('success', 'Cliente creado correctamente. Puedes continuar con la venta.');
+        }
 
         return redirect()
             ->route('customers.show', $customer)
@@ -253,5 +263,10 @@ class CustomerController extends Controller
                 (int) ($customer->open_sales_count ?? 0)
             ),
         ];
+    }
+
+    private function sanitizeReturnTo(mixed $value): ?string
+    {
+        return in_array($value, ['sales.create'], true) ? (string) $value : null;
     }
 }

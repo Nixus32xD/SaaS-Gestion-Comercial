@@ -1,4 +1,6 @@
 <script setup>
+import AppPanel from '@/Components/AppPanel.vue';
+import StatusBadge from '@/Components/StatusBadge.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed, reactive, ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -59,6 +61,64 @@ const minStockLabel = computed(() => (
     isWeightProduct.value ? `Stock minimo (${measurementUnitLabel.value})` : 'Stock minimo'
 ));
 const quantityStep = computed(() => (isWeightProduct.value && form.weight_unit === 'kg' ? '0.001' : '1'));
+const salePrice = computed(() => Number(form.sale_price || 0));
+const costPrice = computed(() => Number(form.cost_price || 0));
+const stockValue = computed(() => Number(form.stock || 0));
+const minStockValue = computed(() => Number(form.min_stock || 0));
+const marginAmount = computed(() => Number((salePrice.value - costPrice.value).toFixed(2)));
+const marginPercent = computed(() => {
+    if (costPrice.value <= 0) return null;
+
+    return Number((((salePrice.value - costPrice.value) / costPrice.value) * 100).toFixed(1));
+});
+const stockStatusTone = computed(() => {
+    if (stockValue.value <= 0) return 'danger';
+    if (stockValue.value <= minStockValue.value) return 'warning';
+
+    return 'success';
+});
+const completionScore = computed(() => {
+    const checks = [
+        String(form.name || '').trim() !== '',
+        salePrice.value > 0,
+        costPrice.value > 0,
+        String(form.category_id || '').trim() !== '',
+        (!globalCatalogApplied.value && (String(form.barcode || '').trim() !== '' || String(form.sku || '').trim() !== '')) || globalCatalogApplied.value,
+    ];
+
+    return checks.filter(Boolean).length;
+});
+const completionLabel = computed(() => `${completionScore.value}/5 puntos operativos`);
+const productWarnings = computed(() => {
+    const warnings = [];
+
+    if (salePrice.value <= 0) {
+        warnings.push('Falta precio de venta.');
+    }
+
+    if (costPrice.value <= 0) {
+        warnings.push('Falta costo para medir rentabilidad.');
+    }
+
+    if (stockValue.value <= 0) {
+        warnings.push('El producto nace sin stock disponible.');
+    } else if (stockValue.value <= minStockValue.value) {
+        warnings.push('El stock inicial ya queda en nivel bajo.');
+    }
+
+    if (String(form.name || '').trim() === '') {
+        warnings.push('Completa el nombre para poder identificarlo rapido en venta y compra.');
+    }
+
+    return warnings;
+});
+const summaryTone = computed(() => {
+    if (productWarnings.value.length >= 3) return 'danger';
+    if (productWarnings.value.length > 0) return 'warning';
+
+    return 'success';
+});
+const globalCatalogApplied = computed(() => String(form.global_product_id || '').trim() !== '');
 
 const toShelfLifeDays = (dateValue) => {
     if (!dateValue) return '';
@@ -183,8 +243,8 @@ const submit = () => {
             </div>
         </template>
 
-        <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 backdrop-blur p-5 shadow-sm" @submit.prevent="submit">
-            <div class="grid gap-4">
+        <form class="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_21rem]" @submit.prevent="submit">
+            <div class="grid gap-6">
                 <section v-if="global_catalog.enabled" class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
@@ -255,101 +315,197 @@ const submit = () => {
                     </div>
                 </section>
 
-                <div class="grid gap-3 md:grid-cols-2">
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Nombre</label>
-                        <input v-model="form.name" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Nombre del producto" />
+                <AppPanel title="Informacion basica" subtitle="Completa primero lo que el comerciante necesita reconocer rapido en venta, compra y reposicion.">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="app-field">
+                            <label class="app-field-label">Nombre</label>
+                            <input v-model="form.name" type="text" class="w-full rounded-xl text-sm" placeholder="Nombre del producto" />
+                            <p class="app-field-help">Usa un nombre corto y facil de encontrar en mostrador.</p>
+                            <p v-if="form.errors.name" class="text-xs text-rose-300">{{ form.errors.name }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Slug</label>
+                            <input v-model="form.slug" type="text" class="w-full rounded-xl text-sm" placeholder="Opcional" />
+                            <p class="app-field-help">Si lo dejas vacio, se genera automaticamente.</p>
+                            <p v-if="form.errors.slug" class="text-xs text-rose-300">{{ form.errors.slug }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Categoria</label>
+                            <select v-model="form.category_id" class="w-full rounded-xl text-sm">
+                                <option value="">Sin categoria</option>
+                                <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+                            </select>
+                            <p v-if="form.errors.category_id" class="text-xs text-rose-300">{{ form.errors.category_id }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Proveedor principal</label>
+                            <select v-model="form.supplier_id" class="w-full rounded-xl text-sm">
+                                <option value="">Sin proveedor</option>
+                                <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
+                            </select>
+                            <p v-if="form.errors.supplier_id" class="text-xs text-rose-300">{{ form.errors.supplier_id }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Tipo de unidad</label>
+                            <select v-model="form.unit_type" class="w-full rounded-xl text-sm">
+                                <option value="unit">Unidad</option>
+                                <option value="weight">Peso</option>
+                            </select>
+                            <p v-if="form.errors.unit_type" class="text-xs text-rose-300">{{ form.errors.unit_type }}</p>
+                        </div>
+                        <div v-if="isWeightProduct" class="app-field">
+                            <label class="app-field-label">Gestion por peso</label>
+                            <select v-model="form.weight_unit" class="w-full rounded-xl text-sm">
+                                <option value="kg">Kilos</option>
+                                <option value="g">Gramos</option>
+                            </select>
+                            <p v-if="form.errors.weight_unit" class="text-xs text-rose-300">{{ form.errors.weight_unit }}</p>
+                        </div>
+                        <div class="app-field md:col-span-2">
+                            <label class="app-field-label">Descripcion</label>
+                            <textarea v-model="form.description" rows="3" class="w-full rounded-xl text-sm" placeholder="Descripcion opcional" />
+                            <p v-if="form.errors.description" class="text-xs text-rose-300">{{ form.errors.description }}</p>
+                        </div>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Slug</label>
-                        <input v-model="form.slug" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Slug (opcional)" />
+                </AppPanel>
+
+                <AppPanel title="Precios e identificacion" subtitle="Con estos datos el producto queda listo para vender, medir margen y encontrarlo rapido con lector o busqueda.">
+                    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="app-field">
+                                <label class="app-field-label">Codigo de barras</label>
+                                <input v-model="form.barcode" type="text" class="w-full rounded-xl text-sm" placeholder="Opcional" @keydown="handleIdentifierKeydown" />
+                                <p v-if="form.errors.barcode" class="text-xs text-rose-300">{{ form.errors.barcode }}</p>
+                            </div>
+                            <div class="app-field">
+                                <label class="app-field-label">SKU</label>
+                                <input v-model="form.sku" type="text" class="w-full rounded-xl text-sm" placeholder="Opcional" @keydown="handleIdentifierKeydown" />
+                                <p v-if="form.errors.sku" class="text-xs text-rose-300">{{ form.errors.sku }}</p>
+                            </div>
+                            <div class="app-field">
+                                <label class="app-field-label">{{ priceLabel }}</label>
+                                <input v-model.number="form.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl text-sm" />
+                                <p v-if="form.errors.sale_price" class="text-xs text-rose-300">{{ form.errors.sale_price }}</p>
+                            </div>
+                            <div class="app-field">
+                                <label class="app-field-label">{{ costLabel }}</label>
+                                <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="w-full rounded-xl text-sm" />
+                                <p v-if="form.errors.cost_price" class="text-xs text-rose-300">{{ form.errors.cost_price }}</p>
+                            </div>
+                        </div>
+
+                        <div class="app-subsection">
+                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Margen estimado</p>
+                            <p class="mt-3 text-2xl font-bold text-slate-100">${{ marginAmount.toFixed(2) }}</p>
+                            <p class="mt-2 text-sm text-slate-300">
+                                <span v-if="marginPercent !== null">{{ marginPercent }}% sobre costo</span>
+                                <span v-else>Completa el costo para medir rentabilidad.</span>
+                            </p>
+                        </div>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Categoria</label>
-                        <select v-model="form.category_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
-                            <option value="">Sin categoria</option>
-                            <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
-                        </select>
+                </AppPanel>
+
+                <AppPanel title="Stock, lotes y vencimientos" subtitle="Define con cuanto arranca el producto y desde cuando debe generar alertas operativas.">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="app-field">
+                            <label class="app-field-label">{{ stockLabel }}</label>
+                            <input v-model.number="form.stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl text-sm" />
+                            <p v-if="form.errors.stock" class="text-xs text-rose-300">{{ form.errors.stock }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">{{ minStockLabel }}</label>
+                            <input v-model.number="form.min_stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl text-sm" />
+                            <p v-if="form.errors.min_stock" class="text-xs text-rose-300">{{ form.errors.min_stock }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Lote inicial</label>
+                            <input v-model="form.batch_code" type="text" class="w-full rounded-xl text-sm" placeholder="Opcional, se genera automatico" />
+                            <p v-if="form.errors.batch_code" class="text-xs text-rose-300">{{ form.errors.batch_code }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Vencimiento del lote inicial</label>
+                            <input v-model="form.batch_expires_at" type="date" class="w-full rounded-xl text-sm" />
+                            <p v-if="form.errors.batch_expires_at" class="text-xs text-rose-300">{{ form.errors.batch_expires_at }}</p>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Fecha de vencimiento de referencia</label>
+                            <input v-model="shelfLifeDate" type="date" class="w-full rounded-xl text-sm" />
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field-label">Alerta antes de vencer (dias)</label>
+                            <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl text-sm" />
+                            <p v-if="form.errors.expiry_alert_days" class="text-xs text-rose-300">{{ form.errors.expiry_alert_days }}</p>
+                        </div>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Proveedor</label>
-                        <select v-model="form.supplier_id" class="w-full rounded-xl border-cyan-100/25 text-sm">
-                            <option value="">Sin proveedor</option>
-                            <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Tipo de unidad</label>
-                        <select v-model="form.unit_type" class="w-full rounded-xl border-cyan-100/25 text-sm">
-                            <option value="unit">Unidad</option>
-                            <option value="weight">Peso</option>
-                        </select>
-                    </div>
-                    <div v-if="isWeightProduct" class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Gestion por peso</label>
-                        <select v-model="form.weight_unit" class="w-full rounded-xl border-cyan-100/25 text-sm">
-                            <option value="kg">Kilos</option>
-                            <option value="g">Gramos</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Codigo de barras</label>
-                        <input v-model="form.barcode" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleIdentifierKeydown" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">SKU</label>
-                        <input v-model="form.sku" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional" @keydown="handleIdentifierKeydown" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">{{ priceLabel }}</label>
-                        <input v-model.number="form.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">{{ costLabel }}</label>
-                        <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">{{ stockLabel }}</label>
-                        <input v-model.number="form.stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Lote inicial</label>
-                        <input v-model="form.batch_code" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Opcional, se genera automatico" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Vencimiento del lote inicial</label>
-                        <input v-model="form.batch_expires_at" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">{{ minStockLabel }}</label>
-                        <input v-model.number="form.min_stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Fecha de vencimiento (referencia)</label>
-                        <input v-model="shelfLifeDate" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm" />
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Alerta antes de vencer (dias)</label>
-                        <input v-model.number="form.expiry_alert_days" type="number" min="1" step="1" class="w-full rounded-xl border-cyan-100/25 text-sm" />
-                    </div>
-                    <div class="space-y-1 md:col-span-2">
-                        <label class="text-sm font-medium text-slate-300">Descripcion</label>
-                        <textarea v-model="form.description" rows="3" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Descripcion opcional" />
-                    </div>
+                </AppPanel>
+                <AppPanel title="Configuracion final" subtitle="Marca si el producto queda disponible desde ahora para la operacion diaria.">
+                    <label class="inline-flex items-center gap-3 rounded-xl border border-cyan-100/15 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
+                        <input v-model="form.is_active" type="checkbox" class="rounded border-cyan-100/25">
+                        <span>
+                            <span class="block font-semibold text-slate-100">Producto activo</span>
+                            <span class="mt-1 block text-xs text-slate-400">Si lo desactivas, queda en catalogo pero fuera del flujo operativo.</span>
+                        </span>
+                    </label>
+                </AppPanel>
+
+                <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end xl:hidden">
+                    <Link :href="route('products.index')" class="inline-flex items-center justify-center rounded-xl border border-cyan-100/20 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/60">
+                        Volver al listado
+                    </Link>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500" :disabled="form.processing">
+                        Guardar producto
+                    </button>
                 </div>
             </div>
 
-            <label class="mt-4 inline-flex items-center gap-2 text-sm text-slate-300">
-                <input v-model="form.is_active" type="checkbox" class="rounded border-cyan-100/25">
-                Producto activo
-            </label>
+            <div class="app-sticky-column grid gap-6">
+                <AppPanel title="Resumen operativo" :tone="summaryTone">
+                    <div class="app-chip-row">
+                        <StatusBadge :tone="globalCatalogApplied ? 'info' : 'neutral'" :label="globalCatalogApplied ? 'Catalogo aplicado' : 'Carga manual'" />
+                        <StatusBadge :tone="salePrice > 0 ? 'success' : 'warning'" :label="salePrice > 0 ? 'Con precio' : 'Sin precio'" />
+                        <StatusBadge :tone="costPrice > 0 ? 'success' : 'warning'" :label="costPrice > 0 ? 'Con costo' : 'Sin costo'" />
+                        <StatusBadge :tone="stockStatusTone" :label="stockValue > 0 ? `Stock ${stockValue}` : 'Sin stock'" />
+                        <StatusBadge :tone="form.is_active ? 'success' : 'neutral'" :label="form.is_active ? 'Activo' : 'Inactivo'" />
+                    </div>
 
-            <div class="mt-5 flex justify-end">
-                <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600" :disabled="form.processing">
-                    Guardar producto
-                </button>
+                    <div class="mt-4 grid gap-3">
+                        <div class="app-subsection">
+                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Estado de carga</p>
+                            <p class="mt-2 text-xl font-bold text-slate-100">{{ completionLabel }}</p>
+                            <p class="mt-1 text-xs text-slate-400">Nombre, categoria, precio, costo e identificacion.</p>
+                        </div>
+                        <div class="app-subsection">
+                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Margen estimado</p>
+                            <p class="mt-2 text-xl font-bold text-slate-100">${{ marginAmount.toFixed(2) }}</p>
+                            <p class="mt-1 text-xs text-slate-400">
+                                <span v-if="marginPercent !== null">{{ marginPercent }}% sobre costo</span>
+                                <span v-else>Sin referencia hasta cargar costo.</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div v-if="productWarnings.length" class="mt-4 rounded-xl border border-amber-300/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+                        <p class="font-semibold">Revisar antes de guardar</p>
+                        <ul class="mt-2 space-y-2">
+                            <li v-for="warning in productWarnings" :key="warning">{{ warning }}</li>
+                        </ul>
+                    </div>
+                    <div v-else class="mt-4 rounded-xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+                        El producto queda listo para una operacion basica de venta y compra.
+                    </div>
+
+                    <template #footer>
+                        <div class="grid gap-3">
+                            <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500" :disabled="form.processing">
+                                Guardar producto
+                            </button>
+                            <Link :href="route('products.index')" class="inline-flex items-center justify-center rounded-xl border border-cyan-100/20 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/60">
+                                Volver al listado
+                            </Link>
+                        </div>
+                    </template>
+                </AppPanel>
             </div>
         </form>
     </AuthenticatedLayout>
 </template>
-
