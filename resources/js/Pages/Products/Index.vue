@@ -5,6 +5,57 @@ import { computed, onMounted, reactive } from 'vue';
 
 const PRODUCT_FILTER_STORAGE_KEY = 'products.index.filters';
 
+const filterCards = [
+    {
+        key: 'no_price',
+        title: 'Sin precio',
+        description: 'Precio de venta en 0 o sin valor cargado.',
+    },
+    {
+        key: 'no_cost',
+        title: 'Sin costo',
+        description: 'Costo en 0 o sin referencia de compra.',
+    },
+    {
+        key: 'no_stock',
+        title: 'Sin stock',
+        description: 'Productos agotados o con stock cero/negativo.',
+    },
+    {
+        key: 'with_stock',
+        title: 'Con stock',
+        description: 'Solo productos con disponibilidad positiva.',
+    },
+    {
+        key: 'low_stock',
+        title: 'Stock bajo',
+        description: 'Productos en o por debajo del stock minimo.',
+    },
+    {
+        key: 'expired_batches',
+        title: 'Lotes vencidos',
+        description: 'Con stock en lotes ya vencidos para revisar urgente.',
+    },
+    {
+        key: 'upcoming_batches',
+        title: 'Por vencer',
+        description: 'Lotes dentro de la ventana de alerta del producto.',
+    },
+    {
+        key: 'valid_batches',
+        title: 'Lotes vigentes',
+        description: 'Con stock en lotes fuera del rango de alerta.',
+    },
+    {
+        key: 'no_expiration_batches',
+        title: 'Sin vencimiento',
+        description: 'Lotes cargados sin fecha de vencimiento.',
+    },
+];
+
+const booleanFilterKeys = filterCards.map((filterCard) => filterCard.key);
+const reviewBadgeKeys = ['expired_batches', 'upcoming_batches', 'valid_batches', 'no_expiration_batches'];
+
 const props = defineProps({
     products: { type: Object, required: true },
     categories: { type: Array, default: () => [] },
@@ -18,6 +69,10 @@ const props = defineProps({
             no_stock: false,
             with_stock: false,
             low_stock: false,
+            expired_batches: false,
+            upcoming_batches: false,
+            valid_batches: false,
+            no_expiration_batches: false,
         }),
     },
 });
@@ -27,11 +82,7 @@ const toBoolean = (value) => value === true || value === 1 || value === '1' || v
 const normalizeFilters = (filters = {}) => ({
     search: typeof filters.search === 'string' ? filters.search : '',
     category_id: filters.category_id ? String(filters.category_id) : '',
-    no_price: toBoolean(filters.no_price),
-    no_cost: toBoolean(filters.no_cost),
-    no_stock: toBoolean(filters.no_stock),
-    with_stock: toBoolean(filters.with_stock),
-    low_stock: toBoolean(filters.low_stock),
+    ...Object.fromEntries(booleanFilterKeys.map((key) => [key, toBoolean(filters[key])])),
 });
 
 const hasMeaningfulFilters = (filters = {}) => {
@@ -39,11 +90,7 @@ const hasMeaningfulFilters = (filters = {}) => {
 
     return normalizedFilters.search.trim() !== ''
         || normalizedFilters.category_id !== ''
-        || normalizedFilters.no_price
-        || normalizedFilters.no_cost
-        || normalizedFilters.no_stock
-        || normalizedFilters.with_stock
-        || normalizedFilters.low_stock;
+        || booleanFilterKeys.some((key) => normalizedFilters[key]);
 };
 
 const state = reactive(normalizeFilters(props.filters));
@@ -53,6 +100,17 @@ const moneyFormatter = new Intl.NumberFormat('es-AR', {
     currency: 'ARS',
     minimumFractionDigits: 2,
 });
+
+const badgeClassByType = {
+    no_price: 'rounded-full border border-amber-300/35 bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100',
+    no_cost: 'rounded-full border border-fuchsia-300/35 bg-fuchsia-400/15 px-2 py-0.5 text-[11px] font-semibold text-fuchsia-100',
+    no_stock: 'rounded-full border border-rose-300/40 bg-rose-400/15 px-2 py-0.5 text-[11px] font-semibold text-rose-100',
+    low_stock: 'rounded-full border border-amber-300/40 bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100',
+    expired_batches: 'rounded-full border border-rose-300/40 bg-rose-400/15 px-2 py-0.5 text-[11px] font-semibold text-rose-100',
+    upcoming_batches: 'rounded-full border border-amber-300/40 bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100',
+    valid_batches: 'rounded-full border border-emerald-300/35 bg-emerald-400/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-100',
+    no_expiration_batches: 'rounded-full border border-sky-300/35 bg-sky-400/15 px-2 py-0.5 text-[11px] font-semibold text-sky-100',
+};
 
 const money = (value) => moneyFormatter.format(Number(value) || 0);
 const filterCardClass = (enabled) => (enabled
@@ -79,11 +137,11 @@ const activeFilters = computed(() => {
         });
     }
 
-    if (filters.no_price) badges.push({ key: 'no_price', label: 'Sin precio' });
-    if (filters.no_cost) badges.push({ key: 'no_cost', label: 'Sin costo' });
-    if (filters.no_stock) badges.push({ key: 'no_stock', label: 'Sin stock' });
-    if (filters.with_stock) badges.push({ key: 'with_stock', label: 'Con stock' });
-    if (filters.low_stock) badges.push({ key: 'low_stock', label: 'Stock bajo' });
+    filterCards.forEach((filterCard) => {
+        if (filters[filterCard.key]) {
+            badges.push({ key: filterCard.key, label: filterCard.title });
+        }
+    });
 
     return badges;
 });
@@ -94,11 +152,12 @@ const buildParams = () => {
 
     if (search !== '') params.search = search;
     if (state.category_id) params.category_id = state.category_id;
-    if (state.no_price) params.no_price = 1;
-    if (state.no_cost) params.no_cost = 1;
-    if (state.no_stock) params.no_stock = 1;
-    if (state.with_stock) params.with_stock = 1;
-    if (state.low_stock) params.low_stock = 1;
+
+    booleanFilterKeys.forEach((key) => {
+        if (state[key]) {
+            params[key] = 1;
+        }
+    });
 
     return params;
 };
@@ -159,6 +218,79 @@ const clearSingleFilter = (key) => {
     }
 
     filter();
+};
+
+const pluralize = (count, singular, plural) => (Number(count) === 1 ? singular : plural);
+
+const productStatusBadges = (product) => {
+    const badges = [];
+
+    if (Number(product.sale_price) <= 0) {
+        badges.push({ key: 'no_price', label: 'Sin precio', class: badgeClassByType.no_price });
+    }
+
+    if (Number(product.cost_price) <= 0) {
+        badges.push({ key: 'no_cost', label: 'Sin costo', class: badgeClassByType.no_cost });
+    }
+
+    if (Number(product.stock) <= 0) {
+        badges.push({ key: 'no_stock', label: 'Sin stock', class: badgeClassByType.no_stock });
+    } else if (product.has_low_stock) {
+        badges.push({ key: 'low_stock', label: 'Stock bajo', class: badgeClassByType.low_stock });
+    }
+
+    if (Number(product.expired_batches_count) > 0) {
+        badges.push({
+            key: 'expired_batches',
+            label: `${product.expired_batches_count} ${pluralize(product.expired_batches_count, 'lote vencido', 'lotes vencidos')}`,
+            class: badgeClassByType.expired_batches,
+        });
+    }
+
+    if (Number(product.upcoming_batches_count) > 0) {
+        badges.push({
+            key: 'upcoming_batches',
+            label: `${product.upcoming_batches_count} ${pluralize(product.upcoming_batches_count, 'lote por vencer', 'lotes por vencer')}`,
+            class: badgeClassByType.upcoming_batches,
+        });
+    }
+
+    if (Number(product.valid_batches_count) > 0) {
+        badges.push({
+            key: 'valid_batches',
+            label: `${product.valid_batches_count} ${pluralize(product.valid_batches_count, 'lote vigente', 'lotes vigentes')}`,
+            class: badgeClassByType.valid_batches,
+        });
+    }
+
+    if (Number(product.no_expiration_batches_count) > 0) {
+        badges.push({
+            key: 'no_expiration_batches',
+            label: `${product.no_expiration_batches_count} ${pluralize(product.no_expiration_batches_count, 'lote sin vencimiento', 'lotes sin vencimiento')}`,
+            class: badgeClassByType.no_expiration_batches,
+        });
+    }
+
+    return badges;
+};
+
+const pricingBadges = (product) => productStatusBadges(product).filter((badge) => ['no_price', 'no_cost'].includes(badge.key));
+const reviewBadges = (product) => productStatusBadges(product).filter((badge) => reviewBadgeKeys.includes(badge.key));
+
+const productRowClass = (product) => {
+    if (Number(product.expired_batches_count) > 0) {
+        return 'bg-rose-400/10';
+    }
+
+    if (Number(product.upcoming_batches_count) > 0) {
+        return 'bg-amber-400/10';
+    }
+
+    if (product.has_low_stock) {
+        return 'bg-rose-400/5';
+    }
+
+    return '';
 };
 
 onMounted(() => {
@@ -230,7 +362,7 @@ onMounted(() => {
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-sm font-semibold text-slate-100">Filtros avanzados</h3>
-                        <p class="mt-1 text-xs text-slate-400">Combina estados de precio, costo y stock para detectar productos pendientes de revisar.</p>
+                        <p class="mt-1 text-xs text-slate-400">Combina estados de precio, costo, stock y vencimientos para detectar productos que necesitan revision operativa.</p>
                     </div>
                     <p class="text-sm text-slate-300">
                         <span class="font-semibold text-slate-100">{{ products.total }}</span>
@@ -238,69 +370,22 @@ onMounted(() => {
                     </p>
                 </div>
 
-                <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                    <label class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-200 transition" :class="filterCardClass(state.no_price)">
+                <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    <label
+                        v-for="filterCard in filterCards"
+                        :key="filterCard.key"
+                        class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-200 transition"
+                        :class="filterCardClass(state[filterCard.key])"
+                    >
                         <input
-                            v-model="state.no_price"
+                            v-model="state[filterCard.key]"
                             type="checkbox"
                             class="mt-1 rounded border-cyan-100/25 bg-slate-900 text-cyan-400 focus:ring-cyan-400/50"
-                            @change="toggleBooleanFilter('no_price')"
+                            @change="toggleBooleanFilter(filterCard.key)"
                         >
                         <span>
-                            <span class="block font-semibold text-slate-100">Sin precio</span>
-                            <span class="mt-1 block text-xs text-slate-400">Precio de venta en 0 o sin valor cargado.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-200 transition" :class="filterCardClass(state.no_cost)">
-                        <input
-                            v-model="state.no_cost"
-                            type="checkbox"
-                            class="mt-1 rounded border-cyan-100/25 bg-slate-900 text-cyan-400 focus:ring-cyan-400/50"
-                            @change="toggleBooleanFilter('no_cost')"
-                        >
-                        <span>
-                            <span class="block font-semibold text-slate-100">Sin costo</span>
-                            <span class="mt-1 block text-xs text-slate-400">Costo en 0 o sin referencia de compra.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-200 transition" :class="filterCardClass(state.no_stock)">
-                        <input
-                            v-model="state.no_stock"
-                            type="checkbox"
-                            class="mt-1 rounded border-cyan-100/25 bg-slate-900 text-cyan-400 focus:ring-cyan-400/50"
-                            @change="toggleBooleanFilter('no_stock')"
-                        >
-                        <span>
-                            <span class="block font-semibold text-slate-100">Sin stock</span>
-                            <span class="mt-1 block text-xs text-slate-400">Productos agotados o con stock cero/negativo.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-200 transition" :class="filterCardClass(state.with_stock)">
-                        <input
-                            v-model="state.with_stock"
-                            type="checkbox"
-                            class="mt-1 rounded border-cyan-100/25 bg-slate-900 text-cyan-400 focus:ring-cyan-400/50"
-                            @change="toggleBooleanFilter('with_stock')"
-                        >
-                        <span>
-                            <span class="block font-semibold text-slate-100">Con stock</span>
-                            <span class="mt-1 block text-xs text-slate-400">Solo productos con disponibilidad positiva.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm text-slate-200 transition" :class="filterCardClass(state.low_stock)">
-                        <input
-                            v-model="state.low_stock"
-                            type="checkbox"
-                            class="mt-1 rounded border-cyan-100/25 bg-slate-900 text-cyan-400 focus:ring-cyan-400/50"
-                            @change="toggleBooleanFilter('low_stock')"
-                        >
-                        <span>
-                            <span class="block font-semibold text-slate-100">Stock bajo</span>
-                            <span class="mt-1 block text-xs text-slate-400">Productos en o por debajo del stock minimo.</span>
+                            <span class="block font-semibold text-slate-100">{{ filterCard.title }}</span>
+                            <span class="mt-1 block text-xs text-slate-400">{{ filterCard.description }}</span>
                         </span>
                     </label>
                 </div>
@@ -341,17 +426,12 @@ onMounted(() => {
                     </div>
 
                     <div class="mt-3 flex flex-wrap gap-1">
-                        <span v-if="Number(product.sale_price) <= 0" class="rounded-full border border-amber-300/35 bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
-                            Sin precio
-                        </span>
-                        <span v-if="Number(product.cost_price) <= 0" class="rounded-full border border-fuchsia-300/35 bg-fuchsia-400/15 px-2 py-0.5 text-[11px] font-semibold text-fuchsia-100">
-                            Sin costo
-                        </span>
-                        <span v-if="Number(product.stock) <= 0" class="rounded-full border border-rose-300/40 bg-rose-400/15 px-2 py-0.5 text-[11px] font-semibold text-rose-100">
-                            Sin stock
-                        </span>
-                        <span v-else-if="product.has_low_stock" class="rounded-full border border-amber-300/40 bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
-                            Stock bajo
+                        <span
+                            v-for="badge in productStatusBadges(product)"
+                            :key="badge.key"
+                            :class="badge.class"
+                        >
+                            {{ badge.label }}
                         </span>
                     </div>
                 </article>
@@ -365,22 +445,24 @@ onMounted(() => {
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Codigo</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Tipo</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Stock</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">Revision</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Venta</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                         </tr>
                     </thead>
                     <tbody v-if="products.data.length" class="divide-y divide-slate-100">
-                        <tr v-for="product in products.data" :key="product.id" :class="product.has_low_stock ? 'bg-rose-400/10' : ''">
+                        <tr v-for="product in products.data" :key="product.id" :class="productRowClass(product)">
                             <td class="px-3 py-2">
                                 <p class="font-semibold text-slate-100">{{ product.name }}</p>
                                 <p class="text-xs text-cyan-100/80">{{ product.category || 'Sin categoria' }}</p>
                                 <p class="text-xs text-slate-300/80">{{ product.supplier || 'Sin proveedor' }}</p>
                                 <div class="mt-2 flex flex-wrap gap-1">
-                                    <span v-if="Number(product.sale_price) <= 0" class="rounded-full border border-amber-300/35 bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
-                                        Sin precio
-                                    </span>
-                                    <span v-if="Number(product.cost_price) <= 0" class="rounded-full border border-fuchsia-300/35 bg-fuchsia-400/15 px-2 py-0.5 text-[11px] font-semibold text-fuchsia-100">
-                                        Sin costo
+                                    <span
+                                        v-for="badge in pricingBadges(product)"
+                                        :key="badge.key"
+                                        :class="badge.class"
+                                    >
+                                        {{ badge.label }}
                                     </span>
                                 </div>
                             </td>
@@ -390,6 +472,23 @@ onMounted(() => {
                                 {{ product.stock }} {{ product.quantity_label }}
                                 <span v-if="Number(product.stock) <= 0" class="ml-1 rounded border border-rose-300/40 bg-rose-400/15 px-1.5 py-0.5 text-xs font-semibold text-rose-100">Sin stock</span>
                                 <span v-else-if="product.has_low_stock" class="ml-1 rounded border border-amber-300/40 bg-amber-400/15 px-1.5 py-0.5 text-xs font-semibold text-amber-100">Bajo</span>
+                            </td>
+                            <td class="px-3 py-2">
+                                <div class="flex flex-wrap gap-1">
+                                    <span
+                                        v-for="badge in reviewBadges(product)"
+                                        :key="badge.key"
+                                        :class="badge.class"
+                                    >
+                                        {{ badge.label }}
+                                    </span>
+                                    <span
+                                        v-if="reviewBadges(product).length === 0"
+                                        class="rounded-full border border-slate-300/15 bg-slate-900/35 px-2 py-0.5 text-[11px] font-semibold text-slate-400"
+                                    >
+                                        Sin lotes revisables
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-3 py-2">{{ money(product.sale_price) }} <span class="text-xs text-slate-400">{{ product.price_label }}</span></td>
                             <td class="px-3 py-2 text-right">
@@ -401,7 +500,7 @@ onMounted(() => {
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="6" class="px-3 py-6 text-center text-slate-400">
+                            <td colspan="7" class="px-3 py-6 text-center text-slate-400">
                                 {{ hasAppliedFilters ? 'No hay productos que coincidan con los filtros actuales.' : 'No hay productos cargados.' }}
                             </td>
                         </tr>

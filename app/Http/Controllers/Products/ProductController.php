@@ -44,6 +44,16 @@ class ProductController extends Controller
             'with_stock' => $request->boolean('with_stock'),
             'low_stock' => $request->boolean('low_stock'),
         ];
+        foreach (array_keys(Product::batchExpiryFilterMap()) as $filterKey) {
+            $filters[$filterKey] = $request->boolean($filterKey);
+        }
+
+        $batchExpiryCounts = [];
+        foreach (Product::batchExpiryFilterMap() as $filterKey => $status) {
+            $batchExpiryCounts['batches as '.$filterKey.'_count'] = fn ($query) => $query
+                ->available()
+                ->withExpirationStatus($status);
+        }
 
         $products = Product::query()
             ->forBusiness($business->id)
@@ -69,6 +79,7 @@ class ProductController extends Controller
                 'supplier:id,name',
                 'category:id,name',
             ])
+            ->withCount($batchExpiryCounts)
             ->filter($filters)
             ->orderByDesc('id')
             ->paginate(15)
@@ -93,6 +104,10 @@ class ProductController extends Controller
                 'category' => $product->category?->name,
                 'supplier' => $product->supplier?->name,
                 'has_low_stock' => (float) $product->stock <= (float) $product->min_stock,
+                'expired_batches_count' => (int) ($product->expired_batches_count ?? 0),
+                'upcoming_batches_count' => (int) ($product->upcoming_batches_count ?? 0),
+                'valid_batches_count' => (int) ($product->valid_batches_count ?? 0),
+                'no_expiration_batches_count' => (int) ($product->no_expiration_batches_count ?? 0),
             ]);
 
         return Inertia::render('Products/Index', [
