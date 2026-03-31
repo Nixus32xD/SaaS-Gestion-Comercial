@@ -56,6 +56,14 @@ class ProductBatch extends Model
     }
 
     /**
+     * @return HasMany<ProductBatchCorrection, $this>
+     */
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(ProductBatchCorrection::class, 'product_batch_id');
+    }
+
+    /**
      * @param  Builder<self>  $query
      * @return Builder<self>
      */
