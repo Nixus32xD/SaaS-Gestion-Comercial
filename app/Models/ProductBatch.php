@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToBusiness;
+use InvalidArgumentException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -85,6 +86,37 @@ class ProductBatch extends Model
             ->orderBy('id');
     }
 
+    /**
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeWithExpirationStatus(
+        Builder $query,
+        string $status,
+        string $productTable = 'products',
+        ?Carbon $today = null
+    ): Builder {
+        $today ??= now()->startOfDay();
+        $todayDate = $today->toDateString();
+        $expiresDateExpression = $this->expiresDateExpression($query);
+        [$thresholdExpression, $bindings] = $this->expiryThresholdExpression($query, $productTable, $todayDate);
+
+        return match ($status) {
+            'expired' => $query
+                ->whereNotNull('expires_at')
+                ->whereDate('expires_at', '<', $todayDate),
+            'upcoming' => $query
+                ->whereNotNull('expires_at')
+                ->whereDate('expires_at', '>=', $todayDate)
+                ->whereRaw("{$expiresDateExpression} <= {$thresholdExpression}", $bindings),
+            'valid' => $query
+                ->whereNotNull('expires_at')
+                ->whereRaw("{$expiresDateExpression} > {$thresholdExpression}", $bindings),
+            'no_expiration' => $query->whereNull('expires_at'),
+            default => throw new InvalidArgumentException("Unsupported expiration status [{$status}]"),
+        };
+    }
+
     public function expirationStatus(int $alertDays = 15, ?Carbon $today = null): string
     {
         if ($this->expires_at === null) {
@@ -103,5 +135,38 @@ class ProductBatch extends Model
         }
 
         return 'valid';
+    }
+
+    /**
+     * @param  Builder<self>  $query
+     * @return array{0: string, 1: array<int, string>}
+     */
+    private function expiryThresholdExpression(Builder $query, string $productTable, string $todayDate): array
+    {
+        return match ($query->getConnection()->getDriverName()) {
+            'sqlite' => [
+                "date(?, '+' || max(coalesce({$productTable}.expiry_alert_days, 15), 1) || ' day')",
+                [$todayDate],
+            ],
+            'pgsql' => [
+                "(?::date + (GREATEST(COALESCE({$productTable}.expiry_alert_days, 15), 1) || ' day')::interval)::date",
+                [$todayDate],
+            ],
+            default => [
+                "DATE_ADD(?, INTERVAL GREATEST(COALESCE({$productTable}.expiry_alert_days, 15), 1) DAY)",
+                [$todayDate],
+            ],
+        };
+    }
+
+    /**
+     * @param  Builder<self>  $query
+     */
+    private function expiresDateExpression(Builder $query): string
+    {
+        return match ($query->getConnection()->getDriverName()) {
+            'sqlsrv' => 'cast(expires_at as date)',
+            default => 'date(expires_at)',
+        };
     }
 }

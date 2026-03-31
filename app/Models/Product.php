@@ -17,6 +17,16 @@ class Product extends Model
     use SoftDeletes;
 
     /**
+     * @var array<string, string>
+     */
+    private const BATCH_EXPIRY_FILTERS = [
+        'expired_batches' => 'expired',
+        'upcoming_batches' => 'upcoming',
+        'valid_batches' => 'valid',
+        'no_expiration_batches' => 'no_expiration',
+    ];
+
+    /**
      * @var list<string>
      */
     protected $fillable = [
@@ -106,6 +116,14 @@ class Product extends Model
     }
 
     /**
+     * @return array<string, string>
+     */
+    public static function batchExpiryFilterMap(): array
+    {
+        return self::BATCH_EXPIRY_FILTERS;
+    }
+
+    /**
      * @param  Builder<static>  $query
      * @param  array<string, mixed>  $filters
      * @return Builder<static>
@@ -119,6 +137,11 @@ class Product extends Model
         $noStock = (bool) ($filters['no_stock'] ?? false);
         $withStock = (bool) ($filters['with_stock'] ?? false);
         $lowStock = (bool) ($filters['low_stock'] ?? false);
+        $selectedBatchStatuses = array_values(array_filter(
+            self::BATCH_EXPIRY_FILTERS,
+            fn (string $status, string $filterKey): bool => (bool) ($filters[$filterKey] ?? false),
+            ARRAY_FILTER_USE_BOTH,
+        ));
 
         return $query
             ->when($search !== '', function (Builder $builder) use ($search): void {
@@ -146,6 +169,19 @@ class Product extends Model
             })
             ->when($noStock, fn (Builder $builder) => $builder->where('stock', '<=', 0))
             ->when($withStock, fn (Builder $builder) => $builder->where('stock', '>', 0))
-            ->when($lowStock, fn (Builder $builder) => $builder->whereColumn('stock', '<=', 'min_stock'));
+            ->when($lowStock, fn (Builder $builder) => $builder->whereColumn('stock', '<=', 'min_stock'))
+            ->when($selectedBatchStatuses !== [], function (Builder $builder) use ($selectedBatchStatuses): void {
+                $builder->whereHas('batches', function (Builder $batchQuery) use ($selectedBatchStatuses): void {
+                    $batchQuery
+                        ->available()
+                        ->where(function (Builder $statusQuery) use ($selectedBatchStatuses): void {
+                            foreach ($selectedBatchStatuses as $status) {
+                                $statusQuery->orWhere(function (Builder $orQuery) use ($status): void {
+                                    $orQuery->withExpirationStatus($status);
+                                });
+                            }
+                        });
+                });
+            });
     }
 }
