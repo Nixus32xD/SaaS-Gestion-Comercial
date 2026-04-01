@@ -63,13 +63,13 @@ const closeSidebar = () => {
     >
         <div
             v-if="sidebarOpen"
-            class="fixed inset-0 z-30 bg-slate-950/70 lg:hidden"
+            class="fixed inset-0 z-30 bg-slate-950/70 2xl:hidden"
             @click="closeSidebar"
         />
 
         <aside
-            class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-cyan-100/15 bg-slate-950/70 px-5 py-4 text-slate-100 shadow-xl backdrop-blur-xl transition-transform duration-300 ease-out"
-            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+            class="fixed inset-y-0 left-0 z-40 flex w-[min(18rem,calc(100vw-1rem))] max-w-[18rem] flex-col overflow-y-auto border-r border-cyan-100/15 bg-slate-950/70 px-5 py-4 text-slate-100 shadow-xl backdrop-blur-xl transition-transform duration-300 ease-out"
+            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full 2xl:translate-x-0'"
         >
             <Link
                 :href="isSuperAdmin ? route('admin.businesses.index') : route('dashboard')"
@@ -121,12 +121,12 @@ const closeSidebar = () => {
             </div>
         </aside>
 
-        <div class="lg:pl-72">
+        <div class="2xl:pl-72">
             <header class="sticky top-0 z-20 border-b border-cyan-100/15 bg-slate-950/45 backdrop-blur-xl">
                 <div class="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center rounded-lg border border-cyan-100/20 bg-slate-900/60 p-2 text-cyan-100 shadow-sm lg:hidden"
+                        class="inline-flex items-center justify-center rounded-lg border border-cyan-100/20 bg-slate-900/60 p-2 text-cyan-100 shadow-sm 2xl:hidden"
                         @click="sidebarOpen = !sidebarOpen"
                     >
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
