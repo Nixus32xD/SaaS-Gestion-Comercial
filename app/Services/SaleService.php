@@ -126,7 +126,12 @@ class SaleService
                 $total,
                 $customer
             );
-            [$saleSectorId, $paymentDestinationId] = $this->resolveAdvancedSaleContext($business, $payload, $paidAmount);
+            [$saleSectorId, $paymentDestinationId] = $this->resolveAdvancedSaleContext(
+                $business,
+                $payload,
+                $paymentMethod,
+                $paidAmount
+            );
 
             $sale = Sale::query()->create([
                 'business_id' => $business->id,
@@ -373,7 +378,12 @@ class SaleService
      * @param  array<string, mixed>  $payload
      * @return array{0: int|null, 1: int|null}
      */
-    private function resolveAdvancedSaleContext(Business $business, array $payload, float $paidAmount): array
+    private function resolveAdvancedSaleContext(
+        Business $business,
+        array $payload,
+        ?string $paymentMethod,
+        float $paidAmount
+    ): array
     {
         if (! $business->hasAdvancedSaleSettings()) {
             return [null, null];
@@ -394,7 +404,7 @@ class SaleService
             ]);
         }
 
-        if ($paidAmount <= 0) {
+        if ($paidAmount <= 0 || $paymentMethod !== 'transfer') {
             return [$saleSectorId, null];
         }
 
