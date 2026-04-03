@@ -40,6 +40,8 @@ class StoreSaleRequest extends FormRequest
             Sale::PAYMENT_STATUS_PAID,
             Sale::PAYMENT_STATUS_PARTIAL,
         ], true);
+        $requiresPaymentDestination = $advancedSaleSettingsEnabled
+            && $this->shouldUsePaymentDestination($paymentStatus);
         $requiresCustomer = in_array($paymentStatus, [
             Sale::PAYMENT_STATUS_PARTIAL,
             Sale::PAYMENT_STATUS_PENDING,
@@ -69,7 +71,7 @@ class StoreSaleRequest extends FormRequest
                 ),
             ],
             'payment_destination_id' => [
-                $advancedSaleSettingsEnabled && $requiresInitialPayment ? 'required' : 'nullable',
+                $requiresPaymentDestination ? 'required' : 'nullable',
                 'integer',
                 Rule::exists('business_payment_destinations', 'id')->where(
                     fn ($query) => $query
@@ -100,6 +102,7 @@ class StoreSaleRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $paymentStatus = $this->resolvePaymentStatus();
+        $shouldUsePaymentDestination = $this->shouldUsePaymentDestination($paymentStatus);
         $items = collect((array) $this->input('items', []))
             ->map(function (mixed $item): array {
                 $row = is_array($item) ? $item : [];
@@ -132,7 +135,7 @@ class StoreSaleRequest extends FormRequest
             'sale_sector_id' => $this->filled('sale_sector_id')
                 ? (int) $this->input('sale_sector_id')
                 : null,
-            'payment_destination_id' => $this->filled('payment_destination_id')
+            'payment_destination_id' => $shouldUsePaymentDestination && $this->filled('payment_destination_id')
                 ? (int) $this->input('payment_destination_id')
                 : null,
             'amount_received' => $this->filled('amount_received')
@@ -186,5 +189,18 @@ class StoreSaleRequest extends FormRequest
             Sale::PAYMENT_STATUS_PENDING => Sale::PAYMENT_STATUS_PENDING,
             default => Sale::PAYMENT_STATUS_PAID,
         };
+    }
+
+    private function shouldUsePaymentDestination(string $paymentStatus): bool
+    {
+        if ($paymentStatus === Sale::PAYMENT_STATUS_PENDING) {
+            return false;
+        }
+
+        $paymentMethod = $this->filled('payment_method')
+            ? (string) $this->input('payment_method')
+            : 'cash';
+
+        return $paymentMethod === 'transfer';
     }
 }

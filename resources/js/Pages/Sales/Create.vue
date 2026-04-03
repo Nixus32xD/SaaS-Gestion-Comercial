@@ -436,7 +436,10 @@ const changeAmount = computed(() => (
         : 0
 ));
 const requiresPaymentDestination = computed(() => (
-    advancedSaleSettingsEnabled.value && requiresImmediatePayment.value && paidAmount.value > 0
+    advancedSaleSettingsEnabled.value
+    && requiresImmediatePayment.value
+    && paidAmount.value > 0
+    && form.payment_method === 'transfer'
 ));
 const canSubmit = computed(() => (
     form.items.length > 0
@@ -621,7 +624,13 @@ const moneyFormatter = new Intl.NumberFormat('es-AR', {
 
 const money = (value) => moneyFormatter.format(Number(value) || 0);
 const selectedSaleSectorName = computed(() => saleSectorOptions.value.find((item) => item.id === form.sale_sector_id)?.name || '-');
-const selectedPaymentDestinationName = computed(() => paymentDestinationOptions.value.find((item) => item.id === form.payment_destination_id)?.name || '-');
+const selectedPaymentDestinationName = computed(() => {
+    if (!requiresPaymentDestination.value) {
+        return requiresImmediatePayment.value ? 'No aplica' : 'Sin cobro inicial';
+    }
+
+    return paymentDestinationOptions.value.find((item) => item.id === form.payment_destination_id)?.name || '-';
+});
 
 const applyQuickAmount = (mode, amount = 0) => {
     if (!isCashPayment.value || !requiresImmediatePayment.value) return;
@@ -988,13 +997,15 @@ onBeforeUnmount(() => {
                                 :disabled="!requiresPaymentDestination"
                                 class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
                             >
-                                <option :value="null">{{ requiresPaymentDestination ? 'Seleccionar cuenta' : 'Sin cobro inicial' }}</option>
+                                <option :value="null">{{ requiresPaymentDestination ? 'Seleccionar cuenta' : (isCashPayment && requiresImmediatePayment ? 'No aplica en efectivo' : 'Sin cobro inicial') }}</option>
                                 <option v-for="destination in paymentDestinationOptions" :key="destination.id" :value="destination.id">
                                     {{ destination.name }}
                                 </option>
                             </select>
                             <p v-if="!requiresPaymentDestination" class="mt-1 text-xs text-slate-400">
-                                La cuenta de cobro se pide solo cuando entra dinero en el momento.
+                                {{ isCashPayment && requiresImmediatePayment
+                                    ? 'En pagos en efectivo no se asigna cuenta de cobro.'
+                                    : 'La cuenta de cobro se pide solo cuando entra dinero por transferencia.' }}
                             </p>
                             <p v-if="form.errors.payment_destination_id" class="mt-1 text-xs text-rose-300">
                                 {{ form.errors.payment_destination_id }}
