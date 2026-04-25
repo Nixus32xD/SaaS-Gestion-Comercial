@@ -10,11 +10,8 @@ use App\Models\BusinessFeature;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
-<<<<<<< HEAD
 use App\Models\SaleFiscalDocument;
-=======
 use App\Services\SaleReceiptService;
->>>>>>> 36e2a0bf142622ed3b5f14b1e2436c048ab85c51
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
@@ -32,14 +29,10 @@ use Throwable;
 
 class SaleController extends Controller
 {
-<<<<<<< HEAD
-    public function __construct(private readonly SaleService $saleService) {}
-=======
     public function __construct(
         private readonly SaleService $saleService,
         private readonly SaleReceiptService $saleReceiptService,
     ) {}
->>>>>>> 36e2a0bf142622ed3b5f14b1e2436c048ab85c51
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
     {
@@ -201,20 +194,14 @@ class SaleController extends Controller
         abort_if($sale->business_id !== $business->id, 403);
         $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
-<<<<<<< HEAD
         $sale->load(['items.product', 'user', 'latestFiscalDocument']);
-        $sale->loadMissing(['saleSector', 'paymentDestination']);
+        $sale->loadMissing(['saleSector', 'paymentDestination', 'customer']);
         $fiscalDocument = $sale->latestFiscalDocument;
         $fiscalEnabled = (bool) config('fiscal.enabled') && $business->hasElectronicBilling();
-=======
-        $sale->load(['items.product', 'user']);
-        $sale->loadMissing(['saleSector', 'paymentDestination', 'customer']);
->>>>>>> 36e2a0bf142622ed3b5f14b1e2436c048ab85c51
 
         return Inertia::render('Sales/Show', [
             'auto_back' => $request->boolean('auto_back'),
             'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
-<<<<<<< HEAD
             'fiscal' => [
                 'enabled' => $fiscalEnabled,
                 'environment' => (string) config('fiscal.environment', app()->environment()),
@@ -224,9 +211,7 @@ class SaleController extends Controller
                 'can_reconcile' => $fiscalEnabled && $fiscalDocument?->requiresReconcile(),
                 'document' => $this->mapFiscalDocument($fiscalDocument),
             ],
-=======
             'receipt_feature_available' => $receiptFeatureAvailable,
->>>>>>> 36e2a0bf142622ed3b5f14b1e2436c048ab85c51
             'sale' => [
                 'id' => $sale->id,
                 'sale_number' => $sale->sale_number,
@@ -730,7 +715,7 @@ class SaleController extends Controller
                     when name like ? then 1
                     else 2
                 end',
-                [$search, $search, $search.'%']
+                [$search, $search.'%']
             )
             ->orderBy('name');
     }
