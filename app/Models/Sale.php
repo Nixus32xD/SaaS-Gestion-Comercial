@@ -107,7 +107,6 @@ class Sale extends Model
     }
 
     /**
-<<<<<<< HEAD
      * @return HasMany<SaleFiscalDocument, $this>
      */
     public function fiscalDocuments(): HasMany
@@ -121,7 +120,9 @@ class Sale extends Model
     public function latestFiscalDocument(): HasOne
     {
         return $this->hasOne(SaleFiscalDocument::class)->latestOfMany();
-=======
+    }
+
+    /**
      * @return HasMany<CustomerAccountMovement, $this>
      */
     public function accountMovements(): HasMany
@@ -132,6 +133,5 @@ class Sale extends Model
     public function hasReceipt(): bool
     {
         return filled($this->receipt_path);
->>>>>>> 36e2a0bf142622ed3b5f14b1e2436c048ab85c51
     }
 }
