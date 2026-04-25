@@ -715,7 +715,7 @@ class SaleController extends Controller
                     when name like ? then 1
                     else 2
                 end',
-                [$search, $search.'%']
+                [$search, $search, $search.'%']
             )
             ->orderBy('name');
     }
