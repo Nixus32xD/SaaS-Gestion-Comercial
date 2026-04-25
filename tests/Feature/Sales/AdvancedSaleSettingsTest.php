@@ -50,7 +50,7 @@ test('sale create page only exposes advanced sale settings for enabled businesse
         );
 });
 
-test('enabled advanced sale settings require sector and payment destination when creating sale', function () {
+test('enabled advanced sale settings require sector and payment destination for transfer sales', function () {
     $business = Business::factory()->create();
     $admin = User::factory()->businessAdmin($business->id)->create();
 
@@ -97,6 +97,64 @@ test('enabled advanced sale settings require sector and payment destination when
             ]],
         ])
         ->assertSessionHasErrors(['sale_sector_id', 'payment_destination_id']);
+});
+
+test('enabled advanced sale settings ignore payment destination for cash sales', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    BusinessFeature::query()->create([
+        'business_id' => $business->id,
+        'feature' => BusinessFeature::ADVANCED_SALE_SETTINGS,
+        'is_enabled' => true,
+    ]);
+
+    $sector = BusinessSaleSector::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Almacen',
+        'is_active' => true,
+        'sort_order' => 0,
+    ]);
+
+    $destination = BusinessPaymentDestination::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Mercado Pago',
+        'is_active' => true,
+        'sort_order' => 0,
+    ]);
+
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Fideos',
+        'slug' => 'fideos-advanced-sale-cash',
+        'unit_type' => 'unit',
+        'sale_price' => 1200,
+        'cost_price' => 800,
+        'stock' => 10,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($admin)
+        ->post('/sales', [
+            'payment_method' => 'cash',
+            'sale_sector_id' => $sector->id,
+            'payment_destination_id' => $destination->id,
+            'amount_received' => 1500,
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 1200,
+            ]],
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+
+    expect($sale->sale_sector_id)->toBe($sector->id);
+    expect($sale->payment_method)->toBe('cash');
+    expect($sale->payment_destination_id)->toBeNull();
 });
 
 test('advanced sale settings reject sectors and destinations from another business', function () {
