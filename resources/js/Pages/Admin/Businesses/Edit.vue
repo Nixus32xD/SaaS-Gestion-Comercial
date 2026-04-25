@@ -20,6 +20,10 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    fiscal_catalog: {
+        type: Object,
+        default: () => ({ document_types: [], voucher_types: [] }),
+    },
 });
 
 const makeSector = () => ({
@@ -62,6 +66,14 @@ const billingForm = useForm({
 const salesSettingsForm = useForm({
     advanced_sale_settings_enabled: Boolean(props.sales_settings.advanced_sale_settings_enabled),
     global_product_catalog_enabled: Boolean(props.sales_settings.global_product_catalog_enabled),
+    fiscal_enabled: Boolean(props.sales_settings.fiscal_enabled),
+    fiscal_external_business_id: props.sales_settings.fiscal_external_business_id || '',
+    fiscal_cuit: props.sales_settings.fiscal_cuit || '',
+    fiscal_point_of_sale: props.sales_settings.fiscal_point_of_sale ?? 2,
+    fiscal_document_type: props.sales_settings.fiscal_document_type || 'invoice_c',
+    fiscal_cbte_type: props.sales_settings.fiscal_cbte_type ?? 11,
+    fiscal_concept: props.sales_settings.fiscal_concept ?? 1,
+    fiscal_activities: props.sales_settings.fiscal_activities || '',
     sale_sectors: (props.sales_settings.sale_sectors || []).map((sector) => ({
         id: sector.id,
         name: sector.name || '',
@@ -92,6 +104,26 @@ const maintenancePlans = computed(() => props.commercial_catalog?.maintenance_pl
 const availablePaymentPlans = computed(() => (
     paymentForm.type === 'maintenance' ? maintenancePlans.value : implementationPlans.value
 ));
+
+const fiscalConceptOptions = [
+    { value: 1, label: 'Productos' },
+    { value: 2, label: 'Servicios' },
+    { value: 3, label: 'Productos y servicios' },
+];
+
+const fiscalDocumentTypeOptions = computed(() => props.fiscal_catalog?.document_types || []);
+const fiscalVoucherTypeOptions = computed(() => props.fiscal_catalog?.voucher_types || []);
+const fiscalPointOfSaleOptions = computed(() => props.sales_settings.fiscal_point_of_sale_options?.options || []);
+const fiscalPointOfSaleMessage = computed(() => props.sales_settings.fiscal_point_of_sale_options?.message || null);
+const hasFiscalPointOfSaleOptions = computed(() => fiscalPointOfSaleOptions.value.length > 0);
+
+watch(() => salesSettingsForm.fiscal_document_type, (documentType) => {
+    const option = fiscalDocumentTypeOptions.value.find((item) => item.value === documentType);
+
+    if (option?.default_cbte_type) {
+        salesSettingsForm.fiscal_cbte_type = Number(option.default_cbte_type);
+    }
+});
 
 const submit = () => {
     form.put(route('admin.businesses.update', props.business.id));
@@ -493,11 +525,98 @@ const planLabel = (plan) => {
                             <input v-model="salesSettingsForm.global_product_catalog_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
                             Habilitar catalogo global de productos
                         </label>
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
+                            <input v-model="salesSettingsForm.fiscal_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
+                            Habilitar facturacion electronica
+                        </label>
                     </div>
                 </div>
 
                 <p v-if="salesSettingsForm.errors.sale_sectors" class="mt-3 text-sm text-rose-300">{{ salesSettingsForm.errors.sale_sectors }}</p>
                 <p v-if="salesSettingsForm.errors.payment_destinations" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.payment_destinations }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_external_business_id" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_external_business_id }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_cuit" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_cuit }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_point_of_sale" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_point_of_sale }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_document_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_document_type }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_cbte_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_cbte_type }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_activities" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_activities }}</p>
+
+                <section class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h4 class="text-base font-semibold text-slate-100">Facturacion fiscal externa</h4>
+                            <p class="mt-1 text-xs text-slate-400">La emision sale por la API fiscal configurada en el entorno.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">ID externo del comercio</label>
+                            <input v-model="salesSettingsForm.fiscal_external_business_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Ej. empresa-demo-prod" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">CUIT fiscal</label>
+                            <input v-model="salesSettingsForm.fiscal_cuit" type="text" inputmode="numeric" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="20-12345678-6" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Punto de venta</label>
+                            <select
+                                v-if="hasFiscalPointOfSaleOptions"
+                                v-model.number="salesSettingsForm.fiscal_point_of_sale"
+                                class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                            >
+                                <option
+                                    v-for="option in fiscalPointOfSaleOptions"
+                                    :key="option.value"
+                                    :value="option.value"
+                                    :disabled="!option.selectable"
+                                >
+                                    {{ option.label }}{{ option.disabled_reason ? ` - ${option.disabled_reason}` : '' }}
+                                </option>
+                            </select>
+                            <input
+                                v-else
+                                v-model="salesSettingsForm.fiscal_point_of_sale"
+                                type="number"
+                                min="1"
+                                class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                            />
+                            <p v-if="fiscalPointOfSaleMessage" class="text-xs text-amber-100">{{ fiscalPointOfSaleMessage }}</p>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Tipo interno</label>
+                            <select v-model="salesSettingsForm.fiscal_document_type" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalDocumentTypeOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }} ({{ option.value }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Tipo comprobante ARCA</label>
+                            <select v-model.number="salesSettingsForm.fiscal_cbte_type" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalVoucherTypeOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }} - codigo {{ option.value }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Concepto</label>
+                            <select v-model="salesSettingsForm.fiscal_concept" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalConceptOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Actividades</label>
+                            <input v-model="salesSettingsForm.fiscal_activities" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="492140" />
+                        </div>
+                    </div>
+                </section>
 
                 <div class="mt-5 grid gap-6 xl:grid-cols-2">
                     <section class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">

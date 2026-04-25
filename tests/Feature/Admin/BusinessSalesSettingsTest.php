@@ -4,6 +4,9 @@ use App\Models\Business;
 use App\Models\BusinessPaymentDestination;
 use App\Models\BusinessSaleSector;
 use App\Models\User;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia as Assert;
 
 test('superadmin can configure advanced sale settings for a business', function () {
     $superAdmin = User::factory()->superadmin()->create();
@@ -44,4 +47,185 @@ test('superadmin can configure advanced sale settings for a business', function 
 
     expect(BusinessPaymentDestination::query()->where('business_id', $business->id)->orderBy('sort_order')->pluck('name')->all())
         ->toBe(['Mercado Pago Almacen', 'Banco Viviendas']);
+});
+
+test('superadmin can configure fiscal cuit for a business', function () {
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create();
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.sales-settings.update', $business), [
+            'fiscal_enabled' => true,
+            'fiscal_external_business_id' => 'empresa-demo-prod',
+            'fiscal_cuit' => '30-71234567-1',
+            'fiscal_point_of_sale' => 2,
+            'fiscal_document_type' => 'invoice_c',
+            'fiscal_cbte_type' => 11,
+            'fiscal_concept' => 1,
+            'fiscal_activities' => '492140',
+        ])
+        ->assertRedirect(route('admin.businesses.edit', $business));
+
+    $business->refresh();
+
+    expect($business->fiscal_enabled)->toBeTrue();
+    expect($business->fiscal_external_business_id)->toBe('empresa-demo-prod');
+    expect($business->fiscal_cuit)->toBe('30712345671');
+    expect($business->fiscal_activities)->toBe([492140]);
+});
+
+test('enabling fiscal billing syncs the external fiscal company', function () {
+    config()->set('fiscal.enabled', true);
+    config()->set('fiscal.base_url', 'http://127.0.0.1:8000/api');
+    config()->set('fiscal.token', 'testing-fiscal-token');
+    config()->set('fiscal.environment', 'local');
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/companies' => Http::response([
+            'data' => [
+                'business_id' => 'empresa-demo-prod',
+            ],
+        ], 201),
+    ]);
+
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create([
+        'name' => 'Empresa Demo SA',
+        'slug' => 'empresa-demo',
+    ]);
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.sales-settings.update', $business), [
+            'fiscal_enabled' => true,
+            'fiscal_external_business_id' => 'empresa-demo-prod',
+            'fiscal_cuit' => '30-71234567-1',
+            'fiscal_point_of_sale' => 2,
+            'fiscal_document_type' => 'invoice_c',
+            'fiscal_cbte_type' => 11,
+            'fiscal_concept' => 1,
+            'fiscal_activities' => '492140',
+        ])
+        ->assertRedirect(route('admin.businesses.edit', $business));
+
+    Http::assertSentCount(1);
+    Http::assertSent(function (Request $request): bool {
+        $payload = $request->data();
+
+        return $request->method() === 'POST'
+            && $request->url() === 'http://127.0.0.1:8000/api/fiscal/companies'
+            && $request->hasHeader('Authorization', 'Bearer testing-fiscal-token')
+            && $payload['external_business_id'] === 'empresa-demo-prod'
+            && $payload['cuit'] === '30712345671'
+            && $payload['legal_name'] === 'Empresa Demo SA'
+            && $payload['environment'] === 'testing'
+            && $payload['default_point_of_sale'] === 2
+            && $payload['default_voucher_type'] === 11
+            && $payload['enabled'] === true
+            && $payload['onboarding_metadata']['business_slug'] === 'empresa-demo'
+            && $payload['onboarding_metadata']['activities'] === [492140];
+    });
+
+    $business->refresh();
+
+    expect($business->fiscal_enabled)->toBeTrue();
+});
+
+test('fiscal billing settings are not saved when external company sync fails', function () {
+    config()->set('fiscal.enabled', true);
+    config()->set('fiscal.base_url', 'http://127.0.0.1:8000/api');
+    config()->set('fiscal.token', 'testing-fiscal-token');
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/companies' => Http::response([
+            'message' => 'Could not persist fiscal company.',
+            'error_code' => 'company_persist_failed',
+        ], 422),
+    ]);
+
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create([
+        'fiscal_enabled' => false,
+    ]);
+
+    $this->actingAs($superAdmin)
+        ->from(route('admin.businesses.edit', $business))
+        ->put(route('admin.businesses.sales-settings.update', $business), [
+            'fiscal_enabled' => true,
+            'fiscal_external_business_id' => 'empresa-demo-prod',
+            'fiscal_cuit' => '30-71234567-1',
+        ])
+        ->assertRedirect(route('admin.businesses.edit', $business))
+        ->assertSessionHasErrors('fiscal_enabled');
+
+    expect($business->fresh()->fiscal_enabled)->toBeFalse();
+});
+
+test('business edit exposes fiscal selects and point of sale options from fiscal api', function () {
+    $this->withoutVite();
+
+    config()->set('fiscal.enabled', true);
+    config()->set('fiscal.base_url', 'http://127.0.0.1:8000/api');
+    config()->set('fiscal.token', 'testing-fiscal-token');
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/points-of-sale' => Http::response([
+            'data' => [
+                'points_of_sale' => [
+                    'ResultGet' => [
+                        'PtoVenta' => [
+                            ['Nro' => 2, 'EmisionTipo' => 'CAE', 'Bloqueado' => 'N'],
+                            ['Nro' => 4, 'EmisionTipo' => 'MANUAL', 'Bloqueado' => 'N'],
+                            ['Nro' => 5, 'EmisionTipo' => 'CAEA', 'Bloqueado' => 'S'],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create([
+        'fiscal_enabled' => true,
+        'fiscal_external_business_id' => 'empresa-demo-prod',
+        'fiscal_point_of_sale' => 2,
+        'fiscal_document_type' => 'invoice_c',
+        'fiscal_cbte_type' => 11,
+    ]);
+
+    $this
+        ->actingAs($superAdmin)
+        ->get(route('admin.businesses.edit', $business))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Businesses/Edit')
+            ->where('fiscal_catalog.document_types.2.value', 'invoice_c')
+            ->where('fiscal_catalog.document_types.2.label', 'Factura C')
+            ->where('fiscal_catalog.voucher_types.6.value', 11)
+            ->where('fiscal_catalog.voucher_types.6.label', 'Factura C')
+            ->where('sales_settings.fiscal_point_of_sale_options.status', 'ok')
+            ->where('sales_settings.fiscal_point_of_sale_options.options.0.value', 2)
+            ->where('sales_settings.fiscal_point_of_sale_options.options.0.selectable', true)
+            ->where('sales_settings.fiscal_point_of_sale_options.options.1.value', 4)
+            ->where('sales_settings.fiscal_point_of_sale_options.options.1.selectable', false)
+            ->where('sales_settings.fiscal_point_of_sale_options.options.1.disabled_reason', 'No es punto de venta electronico')
+            ->where('sales_settings.fiscal_point_of_sale_options.options.2.value', 5)
+            ->where('sales_settings.fiscal_point_of_sale_options.options.2.selectable', false)
+            ->where('sales_settings.fiscal_point_of_sale_options.options.2.disabled_reason', 'Bloqueado en ARCA')
+        );
+
+    Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer testing-fiscal-token'));
+});
+
+test('superadmin cannot configure invalid fiscal cuit', function () {
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create();
+
+    $this->actingAs($superAdmin)
+        ->from(route('admin.businesses.edit', $business))
+        ->put(route('admin.businesses.sales-settings.update', $business), [
+            'fiscal_enabled' => true,
+            'fiscal_cuit' => '30-71234567-8',
+        ])
+        ->assertRedirect(route('admin.businesses.edit', $business))
+        ->assertSessionHasErrors('fiscal_cuit');
 });

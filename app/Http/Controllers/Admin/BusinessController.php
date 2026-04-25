@@ -10,6 +10,7 @@ use App\Models\BusinessFeature;
 use App\Models\BusinessPayment;
 use App\Models\User;
 use App\Services\BusinessBillingService;
+use App\Services\Fiscal\FiscalPointOfSaleOptionsService;
 use App\Services\UserAccessMailService;
 use App\Support\CommercialPlanCatalog;
 use Illuminate\Http\RedirectResponse;
@@ -26,8 +27,8 @@ class BusinessController extends Controller
         private readonly UserAccessMailService $userAccessMailService,
         private readonly BusinessBillingService $billingService,
         private readonly CommercialPlanCatalog $planCatalog,
-    ) {
-    }
+        private readonly FiscalPointOfSaleOptionsService $fiscalPointOfSaleOptions,
+    ) {}
 
     public function index(): Response
     {
@@ -180,6 +181,15 @@ class BusinessController extends Controller
             'sales_settings' => [
                 'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
                 'global_product_catalog_enabled' => $business->hasGlobalProductCatalog(),
+                'fiscal_enabled' => $business->fiscal_enabled,
+                'fiscal_external_business_id' => $business->fiscal_external_business_id,
+                'fiscal_cuit' => $business->fiscal_cuit,
+                'fiscal_point_of_sale' => $business->fiscal_point_of_sale ?? config('fiscal.defaults.point_of_sale'),
+                'fiscal_document_type' => $business->fiscal_document_type ?: config('fiscal.defaults.document_type'),
+                'fiscal_cbte_type' => $business->fiscal_cbte_type ?? config('fiscal.defaults.cbte_type'),
+                'fiscal_concept' => $business->fiscal_concept ?? config('fiscal.defaults.concept'),
+                'fiscal_activities' => implode(', ', $business->fiscal_activities ?: config('fiscal.defaults.activities', [])),
+                'fiscal_point_of_sale_options' => $this->fiscalPointOfSaleOptions->forBusiness($business),
                 'sale_sectors' => $business->saleSectors->map(fn ($sector) => [
                     'id' => $sector->id,
                     'name' => $sector->name,
@@ -194,6 +204,10 @@ class BusinessController extends Controller
                     'account_number' => $destination->account_number,
                     'is_active' => $destination->is_active,
                 ])->values()->all(),
+            ],
+            'fiscal_catalog' => [
+                'document_types' => config('fiscal.document_types', []),
+                'voucher_types' => config('fiscal.voucher_types', []),
             ],
             'commercial_catalog' => [
                 'implementation_plans' => array_map(

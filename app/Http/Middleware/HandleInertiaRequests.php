@@ -60,6 +60,13 @@ class HandleInertiaRequests extends Middleware
                 'slug' => $business->slug,
                 'is_active' => $business->is_active,
             ] : null,
+            'modules' => [
+                'electronic_billing' => [
+                    'enabled' => $business !== null
+                        && (bool) config('fiscal.enabled')
+                        && $business->hasElectronicBilling(),
+                ],
+            ],
             'business_subscription' => $business ? app(BusinessBillingService::class)->maintenanceSummary($business) : null,
             'flash' => [
                 'success' => $request->session()->get('success'),

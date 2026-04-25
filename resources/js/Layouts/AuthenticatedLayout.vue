@@ -9,6 +9,7 @@ const page = usePage();
 
 const isSuperAdmin = computed(() => Boolean(page.props.auth?.is_super_admin));
 const canManageUsers = computed(() => page.props.auth?.role === 'admin');
+const hasElectronicBilling = computed(() => Boolean(page.props.modules?.electronic_billing?.enabled));
 const subscriptionNotice = computed(() => (
     !isSuperAdmin.value && page.props.business_subscription?.show_notice
         ? page.props.business_subscription
@@ -40,6 +41,7 @@ const navigation = computed(() => {
         { label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' },
         { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },
         { label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' },
+        ...(hasElectronicBilling.value ? [{ label: 'Facturacion electronica', route: 'electronic-billing.index', pattern: 'electronic-billing.*', icon: 'FE' }] : []),
         ...(canManageUsers.value ? [{ label: 'Usuarios', route: 'users.index', pattern: 'users.*', icon: 'US' }] : []),
         ...(canManageUsers.value ? [{ label: 'Notificaciones', route: 'notifications.edit', pattern: 'notifications.*', icon: 'NT' }] : []),
         { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },

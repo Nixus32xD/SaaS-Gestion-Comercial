@@ -4,15 +4,20 @@ namespace App\Services;
 
 use App\Models\Business;
 use App\Models\BusinessFeature;
+use App\Services\Fiscal\FiscalCompanySyncService;
 use Illuminate\Support\Facades\DB;
 
 class BusinessSalesConfigurationService
 {
+    public function __construct(private readonly FiscalCompanySyncService $fiscalCompanySync) {}
+
     /**
      * @param  array<string, mixed>  $payload
      */
     public function update(Business $business, array $payload): void
     {
+        $this->fiscalCompanySync->syncFromBusinessSettings($business, $payload);
+
         DB::transaction(function () use ($business, $payload): void {
             BusinessFeature::query()->updateOrCreate(
                 [
@@ -33,6 +38,17 @@ class BusinessSalesConfigurationService
                     'is_enabled' => (bool) ($payload['global_product_catalog_enabled'] ?? false),
                 ]
             );
+
+            $business->update([
+                'fiscal_enabled' => (bool) ($payload['fiscal_enabled'] ?? false),
+                'fiscal_external_business_id' => $payload['fiscal_external_business_id'] ?: null,
+                'fiscal_cuit' => $payload['fiscal_cuit'] ?: null,
+                'fiscal_point_of_sale' => $payload['fiscal_point_of_sale'] ?: null,
+                'fiscal_document_type' => $payload['fiscal_document_type'] ?: null,
+                'fiscal_cbte_type' => $payload['fiscal_cbte_type'] ?: null,
+                'fiscal_concept' => $payload['fiscal_concept'] ?: null,
+                'fiscal_activities' => $payload['fiscal_activities'] ?: null,
+            ]);
 
             foreach ((array) ($payload['sale_sectors'] ?? []) as $index => $sector) {
                 $record = isset($sector['id'])

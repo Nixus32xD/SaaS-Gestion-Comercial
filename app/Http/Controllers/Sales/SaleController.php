@@ -8,6 +8,7 @@ use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleFiscalDocument;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
@@ -22,9 +23,7 @@ use Inertia\Response;
 
 class SaleController extends Controller
 {
-    public function __construct(private readonly SaleService $saleService)
-    {
-    }
+    public function __construct(private readonly SaleService $saleService) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
     {
@@ -206,12 +205,23 @@ class SaleController extends Controller
         abort_if($business === null, 404);
         abort_if($sale->business_id !== $business->id, 403);
 
-        $sale->load(['items.product', 'user']);
+        $sale->load(['items.product', 'user', 'latestFiscalDocument']);
         $sale->loadMissing(['saleSector', 'paymentDestination']);
+        $fiscalDocument = $sale->latestFiscalDocument;
+        $fiscalEnabled = (bool) config('fiscal.enabled') && $business->hasElectronicBilling();
 
         return Inertia::render('Sales/Show', [
             'auto_back' => $request->boolean('auto_back'),
             'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
+            'fiscal' => [
+                'enabled' => $fiscalEnabled,
+                'environment' => (string) config('fiscal.environment', app()->environment()),
+                'production_confirmation_required' => app()->environment('production')
+                    || config('fiscal.environment') === 'production',
+                'can_issue' => $this->canIssueFiscalDocument($fiscalEnabled, $fiscalDocument),
+                'can_reconcile' => $fiscalEnabled && $fiscalDocument?->requiresReconcile(),
+                'document' => $this->mapFiscalDocument($fiscalDocument),
+            ],
             'sale' => [
                 'id' => $sale->id,
                 'sale_number' => $sale->sale_number,
@@ -242,6 +252,50 @@ class SaleController extends Controller
                 ]),
             ],
         ]);
+    }
+
+    private function canIssueFiscalDocument(bool $fiscalEnabled, ?SaleFiscalDocument $fiscalDocument): bool
+    {
+        if (! $fiscalEnabled) {
+            return false;
+        }
+
+        if ($fiscalDocument === null) {
+            return true;
+        }
+
+        return in_array($fiscalDocument->fiscal_status, [
+            SaleFiscalDocument::STATUS_REJECTED,
+            SaleFiscalDocument::STATUS_ERROR,
+        ], true);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function mapFiscalDocument(?SaleFiscalDocument $document): ?array
+    {
+        if ($document === null) {
+            return null;
+        }
+
+        return [
+            'id' => $document->id,
+            'attempt_number' => $document->attempt_number,
+            'fiscal_document_id' => $document->fiscal_document_id,
+            'fiscal_status' => $document->fiscal_status,
+            'fiscal_point_of_sale' => $document->fiscal_point_of_sale,
+            'fiscal_cbte_type' => $document->fiscal_cbte_type,
+            'fiscal_number' => $document->fiscal_number,
+            'fiscal_cae' => $document->fiscal_cae,
+            'fiscal_cae_expires_at' => $document->fiscal_cae_expires_at?->format('Y-m-d'),
+            'fiscal_error_code' => $document->fiscal_error_code,
+            'fiscal_error_message' => $document->fiscal_error_message,
+            'fiscal_idempotency_key' => $document->fiscal_idempotency_key,
+            'fiscal_observations' => $document->fiscal_observations ?? [],
+            'attempted_at' => $document->attempted_at?->format('Y-m-d H:i'),
+            'authorized_at' => $document->authorized_at?->format('Y-m-d H:i'),
+        ];
     }
 
     /**
@@ -405,11 +459,11 @@ class SaleController extends Controller
                     ->orWhere('sku', 'like', "%{$search}%");
             })
             ->orderByRaw(
-                "case
+                'case
                     when barcode = ? or sku = ? then 0
                     when name like ? then 1
                     else 2
-                end",
+                end',
                 [$search, $search, $search.'%']
             )
             ->orderBy('name');

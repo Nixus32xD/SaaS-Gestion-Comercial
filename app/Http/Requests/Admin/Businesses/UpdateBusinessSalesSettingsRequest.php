@@ -19,10 +19,30 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
     public function rules(): array
     {
         $businessId = (int) $this->route('business')->id;
+        $documentTypes = collect((array) config('fiscal.document_types', []))
+            ->pluck('value')
+            ->filter()
+            ->values()
+            ->all();
+        $voucherTypes = collect((array) config('fiscal.voucher_types', []))
+            ->pluck('value')
+            ->map(fn (mixed $value): int => (int) $value)
+            ->filter(fn (int $value): bool => $value > 0)
+            ->values()
+            ->all();
 
         return [
             'advanced_sale_settings_enabled' => ['required', 'boolean'],
             'global_product_catalog_enabled' => ['required', 'boolean'],
+            'fiscal_enabled' => ['required', 'boolean'],
+            'fiscal_external_business_id' => ['nullable', 'string', 'max:120'],
+            'fiscal_cuit' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
+            'fiscal_point_of_sale' => ['nullable', 'integer', 'min:1', 'max:99999'],
+            'fiscal_document_type' => ['nullable', 'string', 'max:40', Rule::in($documentTypes)],
+            'fiscal_cbte_type' => ['nullable', 'integer', 'min:1', 'max:999', Rule::in($voucherTypes)],
+            'fiscal_concept' => ['nullable', 'integer', 'in:1,2,3'],
+            'fiscal_activities' => ['nullable', 'array'],
+            'fiscal_activities.*' => ['integer', 'min:1'],
             'sale_sectors' => ['nullable', 'array'],
             'sale_sectors.*.id' => [
                 'nullable',
@@ -55,6 +75,25 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
         $this->merge([
             'advanced_sale_settings_enabled' => $this->boolean('advanced_sale_settings_enabled'),
             'global_product_catalog_enabled' => $this->boolean('global_product_catalog_enabled'),
+            'fiscal_enabled' => $this->boolean('fiscal_enabled'),
+            'fiscal_external_business_id' => trim((string) $this->input('fiscal_external_business_id')),
+            'fiscal_cuit' => preg_replace('/\D+/', '', (string) $this->input('fiscal_cuit', '')) ?: null,
+            'fiscal_point_of_sale' => $this->filled('fiscal_point_of_sale')
+                ? (int) $this->input('fiscal_point_of_sale')
+                : null,
+            'fiscal_document_type' => trim((string) $this->input('fiscal_document_type')),
+            'fiscal_cbte_type' => $this->filled('fiscal_cbte_type')
+                ? (int) $this->input('fiscal_cbte_type')
+                : null,
+            'fiscal_concept' => $this->filled('fiscal_concept')
+                ? (int) $this->input('fiscal_concept')
+                : null,
+            'fiscal_activities' => collect(explode(',', (string) $this->input('fiscal_activities', '')))
+                ->map(fn (string $activity): string => trim($activity))
+                ->filter()
+                ->map(fn (string $activity): int => (int) $activity)
+                ->values()
+                ->all(),
             'sale_sectors' => collect((array) $this->input('sale_sectors', []))
                 ->map(fn (array $sector): array => [
                     'id' => $sector['id'] ?? null,
@@ -88,6 +127,8 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             if (! $this->boolean('advanced_sale_settings_enabled')) {
+                $this->validateFiscalCuit($validator);
+
                 return;
             }
 
@@ -104,6 +145,53 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             if ($activeDestinations->isEmpty()) {
                 $validator->errors()->add('payment_destinations', 'Debes configurar al menos una cuenta activa para habilitar esta funcion.');
             }
+
+            $this->validateFiscalCuit($validator);
         });
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'fiscal_cuit.required' => 'El CUIT fiscal es obligatorio para habilitar facturacion electronica.',
+            'fiscal_cuit.size' => 'El CUIT fiscal debe tener 11 digitos.',
+            'fiscal_cuit.regex' => 'El CUIT fiscal debe contener solo numeros.',
+        ];
+    }
+
+    private function validateFiscalCuit(Validator $validator): void
+    {
+        $cuit = (string) $this->input('fiscal_cuit');
+
+        if ($cuit === '' || $validator->errors()->has('fiscal_cuit')) {
+            return;
+        }
+
+        if (! in_array(substr($cuit, 0, 2), ['20', '23', '24', '27', '30', '33', '34'], true)) {
+            $validator->errors()->add('fiscal_cuit', 'El CUIT fiscal tiene un prefijo invalido.');
+
+            return;
+        }
+
+        $weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+        $sum = 0;
+
+        foreach ($weights as $index => $weight) {
+            $sum += ((int) $cuit[$index]) * $weight;
+        }
+
+        $checkDigit = 11 - ($sum % 11);
+        if ($checkDigit === 11) {
+            $checkDigit = 0;
+        } elseif ($checkDigit === 10) {
+            $checkDigit = 9;
+        }
+
+        if ($checkDigit !== (int) $cuit[10]) {
+            $validator->errors()->add('fiscal_cuit', 'El CUIT fiscal no es valido.');
+        }
     }
 }

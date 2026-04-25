@@ -1,17 +1,20 @@
 <?php
 
-use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\BusinessBillingController;
+use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\CommercialGuideController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
 use App\Http\Controllers\Categories\CategoryController;
 use App\Http\Controllers\Dashboard\DashboardController;
+use App\Http\Controllers\Fiscal\ElectronicBillingController;
+use App\Http\Controllers\Fiscal\FiscalCredentialOnboardingController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchases\PurchaseController;
 use App\Http\Controllers\Sales\SaleController;
+use App\Http\Controllers\Sales\SaleFiscalDocumentController;
 use App\Http\Controllers\Suppliers\SupplierController;
 use App\Http\Controllers\Users\BusinessUserController;
 use App\Http\Controllers\WelcomeController;
@@ -63,11 +66,15 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/sales/products/search', [SaleController::class, 'searchProducts'])->name('sales.products.search');
     Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+    Route::post('/sales/{sale}/fiscal-documents', [SaleFiscalDocumentController::class, 'store'])->name('sales.fiscal-documents.store');
+    Route::post('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/reconcile', [SaleFiscalDocumentController::class, 'reconcile'])->name('sales.fiscal-documents.reconcile');
 
     Route::get('/purchases', [PurchaseController::class, 'index'])->name('purchases.index');
     Route::get('/purchases/create', [PurchaseController::class, 'create'])->name('purchases.create');
     Route::post('/purchases', [PurchaseController::class, 'store'])->name('purchases.store');
     Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
+
+    Route::get('/electronic-billing', [ElectronicBillingController::class, 'index'])->name('electronic-billing.index');
 });
 
 Route::middleware(['auth', 'business', 'business.admin'])->group(function (): void {
@@ -76,6 +83,9 @@ Route::middleware(['auth', 'business', 'business.admin'])->group(function (): vo
     Route::patch('/users/{user}/status', [BusinessUserController::class, 'updateStatus'])->name('users.status');
     Route::get('/notifications', [NotificationSettingsController::class, 'edit'])->name('notifications.edit');
     Route::put('/notifications', [NotificationSettingsController::class, 'update'])->name('notifications.update');
+    Route::post('/electronic-billing/credentials/csr', [FiscalCredentialOnboardingController::class, 'generateCsr'])->name('electronic-billing.credentials.csr');
+    Route::post('/electronic-billing/credentials/{credential}/certificate', [FiscalCredentialOnboardingController::class, 'uploadCertificate'])->name('electronic-billing.credentials.certificate.store');
+    Route::post('/electronic-billing/credentials/{credential}/test', [FiscalCredentialOnboardingController::class, 'test'])->name('electronic-billing.credentials.test');
 });
 
 Route::middleware('auth')->group(function () {

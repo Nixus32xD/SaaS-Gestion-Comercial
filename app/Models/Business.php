@@ -31,6 +31,14 @@ class Business extends Model
         'maintenance_ends_at',
         'subscription_grace_days',
         'subscription_notes',
+        'fiscal_enabled',
+        'fiscal_external_business_id',
+        'fiscal_cuit',
+        'fiscal_point_of_sale',
+        'fiscal_document_type',
+        'fiscal_cbte_type',
+        'fiscal_concept',
+        'fiscal_activities',
         'is_active',
     ];
 
@@ -46,6 +54,11 @@ class Business extends Model
             'maintenance_started_at' => 'date',
             'maintenance_ends_at' => 'date',
             'subscription_grace_days' => 'int',
+            'fiscal_enabled' => 'bool',
+            'fiscal_point_of_sale' => 'int',
+            'fiscal_cbte_type' => 'int',
+            'fiscal_concept' => 'int',
+            'fiscal_activities' => 'array',
         ];
     }
 
@@ -114,6 +127,22 @@ class Business extends Model
     }
 
     /**
+     * @return HasMany<SaleFiscalDocument, $this>
+     */
+    public function saleFiscalDocuments(): HasMany
+    {
+        return $this->hasMany(SaleFiscalDocument::class);
+    }
+
+    /**
+     * @return HasMany<BusinessFiscalCredential, $this>
+     */
+    public function fiscalCredentials(): HasMany
+    {
+        return $this->hasMany(BusinessFiscalCredential::class);
+    }
+
+    /**
      * @return HasMany<BusinessPayment, $this>
      */
     public function payments(): HasMany
@@ -163,5 +192,10 @@ class Business extends Model
     public function hasGlobalProductCatalog(): bool
     {
         return $this->hasFeature(BusinessFeature::GLOBAL_PRODUCT_CATALOG);
+    }
+
+    public function hasElectronicBilling(): bool
+    {
+        return (bool) $this->fiscal_enabled;
     }
 }
