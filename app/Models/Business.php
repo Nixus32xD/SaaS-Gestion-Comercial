@@ -135,7 +135,6 @@ class Business extends Model
     }
 
     /**
-<<<<<<< HEAD
      * @return HasMany<SaleFiscalDocument, $this>
      */
     public function saleFiscalDocuments(): HasMany
@@ -149,7 +148,9 @@ class Business extends Model
     public function fiscalCredentials(): HasMany
     {
         return $this->hasMany(BusinessFiscalCredential::class);
-=======
+    }
+
+    /**
      * @return HasMany<CustomerAccountMovement, $this>
      */
     public function customerAccountMovements(): HasMany
@@ -163,7 +164,6 @@ class Business extends Model
     public function customerReminders(): HasMany
     {
         return $this->hasMany(CustomerReminder::class);
->>>>>>> 36e2a0bf142622ed3b5f14b1e2436c048ab85c51
     }
 
     /**
