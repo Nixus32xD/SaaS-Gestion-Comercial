@@ -12,6 +12,7 @@ class FiscalSaleDocumentService
     public function __construct(
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
+        private readonly FiscalApiErrorMapper $errorMapper,
     ) {}
 
     public function issue(Sale $sale): SaleFiscalDocument
@@ -39,6 +40,12 @@ class FiscalSaleDocumentService
             ]);
         }
 
+        if ($latestDocument !== null && ! $this->errorMapper->safeToRetry($latestDocument)) {
+            throw ValidationException::withMessages([
+                'fiscal' => 'El ultimo estado fiscal no es seguro para reintentar. Revisa el detalle fiscal o concilia antes de emitir nuevamente.',
+            ]);
+        }
+
         $attemptNumber = $this->nextAttemptNumber($sale);
         $idempotencyKey = $this->idempotencyKey($sale, $attemptNumber);
         $payload = $this->payloadBuilder->build($sale, $idempotencyKey);
@@ -58,9 +65,9 @@ class FiscalSaleDocumentService
         try {
             $response = $this->client->createDocument($payload);
         } catch (FiscalApiTimeoutException $exception) {
-            return $this->markUncertain($document, $exception->getMessage());
+            return $this->markUncertain($document, $this->errorMapper->fromException($exception));
         } catch (FiscalApiException $exception) {
-            return $this->markError($document, 'configuration_error', $exception->getMessage());
+            return $this->markError($document, $this->errorMapper->fromException($exception));
         }
 
         return $this->applyResponse($document, $response);
@@ -84,21 +91,37 @@ class FiscalSaleDocumentService
                 $response = $this->client->documentByOrigin($businessId, 'sale', $document->sale_id);
             }
         } catch (FiscalApiTimeoutException $exception) {
-            return $this->markUncertain($document, $exception->getMessage());
+            return $this->markUncertain($document, $this->errorMapper->fromException($exception));
         } catch (FiscalApiException $exception) {
-            return $this->markError($document, 'configuration_error', $exception->getMessage());
+            return $this->markUncertain($document, $this->errorMapper->fromException($exception));
         }
 
-        return $this->applyResponse($document, $response);
+        return $this->applyResponse($document, $response, reconciling: true);
     }
 
     /**
      * @param  array<string, mixed>  $response
      */
-    public function applyResponse(SaleFiscalDocument $document, array $response): SaleFiscalDocument
-    {
+    public function applyResponse(
+        SaleFiscalDocument $document,
+        array $response,
+        bool $reconciling = false
+    ): SaleFiscalDocument {
         $payload = $this->documentPayload($response);
         $status = $this->normalizeStatus((string) data_get($payload, 'status', SaleFiscalDocument::STATUS_ERROR));
+        $apiError = $this->errorMapper->fromResponse($response);
+        $authorizationType = $this->authorizationType($payload, $document);
+        $authorizationCode = $this->authorizationCode($payload, $authorizationType, $document);
+        $authorizationExpiresAt = $this->authorizationExpiresAt($payload, $authorizationType, $document);
+
+        if ($apiError !== null) {
+            if ((bool) $apiError['requires_reconcile']
+                || ($reconciling && $status === SaleFiscalDocument::STATUS_ERROR)) {
+                $status = SaleFiscalDocument::STATUS_UNCERTAIN;
+            } elseif ($status === SaleFiscalDocument::STATUS_AUTHORIZED) {
+                $status = SaleFiscalDocument::STATUS_ERROR;
+            }
+        }
 
         $document->fill([
             'fiscal_document_id' => data_get($payload, 'id')
@@ -109,10 +132,30 @@ class FiscalSaleDocumentService
             'fiscal_point_of_sale' => data_get($payload, 'point_of_sale', $document->fiscal_point_of_sale),
             'fiscal_cbte_type' => data_get($payload, 'cbte_type', $document->fiscal_cbte_type),
             'fiscal_number' => data_get($payload, 'number', $document->fiscal_number),
-            'fiscal_cae' => data_get($payload, 'cae', $document->fiscal_cae),
-            'fiscal_cae_expires_at' => $this->dateOrNull(data_get($payload, 'cae_expires_at')),
-            'fiscal_error_code' => data_get($payload, 'error.code'),
-            'fiscal_error_message' => data_get($payload, 'error.message'),
+            'fiscal_cae' => $this->legacyCae($payload, $authorizationType, $authorizationCode, $document),
+            'fiscal_cae_expires_at' => $this->legacyCaeExpiresAt(
+                $payload,
+                $authorizationType,
+                $authorizationExpiresAt,
+                $document
+            ),
+            'authorization_type' => $authorizationType,
+            'authorization_code' => $authorizationCode,
+            'authorization_expires_at' => $authorizationExpiresAt,
+            'caea_period' => data_get($payload, 'caea_period')
+                ?? data_get($payload, 'caea.period')
+                ?? $document->caea_period,
+            'caea_order' => data_get($payload, 'caea_order')
+                ?? data_get($payload, 'caea.order')
+                ?? $document->caea_order,
+            'caea_report_status' => data_get($payload, 'caea_report_status')
+                ?? data_get($payload, 'caea.report_status')
+                ?? $this->defaultCaeaReportStatus($status, $authorizationType, $document),
+            'caea_reported_at' => $this->dateTimeOrNull(
+                data_get($payload, 'caea_reported_at') ?? data_get($payload, 'caea.reported_at')
+            ) ?? $document->caea_reported_at,
+            'fiscal_error_code' => $apiError['code'] ?? null,
+            'fiscal_error_message' => $apiError['message'] ?? null,
             'fiscal_response' => $response,
             'fiscal_observations' => data_get($payload, 'observations'),
             'authorized_at' => $status === SaleFiscalDocument::STATUS_AUTHORIZED ? now() : null,
@@ -144,23 +187,29 @@ class FiscalSaleDocumentService
         return $data;
     }
 
-    private function markUncertain(SaleFiscalDocument $document, string $message): SaleFiscalDocument
+    /**
+     * @param  array<string, mixed>  $error
+     */
+    private function markUncertain(SaleFiscalDocument $document, array $error): SaleFiscalDocument
     {
         $document->update([
             'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN,
-            'fiscal_error_code' => 'timeout',
-            'fiscal_error_message' => $message !== '' ? $message : 'La API fiscal no respondio dentro del tiempo esperado.',
+            'fiscal_error_code' => $error['code'],
+            'fiscal_error_message' => $error['message'],
         ]);
 
         return $document->refresh();
     }
 
-    private function markError(SaleFiscalDocument $document, string $code, string $message): SaleFiscalDocument
+    /**
+     * @param  array<string, mixed>  $error
+     */
+    private function markError(SaleFiscalDocument $document, array $error): SaleFiscalDocument
     {
         $document->update([
             'fiscal_status' => SaleFiscalDocument::STATUS_ERROR,
-            'fiscal_error_code' => $code,
-            'fiscal_error_message' => $message,
+            'fiscal_error_code' => $error['code'],
+            'fiscal_error_message' => $error['message'],
         ]);
 
         return $document->refresh();
@@ -196,5 +245,151 @@ class FiscalSaleDocumentService
         }
 
         return Carbon::parse($value)->toDateString();
+    }
+
+    private function dateTimeOrNull(mixed $value): ?Carbon
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return Carbon::parse($value);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function authorizationType(array $payload, SaleFiscalDocument $document): ?string
+    {
+        $value = data_get($payload, 'authorization_type')
+            ?? data_get($payload, 'authorization.type')
+            ?? data_get($payload, 'auth_type')
+            ?? data_get($payload, 'caea.type')
+            ?? $document->authorization_type;
+
+        if ($value === null) {
+            if (data_get($payload, 'caea') !== null || data_get($payload, 'caea_code') !== null) {
+                return SaleFiscalDocument::AUTHORIZATION_CAEA;
+            }
+
+            if (data_get($payload, 'cae') !== null || $document->fiscal_cae !== null) {
+                return SaleFiscalDocument::AUTHORIZATION_CAE;
+            }
+
+            return null;
+        }
+
+        $value = strtoupper(trim((string) $value));
+
+        return in_array($value, [
+            SaleFiscalDocument::AUTHORIZATION_CAE,
+            SaleFiscalDocument::AUTHORIZATION_CAEA,
+        ], true) ? $value : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function authorizationCode(
+        array $payload,
+        ?string $authorizationType,
+        SaleFiscalDocument $document
+    ): ?string {
+        $value = data_get($payload, 'authorization_code')
+            ?? data_get($payload, 'authorization.code')
+            ?? data_get($payload, 'auth_code');
+
+        if ($value === null) {
+            $value = $authorizationType === SaleFiscalDocument::AUTHORIZATION_CAEA
+                ? (data_get($payload, 'caea') ?? data_get($payload, 'caea_code'))
+                : data_get($payload, 'cae');
+        }
+
+        if ($value === null) {
+            return $document->authorization_code;
+        }
+
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function authorizationExpiresAt(
+        array $payload,
+        ?string $authorizationType,
+        SaleFiscalDocument $document
+    ): ?string {
+        $value = data_get($payload, 'authorization_expires_at')
+            ?? data_get($payload, 'authorization.expires_at')
+            ?? data_get($payload, 'auth_expires_at');
+
+        if ($value === null) {
+            $value = $authorizationType === SaleFiscalDocument::AUTHORIZATION_CAEA
+                ? (data_get($payload, 'caea_expires_at') ?? data_get($payload, 'caea.expires_at'))
+                : data_get($payload, 'cae_expires_at');
+        }
+
+        return $this->dateOrNull($value) ?? $document->authorization_expires_at?->toDateString();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function legacyCae(
+        array $payload,
+        ?string $authorizationType,
+        ?string $authorizationCode,
+        SaleFiscalDocument $document
+    ): ?string {
+        $cae = data_get($payload, 'cae');
+
+        if ($cae !== null && trim((string) $cae) !== '') {
+            return (string) $cae;
+        }
+
+        return $authorizationType === SaleFiscalDocument::AUTHORIZATION_CAE
+            ? $authorizationCode
+            : $document->fiscal_cae;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function legacyCaeExpiresAt(
+        array $payload,
+        ?string $authorizationType,
+        ?string $authorizationExpiresAt,
+        SaleFiscalDocument $document
+    ): ?string {
+        $caeExpiresAt = $this->dateOrNull(data_get($payload, 'cae_expires_at'));
+
+        if ($caeExpiresAt !== null) {
+            return $caeExpiresAt;
+        }
+
+        return $authorizationType === SaleFiscalDocument::AUTHORIZATION_CAE
+            ? $authorizationExpiresAt
+            : $document->fiscal_cae_expires_at?->toDateString();
+    }
+
+    private function defaultCaeaReportStatus(
+        string $status,
+        ?string $authorizationType,
+        SaleFiscalDocument $document
+    ): ?string {
+        if ($document->caea_report_status !== null) {
+            return $document->caea_report_status;
+        }
+
+        if ($authorizationType !== SaleFiscalDocument::AUTHORIZATION_CAEA) {
+            return null;
+        }
+
+        return $status === SaleFiscalDocument::STATUS_AUTHORIZED
+            ? SaleFiscalDocument::CAEA_REPORT_PENDING
+            : null;
     }
 }

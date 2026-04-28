@@ -10,6 +10,7 @@ class FiscalCompanySyncService
     public function __construct(
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
+        private readonly FiscalApiErrorMapper $errorMapper,
     ) {}
 
     /**
@@ -54,8 +55,12 @@ class FiscalCompanySyncService
         $apiError = $this->apiError($response);
 
         if ($apiError !== null) {
+            $mappedError = $this->errorMapper->fromResponse($response);
+
             throw ValidationException::withMessages([
-                'fiscal_enabled' => $this->friendlyApiErrorMessage($apiError->code, $apiError->message),
+                'fiscal_enabled' => in_array($apiError->code, ['company_not_found', 'company_persist_failed'], true)
+                    ? $this->friendlyApiErrorMessage($apiError->code, $apiError->message)
+                    : ($mappedError['message'] ?? $this->friendlyApiErrorMessage($apiError->code, $apiError->message)),
             ]);
         }
     }
@@ -85,6 +90,8 @@ class FiscalCompanySyncService
             !== (int) ($payload['fiscal_cbte_type'] ?? 0)
             || (int) ($business->fiscal_concept ?? 0)
             !== (int) ($payload['fiscal_concept'] ?? 0)
+            || $this->authorizationMode($business->fiscal_authorization_mode)
+            !== $this->authorizationMode($payload['fiscal_authorization_mode'] ?? null)
             || $this->activities($business->fiscal_activities)
             !== $this->activities($payload['fiscal_activities'] ?? []);
     }
@@ -144,6 +151,7 @@ class FiscalCompanySyncService
                     $payload['fiscal_concept'] ?? null,
                     (int) config('fiscal.defaults.concept', 1)
                 ),
+                'authorization_mode' => $this->authorizationMode($payload['fiscal_authorization_mode'] ?? null),
                 'activities' => $this->activities($payload['fiscal_activities'] ?? []),
             ], fn (mixed $value): bool => $value !== null && $value !== ''),
         ];
@@ -176,6 +184,15 @@ class FiscalCompanySyncService
     private function normalizedFiscalValue(mixed $value): string
     {
         return trim((string) $value);
+    }
+
+    private function authorizationMode(mixed $value): string
+    {
+        $mode = strtolower(trim((string) $value));
+
+        return in_array($mode, ['cae', 'caea', 'auto'], true)
+            ? $mode
+            : (string) config('fiscal.defaults.authorization_mode', 'cae');
     }
 
     private function apiError(array $response): ?object

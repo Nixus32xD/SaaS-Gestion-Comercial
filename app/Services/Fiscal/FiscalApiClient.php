@@ -235,9 +235,15 @@ class FiscalApiClient
         return [
             ...$payload,
             'status' => $payload['status'] ?? 'error',
+            'http_status' => $statusCode,
             'error' => [
                 'code' => data_get($payload, 'error.code', $payload['error_code'] ?? "http_{$statusCode}"),
                 'message' => data_get($payload, 'error.message', $payload['message'] ?? $body),
+                'technical_message' => data_get(
+                    $payload,
+                    'error.technical_message',
+                    $payload['technical_message'] ?? ($payload['message'] ?? $body)
+                ),
             ],
         ];
     }

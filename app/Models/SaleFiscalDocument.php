@@ -22,6 +22,14 @@ class SaleFiscalDocument extends Model
 
     public const STATUS_PROCESSING = 'processing';
 
+    public const AUTHORIZATION_CAE = 'CAE';
+
+    public const AUTHORIZATION_CAEA = 'CAEA';
+
+    public const CAEA_REPORT_PENDING = 'pending_report';
+
+    public const CAEA_REPORT_REPORTED = 'reported';
+
     /**
      * @var list<string>
      */
@@ -36,6 +44,13 @@ class SaleFiscalDocument extends Model
         'fiscal_number',
         'fiscal_cae',
         'fiscal_cae_expires_at',
+        'authorization_type',
+        'authorization_code',
+        'authorization_expires_at',
+        'caea_period',
+        'caea_order',
+        'caea_report_status',
+        'caea_reported_at',
         'fiscal_error_code',
         'fiscal_error_message',
         'fiscal_idempotency_key',
@@ -57,6 +72,9 @@ class SaleFiscalDocument extends Model
             'fiscal_cbte_type' => 'int',
             'fiscal_number' => 'int',
             'fiscal_cae_expires_at' => 'date',
+            'authorization_expires_at' => 'date',
+            'caea_order' => 'int',
+            'caea_reported_at' => 'datetime',
             'fiscal_payload' => 'array',
             'fiscal_response' => 'array',
             'fiscal_observations' => 'array',

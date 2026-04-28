@@ -47,6 +47,8 @@ class BusinessSalesConfigurationService
                 'fiscal_document_type' => $payload['fiscal_document_type'] ?: null,
                 'fiscal_cbte_type' => $payload['fiscal_cbte_type'] ?: null,
                 'fiscal_concept' => $payload['fiscal_concept'] ?: null,
+                'fiscal_authorization_mode' => $payload['fiscal_authorization_mode']
+                    ?: config('fiscal.defaults.authorization_mode', 'cae'),
                 'fiscal_activities' => $payload['fiscal_activities'] ?: null,
             ]);
 

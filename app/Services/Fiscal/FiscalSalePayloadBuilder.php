@@ -31,6 +31,7 @@ class FiscalSalePayloadBuilder
             'point_of_sale' => $this->pointOfSale($business),
             'cbte_type' => $this->cbteType($business),
             'concept' => $concept,
+            'authorization_mode' => $this->authorizationMode($business),
             'customer' => $this->defaultCustomer(),
             'amounts' => $this->amounts($sale),
             'currency' => (string) config('fiscal.defaults.currency', 'PES'),
@@ -78,6 +79,16 @@ class FiscalSalePayloadBuilder
     private function concept(Business $business): int
     {
         return (int) ($business->fiscal_concept ?: config('fiscal.defaults.concept', 1));
+    }
+
+    private function authorizationMode(Business $business): string
+    {
+        $mode = strtolower(trim((string) ($business->fiscal_authorization_mode ?: config(
+            'fiscal.defaults.authorization_mode',
+            'cae'
+        ))));
+
+        return in_array($mode, ['cae', 'caea', 'auto'], true) ? $mode : 'cae';
     }
 
     /**

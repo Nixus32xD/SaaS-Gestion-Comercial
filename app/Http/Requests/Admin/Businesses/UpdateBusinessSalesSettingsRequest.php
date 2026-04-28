@@ -30,6 +30,11 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             ->filter(fn (int $value): bool => $value > 0)
             ->values()
             ->all();
+        $authorizationModes = collect((array) config('fiscal.authorization_modes', []))
+            ->pluck('value')
+            ->filter()
+            ->values()
+            ->all();
 
         return [
             'advanced_sale_settings_enabled' => ['required', 'boolean'],
@@ -41,6 +46,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_document_type' => ['nullable', 'string', 'max:40', Rule::in($documentTypes)],
             'fiscal_cbte_type' => ['nullable', 'integer', 'min:1', 'max:999', Rule::in($voucherTypes)],
             'fiscal_concept' => ['nullable', 'integer', 'in:1,2,3'],
+            'fiscal_authorization_mode' => ['nullable', 'string', Rule::in($authorizationModes)],
             'fiscal_activities' => ['nullable', 'array'],
             'fiscal_activities.*' => ['integer', 'min:1'],
             'sale_sectors' => ['nullable', 'array'],
@@ -88,6 +94,10 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_concept' => $this->filled('fiscal_concept')
                 ? (int) $this->input('fiscal_concept')
                 : null,
+            'fiscal_authorization_mode' => trim((string) $this->input(
+                'fiscal_authorization_mode',
+                config('fiscal.defaults.authorization_mode', 'cae')
+            )),
             'fiscal_activities' => collect(explode(',', (string) $this->input('fiscal_activities', '')))
                 ->map(fn (string $activity): string => trim($activity))
                 ->filter()

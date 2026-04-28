@@ -74,6 +74,13 @@ const conceptLabel = computed(() => {
     return 'Productos';
 });
 
+const authorizationModeLabel = computed(() => {
+    if (props.configuration.authorization_mode === 'caea') return 'CAEA contingencia';
+    if (props.configuration.authorization_mode === 'auto') return 'Automatico';
+
+    return 'CAE normal';
+});
+
 const statusLabel = (status) => {
     if (status === 'authorized') return 'Autorizado';
     if (status === 'rejected') return 'Rechazado';
@@ -143,6 +150,18 @@ const voucherLabel = (document) => {
 
     return `${typeLabel} ${pointOfSale}-${number}`;
 };
+
+const authorizationTypeLabel = (document) => (
+    document.authorization_type || (document.cae ? 'CAE' : '-')
+);
+
+const authorizationCode = (document) => (
+    document.authorization_code || document.cae || '-'
+);
+
+const authorizationExpiresAt = (document) => (
+    document.authorization_expires_at || document.cae_expires_at || null
+);
 
 const compactList = (rows) => {
     if (!rows.length) return '-';
@@ -605,6 +624,10 @@ const reconcileDocument = (document) => {
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Concepto</dt>
                         <dd class="mt-1 font-semibold text-slate-100">{{ conceptLabel }}</dd>
                     </div>
+                    <div>
+                        <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Modo autorizacion</dt>
+                        <dd class="mt-1 font-semibold text-slate-100">{{ authorizationModeLabel }}</dd>
+                    </div>
                     <div class="md:col-span-2">
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Actividades configuradas</dt>
                         <dd class="mt-1 font-semibold text-slate-100">{{ compactList(configuration.activities || []) }}</dd>
@@ -630,7 +653,7 @@ const reconcileDocument = (document) => {
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Venta</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Estado</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Comprobante</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">CAE</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Autorizacion</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Total</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Acciones</th>
                             </tr>
@@ -648,11 +671,13 @@ const reconcileDocument = (document) => {
                                         {{ statusLabel(document.status) }}
                                     </span>
                                     <p v-if="document.error_message" class="mt-2 max-w-xs text-xs text-rose-200">{{ document.error_message }}</p>
+                                    <p v-if="document.error_action" class="mt-1 max-w-xs text-xs text-slate-400">Accion: {{ document.error_action }}</p>
                                 </td>
                                 <td class="px-3 py-2 text-slate-200">{{ voucherLabel(document) }}</td>
                                 <td class="px-3 py-2 text-slate-200">
-                                    <span>{{ document.cae || '-' }}</span>
-                                    <p v-if="document.cae_expires_at" class="mt-1 text-xs text-slate-400">Vence {{ document.cae_expires_at }}</p>
+                                    <span>{{ authorizationTypeLabel(document) }} {{ authorizationCode(document) }}</span>
+                                    <p v-if="authorizationExpiresAt(document)" class="mt-1 text-xs text-slate-400">Vence {{ authorizationExpiresAt(document) }}</p>
+                                    <p v-if="document.caea_report_status" class="mt-1 text-xs text-amber-100">Reporte CAEA: {{ document.caea_report_status }}</p>
                                 </td>
                                 <td class="px-3 py-2 text-slate-200">{{ money(document.sale_total) }}</td>
                                 <td class="px-3 py-2">

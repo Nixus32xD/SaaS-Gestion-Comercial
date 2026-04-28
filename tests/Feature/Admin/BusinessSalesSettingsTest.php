@@ -62,6 +62,7 @@ test('superadmin can configure fiscal cuit for a business', function () {
             'fiscal_document_type' => 'invoice_c',
             'fiscal_cbte_type' => 11,
             'fiscal_concept' => 1,
+            'fiscal_authorization_mode' => 'caea',
             'fiscal_activities' => '492140',
         ])
         ->assertRedirect(route('admin.businesses.edit', $business));
@@ -71,6 +72,7 @@ test('superadmin can configure fiscal cuit for a business', function () {
     expect($business->fiscal_enabled)->toBeTrue();
     expect($business->fiscal_external_business_id)->toBe('empresa-demo-prod');
     expect($business->fiscal_cuit)->toBe('30712345671');
+    expect($business->fiscal_authorization_mode)->toBe('caea');
     expect($business->fiscal_activities)->toBe([492140]);
 });
 
@@ -103,6 +105,7 @@ test('enabling fiscal billing syncs the external fiscal company', function () {
             'fiscal_document_type' => 'invoice_c',
             'fiscal_cbte_type' => 11,
             'fiscal_concept' => 1,
+            'fiscal_authorization_mode' => 'cae',
             'fiscal_activities' => '492140',
         ])
         ->assertRedirect(route('admin.businesses.edit', $business));
@@ -122,6 +125,7 @@ test('enabling fiscal billing syncs the external fiscal company', function () {
             && $payload['default_voucher_type'] === 11
             && $payload['enabled'] === true
             && $payload['onboarding_metadata']['business_slug'] === 'empresa-demo'
+            && $payload['onboarding_metadata']['authorization_mode'] === 'cae'
             && $payload['onboarding_metadata']['activities'] === [492140];
     });
 
@@ -211,6 +215,7 @@ test('business edit exposes fiscal selects and point of sale options from fiscal
             ->where('sales_settings.fiscal_point_of_sale_options.options.2.value', 5)
             ->where('sales_settings.fiscal_point_of_sale_options.options.2.selectable', false)
             ->where('sales_settings.fiscal_point_of_sale_options.options.2.disabled_reason', 'Bloqueado en ARCA')
+            ->where('fiscal_catalog.authorization_modes.0.value', 'cae')
         );
 
     Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer testing-fiscal-token'));

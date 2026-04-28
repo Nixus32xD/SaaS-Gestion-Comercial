@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
+use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\SaleReceiptService;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
@@ -31,6 +32,7 @@ class SaleController extends Controller
 {
     public function __construct(
         private readonly SaleService $saleService,
+        private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
         private readonly SaleReceiptService $saleReceiptService,
     ) {}
 
@@ -380,10 +382,7 @@ class SaleController extends Controller
             return true;
         }
 
-        return in_array($fiscalDocument->fiscal_status, [
-            SaleFiscalDocument::STATUS_REJECTED,
-            SaleFiscalDocument::STATUS_ERROR,
-        ], true);
+        return $this->fiscalApiErrorMapper->safeToRetry($fiscalDocument);
     }
 
     /**
@@ -395,6 +394,8 @@ class SaleController extends Controller
             return null;
         }
 
+        $error = $this->fiscalApiErrorMapper->fromDocument($document);
+
         return [
             'id' => $document->id,
             'attempt_number' => $document->attempt_number,
@@ -405,8 +406,22 @@ class SaleController extends Controller
             'fiscal_number' => $document->fiscal_number,
             'fiscal_cae' => $document->fiscal_cae,
             'fiscal_cae_expires_at' => $document->fiscal_cae_expires_at?->format('Y-m-d'),
+            'authorization_type' => $document->authorization_type
+                ?? ($document->fiscal_cae !== null ? SaleFiscalDocument::AUTHORIZATION_CAE : null),
+            'authorization_code' => $document->authorization_code ?? $document->fiscal_cae,
+            'authorization_expires_at' => $document->authorization_expires_at?->format('Y-m-d')
+                ?? $document->fiscal_cae_expires_at?->format('Y-m-d'),
+            'caea_period' => $document->caea_period,
+            'caea_order' => $document->caea_order,
+            'caea_report_status' => $document->caea_report_status,
+            'caea_reported_at' => $document->caea_reported_at?->format('Y-m-d H:i'),
             'fiscal_error_code' => $document->fiscal_error_code,
             'fiscal_error_message' => $document->fiscal_error_message,
+            'fiscal_error_category' => $error['category'] ?? null,
+            'fiscal_error_action' => $error['action'] ?? null,
+            'fiscal_error_retryable' => $error['retryable'] ?? false,
+            'fiscal_requires_reconcile' => $error['requires_reconcile'] ?? $document->requiresReconcile(),
+            'fiscal_technical_message' => $error['technical_message'] ?? null,
             'fiscal_idempotency_key' => $document->fiscal_idempotency_key,
             'fiscal_observations' => $document->fiscal_observations ?? [],
             'attempted_at' => $document->attempted_at?->format('Y-m-d H:i'),
