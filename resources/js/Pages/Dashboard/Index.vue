@@ -1,4 +1,7 @@
 <script setup>
+import AppPanel from '@/Components/AppPanel.vue';
+import MetricCard from '@/Components/MetricCard.vue';
+import StatusBadge from '@/Components/StatusBadge.vue';
 import { computed } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
@@ -162,6 +165,78 @@ const expirationGroups = computed(() => {
 
     return groups.filter((group) => group.items.length > 0);
 });
+
+const lowStockSummary = computed(() => ({
+    total: props.low_stock_products.length,
+    out_of_stock: props.low_stock_products.filter((product) => Number(product.stock) <= 0).length,
+    low_only: props.low_stock_products.filter((product) => Number(product.stock) > 0).length,
+}));
+
+const expirationSummary = computed(() => ({
+    total: expirationAlerts.value.length,
+    expired: expirationAlerts.value.filter((item) => item.urgency === 'expired').length,
+    urgent: expirationAlerts.value.filter((item) => item.urgency === 'upcoming_urgent').length,
+}));
+
+const netFlow = computed(() => trendSalesTotal.value - trendPurchasesTotal.value);
+const operationPulse = computed(() => {
+    if (expirationSummary.value.expired > 0 || lowStockSummary.value.out_of_stock > 0) {
+        return {
+            tone: 'danger',
+            label: 'Atencion hoy',
+            message: 'Hay alertas criticas que conviene revisar antes de seguir vendiendo.',
+        };
+    }
+
+    if (expirationSummary.value.urgent > 0 || lowStockSummary.value.low_only > 0) {
+        return {
+            tone: 'warning',
+            label: 'Seguimiento necesario',
+            message: 'Hay productos que requieren control operativo durante la jornada.',
+        };
+    }
+
+    return {
+        tone: 'success',
+        label: 'Operacion estable',
+        message: 'No hay alertas urgentes visibles en este momento.',
+    };
+});
+
+const priorityCards = computed(() => ([
+    {
+        key: 'stock',
+        title: lowStockSummary.value.out_of_stock > 0
+            ? `${lowStockSummary.value.out_of_stock} productos agotados`
+            : `${lowStockSummary.value.total} productos con alerta`,
+        description: lowStockSummary.value.total > 0
+            ? 'Revisa faltantes, bajo stock y productos que ya no estan listos para vender.'
+            : 'No hay alertas de stock para resolver ahora.',
+        tone: lowStockSummary.value.out_of_stock > 0 ? 'danger' : (lowStockSummary.value.total > 0 ? 'warning' : 'success'),
+        href: route('products.index', lowStockSummary.value.out_of_stock > 0 ? { no_stock: 1 } : { low_stock: 1 }),
+        action: lowStockSummary.value.total > 0 ? 'Ver productos' : 'Abrir catalogo',
+    },
+    {
+        key: 'expiration',
+        title: expirationSummary.value.expired > 0
+            ? `${expirationSummary.value.expired} lotes vencidos`
+            : `${expirationSummary.value.total} lotes a controlar`,
+        description: expirationSummary.value.total > 0
+            ? 'Mira primero los lotes vencidos o proximos para evitar merma y errores de venta.'
+            : 'No hay vencimientos urgentes visibles.',
+        tone: expirationSummary.value.expired > 0 ? 'danger' : (expirationSummary.value.total > 0 ? 'warning' : 'success'),
+        href: route('products.index'),
+        action: 'Revisar lotes',
+    },
+    {
+        key: 'flow',
+        title: netFlow.value >= 0 ? 'Caja comercial positiva' : 'Compras por encima de ventas',
+        description: `En los ultimos 14 dias la diferencia fue ${money(Math.abs(netFlow.value))}.`,
+        tone: netFlow.value >= 0 ? 'success' : 'warning',
+        href: route('sales.index'),
+        action: 'Ver ventas',
+    },
+]));
 </script>
 
 <template>
@@ -174,32 +249,50 @@ const expirationGroups = computed(() => {
                     <h2 class="text-2xl font-bold text-slate-100">Dashboard</h2>
                     <p class="mt-1 text-sm text-slate-300">Resumen general del comercio.</p>
                 </div>
-                <div class="flex gap-2">
-                    <Link :href="route('sales.create')" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Nueva venta</Link>
-                    <Link :href="route('purchases.create')" class="rounded-lg border border-cyan-200/35 bg-slate-900/45 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-slate-800/60">Nueva compra</Link>
+                <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Link :href="route('sales.create')" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Nueva venta</Link>
+                    <Link :href="route('purchases.create')" class="inline-flex items-center justify-center rounded-lg border border-cyan-200/35 bg-slate-900/45 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-slate-800/60">Nueva compra</Link>
                 </div>
             </div>
         </template>
 
         <div class="grid gap-6">
-            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Ventas de hoy</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ money(summary.today_sales) }}</p>
-                </article>
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Ventas del mes</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ money(summary.month_sales) }}</p>
-                </article>
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Productos</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ summary.products_count }}</p>
-                </article>
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
-                    <p class="text-xs uppercase tracking-wider text-cyan-100/70">Proveedores</p>
-                    <p class="mt-2 text-3xl font-bold text-slate-100">{{ summary.suppliers_count }}</p>
-                </article>
+            <section class="app-kpi-grid">
+                <MetricCard label="Ventas de hoy" :value="money(summary.today_sales)" hint="Importe acumulado del dia." tone="accent" />
+                <MetricCard label="Ventas del mes" :value="money(summary.month_sales)" hint="Referencia comercial para la gestion del mes." />
+                <MetricCard
+                    label="Alertas de stock"
+                    :value="lowStockSummary.total"
+                    :hint="lowStockSummary.total > 0 ? `${lowStockSummary.out_of_stock} agotados y ${lowStockSummary.low_only} en minimo.` : 'Sin alertas visibles.'"
+                    :tone="lowStockSummary.out_of_stock > 0 ? 'danger' : (lowStockSummary.total > 0 ? 'warning' : 'success')"
+                />
+                <MetricCard
+                    label="Lotes a revisar"
+                    :value="expirationSummary.total"
+                    :hint="expirationSummary.total > 0 ? `${expirationSummary.expired} vencidos y ${expirationSummary.urgent} urgentes.` : 'Sin vencimientos urgentes.'"
+                    :tone="expirationSummary.expired > 0 ? 'danger' : (expirationSummary.total > 0 ? 'warning' : 'success')"
+                />
             </section>
+
+            <AppPanel :title="operationPulse.label" :subtitle="operationPulse.message" :tone="operationPulse.tone">
+                <template #actions>
+                    <StatusBadge :tone="operationPulse.tone" :label="`${summary.products_count} productos`" />
+                    <StatusBadge tone="info" :label="`${summary.suppliers_count} proveedores`" />
+                </template>
+
+                <div class="grid gap-3 xl:grid-cols-3">
+                    <article v-for="card in priorityCards" :key="card.key" class="app-subsection">
+                        <div class="flex items-start justify-between gap-3">
+                            <h3 class="text-sm font-semibold text-slate-100">{{ card.title }}</h3>
+                            <StatusBadge :tone="card.tone" size="sm" :label="card.tone === 'success' ? 'OK' : 'Revisar'" />
+                        </div>
+                        <p class="mt-2 text-sm text-slate-300/80">{{ card.description }}</p>
+                        <Link :href="card.href" class="mt-4 inline-flex items-center rounded-lg border border-cyan-100/20 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800/60">
+                            {{ card.action }}
+                        </Link>
+                    </article>
+                </div>
+            </AppPanel>
 
             <section class="grid gap-4 lg:grid-cols-3">
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">

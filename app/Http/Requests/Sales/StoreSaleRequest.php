@@ -2,13 +2,17 @@
 
 namespace App\Http\Requests\Sales;
 
+use App\Http\Requests\Sales\Concerns\HasSaleReceiptRules;
 use App\Models\BusinessFeature;
+use App\Models\Sale;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreSaleRequest extends FormRequest
 {
+    use HasSaleReceiptRules;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -31,9 +35,32 @@ class StoreSaleRequest extends FormRequest
                 ->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS)
                 ->where('is_enabled', true)
                 ->exists();
+        $paymentStatus = $this->resolvePaymentStatus();
+        $requiresInitialPayment = in_array($paymentStatus, [
+            Sale::PAYMENT_STATUS_PAID,
+            Sale::PAYMENT_STATUS_PARTIAL,
+        ], true);
+        $requiresPaymentDestination = $advancedSaleSettingsEnabled
+            && $this->shouldUsePaymentDestination($paymentStatus);
+        $requiresCustomer = in_array($paymentStatus, [
+            Sale::PAYMENT_STATUS_PARTIAL,
+            Sale::PAYMENT_STATUS_PENDING,
+        ], true);
 
         return [
-            'payment_method' => ['nullable', 'in:cash,transfer'],
+            'customer_id' => [
+                $requiresCustomer ? 'required' : 'nullable',
+                'integer',
+                Rule::exists('customers', 'id')->where(
+                    fn ($query) => $query->where('business_id', $businessId)
+                ),
+            ],
+            'payment_status' => ['required', Rule::in([
+                Sale::PAYMENT_STATUS_PAID,
+                Sale::PAYMENT_STATUS_PARTIAL,
+                Sale::PAYMENT_STATUS_PENDING,
+            ])],
+            'payment_method' => [$requiresInitialPayment ? 'required' : 'nullable', 'in:cash,transfer'],
             'sale_sector_id' => [
                 $advancedSaleSettingsEnabled ? 'required' : 'nullable',
                 'integer',
@@ -44,7 +71,7 @@ class StoreSaleRequest extends FormRequest
                 ),
             ],
             'payment_destination_id' => [
-                $advancedSaleSettingsEnabled ? 'required' : 'nullable',
+                $requiresPaymentDestination ? 'required' : 'nullable',
                 'integer',
                 Rule::exists('business_payment_destinations', 'id')->where(
                     fn ($query) => $query
@@ -53,8 +80,10 @@ class StoreSaleRequest extends FormRequest
                 ),
             ],
             'amount_received' => ['nullable', 'numeric', 'gte:0'],
+            'paid_amount' => [$paymentStatus === Sale::PAYMENT_STATUS_PARTIAL ? 'required' : 'nullable', 'numeric', 'gt:0'],
             'discount' => ['nullable', 'numeric', 'gte:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'receipt' => $this->saleReceiptRules(),
             'sold_at' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => [
@@ -72,6 +101,8 @@ class StoreSaleRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $paymentStatus = $this->resolvePaymentStatus();
+        $shouldUsePaymentDestination = $this->shouldUsePaymentDestination($paymentStatus);
         $items = collect((array) $this->input('items', []))
             ->map(function (mixed $item): array {
                 $row = is_array($item) ? $item : [];
@@ -92,17 +123,26 @@ class StoreSaleRequest extends FormRequest
             ->all();
 
         $this->merge([
+            'customer_id' => $this->filled('customer_id')
+                ? (int) $this->input('customer_id')
+                : null,
+            'payment_status' => $this->filled('payment_status')
+                ? (string) $this->input('payment_status')
+                : Sale::PAYMENT_STATUS_PAID,
             'payment_method' => $this->filled('payment_method')
                 ? (string) $this->input('payment_method')
-                : null,
+                : ($paymentStatus === Sale::PAYMENT_STATUS_PENDING ? null : 'cash'),
             'sale_sector_id' => $this->filled('sale_sector_id')
                 ? (int) $this->input('sale_sector_id')
                 : null,
-            'payment_destination_id' => $this->filled('payment_destination_id')
+            'payment_destination_id' => $shouldUsePaymentDestination && $this->filled('payment_destination_id')
                 ? (int) $this->input('payment_destination_id')
                 : null,
             'amount_received' => $this->filled('amount_received')
                 ? $this->input('amount_received')
+                : null,
+            'paid_amount' => $this->filled('paid_amount')
+                ? $this->input('paid_amount')
                 : null,
             'items' => $items,
         ]);
@@ -130,6 +170,37 @@ class StoreSaleRequest extends FormRequest
                     );
                 }
             }
+
+            $paymentStatus = $this->resolvePaymentStatus();
+
+            if ($paymentStatus === Sale::PAYMENT_STATUS_PENDING && $this->filled('paid_amount')) {
+                $validator->errors()->add(
+                    'paid_amount',
+                    'Las ventas fiadas no deben registrar un monto abonado al momento.'
+                );
+            }
         });
+    }
+
+    private function resolvePaymentStatus(): string
+    {
+        return match ($this->input('payment_status')) {
+            Sale::PAYMENT_STATUS_PARTIAL => Sale::PAYMENT_STATUS_PARTIAL,
+            Sale::PAYMENT_STATUS_PENDING => Sale::PAYMENT_STATUS_PENDING,
+            default => Sale::PAYMENT_STATUS_PAID,
+        };
+    }
+
+    private function shouldUsePaymentDestination(string $paymentStatus): bool
+    {
+        if ($paymentStatus === Sale::PAYMENT_STATUS_PENDING) {
+            return false;
+        }
+
+        $paymentMethod = $this->filled('payment_method')
+            ? (string) $this->input('payment_method')
+            : 'cash';
+
+        return $paymentMethod === 'transfer';
     }
 }

@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\CommercialGuideController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
 use App\Http\Controllers\Categories\CategoryController;
+use App\Http\Controllers\Customers\CustomerAccountController;
+use App\Http\Controllers\Customers\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Fiscal\ElectronicBillingController;
 use App\Http\Controllers\Fiscal\FiscalCredentialOnboardingController;
@@ -53,7 +55,9 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/products/catalog/lookup', [ProductController::class, 'lookupCatalog'])->name('products.catalog.lookup');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
+    Route::get('/products/{product}/batch-corrections', [ProductController::class, 'batchCorrections'])->name('products.batch-corrections.index');
     Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
+    Route::put('/products/{product}/batches/{batch}', [ProductController::class, 'updateBatch'])->name('products.batches.update');
 
     Route::get('/suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
     Route::get('/suppliers/create', [SupplierController::class, 'create'])->name('suppliers.create');
@@ -61,10 +65,27 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/suppliers/{supplier}/edit', [SupplierController::class, 'edit'])->name('suppliers.edit');
     Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
 
+    Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
+    Route::get('/customers/debtors', [CustomerController::class, 'debtors'])->name('customers.debtors');
+    Route::get('/customers/create', [CustomerController::class, 'create'])->name('customers.create');
+    Route::post('/customers', [CustomerController::class, 'store'])->name('customers.store');
+    Route::get('/customers/{customer}', [CustomerController::class, 'show'])->name('customers.show');
+    Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->name('customers.edit');
+    Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
+    Route::post('/customers/{customer}/payments', [CustomerAccountController::class, 'storePayment'])->name('customers.payments.store');
+    Route::get('/customers/{customer}/reminders/whatsapp', [CustomerAccountController::class, 'launchWhatsappReminder'])->name('customers.reminders.whatsapp');
+    Route::post('/customers/{customer}/reminders/email', [CustomerAccountController::class, 'sendEmailReminder'])->name('customers.reminders.email');
+    Route::get('/customer-accounts', [CustomerAccountController::class, 'index'])->name('customer-accounts.index');
+    Route::get('/customer-accounts/{customer}', [CustomerAccountController::class, 'show'])->name('customer-accounts.show');
+
     Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
     Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
     Route::get('/sales/products/search', [SaleController::class, 'searchProducts'])->name('sales.products.search');
     Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+    Route::get('/sales/print', [SaleController::class, 'printIndex'])->name('sales.print.index');
+    Route::get('/sales/{sale}/print', [SaleController::class, 'printShow'])->name('sales.print.show');
+    Route::post('/sales/{sale}/receipt', [SaleController::class, 'storeReceipt'])->name('sales.receipt.store');
+    Route::get('/sales/{sale}/receipt', [SaleController::class, 'downloadReceipt'])->name('sales.receipt.download');
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
     Route::post('/sales/{sale}/fiscal-documents', [SaleFiscalDocumentController::class, 'store'])->name('sales.fiscal-documents.store');
     Route::post('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/reconcile', [SaleFiscalDocumentController::class, 'reconcile'])->name('sales.fiscal-documents.reconcile');

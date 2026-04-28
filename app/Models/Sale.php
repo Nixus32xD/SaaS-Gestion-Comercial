@@ -14,6 +14,12 @@ class Sale extends Model
     use BelongsToBusiness;
     use HasFactory;
 
+    public const PAYMENT_STATUS_PAID = 'paid';
+
+    public const PAYMENT_STATUS_PARTIAL = 'partial';
+
+    public const PAYMENT_STATUS_PENDING = 'pending';
+
     /**
      * @var list<string>
      */
@@ -21,15 +27,22 @@ class Sale extends Model
         'business_id',
         'user_id',
         'sale_sector_id',
+        'customer_id',
         'sale_number',
         'payment_method',
+        'payment_status',
         'payment_destination_id',
         'amount_received',
         'change_amount',
+        'paid_amount',
+        'pending_amount',
         'subtotal',
         'discount',
         'total',
         'notes',
+        'receipt_path',
+        'receipt_original_name',
+        'receipt_uploaded_at',
         'sold_at',
     ];
 
@@ -40,11 +53,15 @@ class Sale extends Model
     {
         return [
             'payment_method' => 'string',
+            'payment_status' => 'string',
             'amount_received' => 'decimal:2',
             'change_amount' => 'decimal:2',
+            'paid_amount' => 'decimal:2',
+            'pending_amount' => 'decimal:2',
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'total' => 'decimal:2',
+            'receipt_uploaded_at' => 'datetime',
             'sold_at' => 'datetime',
         ];
     }
@@ -63,6 +80,14 @@ class Sale extends Model
     public function saleSector(): BelongsTo
     {
         return $this->belongsTo(BusinessSaleSector::class, 'sale_sector_id');
+    }
+
+    /**
+     * @return BelongsTo<Customer, $this>
+     */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     /**
@@ -95,5 +120,18 @@ class Sale extends Model
     public function latestFiscalDocument(): HasOne
     {
         return $this->hasOne(SaleFiscalDocument::class)->latestOfMany();
+    }
+
+    /**
+     * @return HasMany<CustomerAccountMovement, $this>
+     */
+    public function accountMovements(): HasMany
+    {
+        return $this->hasMany(CustomerAccountMovement::class);
+    }
+
+    public function hasReceipt(): bool
+    {
+        return filled($this->receipt_path);
     }
 }
