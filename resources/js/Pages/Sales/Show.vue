@@ -231,60 +231,9 @@ onBeforeUnmount(() => {
 
             <AppPanel v-if="showAutoBackMessage" tone="success" title="Venta registrada" :subtitle="`Volviendo a nueva venta en ${redirectSeconds}s.`" />
 
-                <div class="mt-4 grid gap-4">
-                    <div v-if="fiscalDocument" class="grid gap-2 text-sm text-slate-300">
-                        <p v-if="fiscalVoucherLabel">Comprobante: <strong>{{ fiscalVoucherLabel }}</strong></p>
-                        <p>Intento: <strong>{{ fiscalDocument.attempt_number }}</strong></p>
-                        <p v-if="fiscalAuthorizationType">Tipo de autorizacion: <strong>{{ fiscalAuthorizationType }}</strong></p>
-                        <p v-if="fiscalAuthorizationCode">Codigo de autorizacion: <strong>{{ fiscalAuthorizationCode }}</strong></p>
-                        <p v-if="fiscalAuthorizationExpiresAt">Vencimiento: <strong>{{ fiscalAuthorizationExpiresAt }}</strong></p>
-                        <p v-if="fiscalDocument.caea_period">Periodo CAEA: <strong>{{ fiscalDocument.caea_period }}</strong></p>
-                        <p v-if="fiscalDocument.caea_order">Orden CAEA: <strong>{{ fiscalDocument.caea_order }}</strong></p>
-                        <p v-if="fiscalDocument.caea_report_status">Reporte CAEA: <strong>{{ fiscalDocument.caea_report_status }}</strong></p>
-                        <p v-if="fiscalDocument.caea_reported_at">Informado: <strong>{{ fiscalDocument.caea_reported_at }}</strong></p>
-                        <p v-if="fiscalDocument.fiscal_idempotency_key">Idempotencia: <strong>{{ fiscalDocument.fiscal_idempotency_key }}</strong></p>
-                        <p v-if="fiscalDocument.fiscal_error_code">Codigo: <strong>{{ fiscalDocument.fiscal_error_code }}</strong></p>
-                        <p v-if="fiscalDocument.fiscal_error_message">Error: <strong>{{ fiscalDocument.fiscal_error_message }}</strong></p>
-                        <p v-if="fiscalActionMessage">Accion sugerida: <strong>{{ fiscalActionMessage }}</strong></p>
-                        <p v-if="fiscalDocument.fiscal_technical_message && fiscalDocument.fiscal_technical_message !== fiscalDocument.fiscal_error_message">
-                            Detalle tecnico: <strong>{{ fiscalDocument.fiscal_technical_message }}</strong>
-                        </p>
-                        <div v-if="fiscalObservations.length" class="rounded-xl border border-amber-200/25 bg-amber-400/10 p-3 text-amber-50">
-                            <p class="font-semibold">Observaciones</p>
-                            <ul class="mt-2 list-disc space-y-1 pl-5">
-                                <li v-for="(observation, index) in fiscalObservations" :key="index">
-                                    {{ fiscalObservationText(observation) }}
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div v-else class="rounded-xl border border-slate-200/15 bg-slate-950/35 p-4 text-sm text-slate-300">
-                        Esta venta todavia no tiene comprobante fiscal asociado.
-                    </div>
-
-                    <div class="flex flex-wrap gap-3">
-                        <button
-                            v-if="fiscal.can_issue"
-                            type="button"
-                            class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-                            @click="issueFiscalDocument"
-                        >
-                            {{ fiscalIssueLabel }}
-                        </button>
-
-                        <button
-                            v-if="fiscal.can_reconcile"
-                            type="button"
-                            class="rounded-lg border border-amber-200/45 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/10"
-                            @click="reconcileFiscalDocument"
-                        >
-                            Conciliar
-                        </button>
-                    </div>
-                </div>
-            </section>
-
+            <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div class="grid gap-6">
+                    <AppPanel title="Resumen de venta" :subtitle="`${paymentMethodLabel} - ${paymentStatusLabel}`">
                         <div class="mt-4 grid gap-3 md:grid-cols-2 text-sm text-slate-300">
                             <div class="app-subsection">
                                 <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Importes</p>
