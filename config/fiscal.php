@@ -27,9 +27,16 @@ return [
         'document_type' => env('FISCAL_DEFAULT_DOCUMENT_TYPE', 'invoice_c'),
         'cbte_type' => (int) env('FISCAL_DEFAULT_CBTE_TYPE', 11),
         'concept' => (int) env('FISCAL_DEFAULT_CONCEPT', 1),
+        'authorization_mode' => env('FISCAL_DEFAULT_AUTHORIZATION_MODE', 'cae'),
         'currency' => env('FISCAL_DEFAULT_CURRENCY', 'PES'),
         'currency_rate' => (float) env('FISCAL_DEFAULT_CURRENCY_RATE', 1),
         'activities' => $activities,
+    ],
+
+    'authorization_modes' => [
+        ['value' => 'cae', 'label' => 'CAE normal'],
+        ['value' => 'caea', 'label' => 'CAEA contingencia'],
+        ['value' => 'auto', 'label' => 'Automatico'],
     ],
 
     'document_types' => [

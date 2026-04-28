@@ -56,7 +56,10 @@ class SaleFiscalDocumentController extends Controller
         }
 
         if ($document->fiscal_status === SaleFiscalDocument::STATUS_UNCERTAIN) {
-            return back()->with('error', 'El estado fiscal quedo incierto. Usar Conciliar antes de reintentar.');
+            return back()->with('error', $this->fiscalErrorMessage(
+                $document,
+                'El estado fiscal quedo incierto. Usar Conciliar antes de reintentar.'
+            ));
         }
 
         return back()->with('error', $this->fiscalErrorMessage(

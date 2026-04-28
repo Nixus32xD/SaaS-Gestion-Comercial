@@ -9,6 +9,7 @@ class FiscalPointOfSaleOptionsService
     public function __construct(
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
+        private readonly FiscalApiErrorMapper $errorMapper,
     ) {}
 
     /**
@@ -45,9 +46,13 @@ class FiscalPointOfSaleOptionsService
 
         $apiError = $this->apiError($response);
         if ($apiError !== null) {
+            $mappedError = $this->errorMapper->fromResponse($response);
+
             return $this->unavailable(
                 'error',
-                $this->friendlyMessage($apiError['code'], $apiError['message'])
+                $apiError['code'] === '602'
+                    ? $this->friendlyMessage($apiError['code'], $apiError['message'])
+                    : ($mappedError['message'] ?? $this->friendlyMessage($apiError['code'], $apiError['message']))
             );
         }
 

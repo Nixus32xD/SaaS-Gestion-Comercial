@@ -38,6 +38,7 @@ class Business extends Model
         'fiscal_document_type',
         'fiscal_cbte_type',
         'fiscal_concept',
+        'fiscal_authorization_mode',
         'fiscal_activities',
         'is_active',
     ];

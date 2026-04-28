@@ -188,6 +188,8 @@ class BusinessController extends Controller
                 'fiscal_document_type' => $business->fiscal_document_type ?: config('fiscal.defaults.document_type'),
                 'fiscal_cbte_type' => $business->fiscal_cbte_type ?? config('fiscal.defaults.cbte_type'),
                 'fiscal_concept' => $business->fiscal_concept ?? config('fiscal.defaults.concept'),
+                'fiscal_authorization_mode' => $business->fiscal_authorization_mode
+                    ?: config('fiscal.defaults.authorization_mode', 'cae'),
                 'fiscal_activities' => implode(', ', $business->fiscal_activities ?: config('fiscal.defaults.activities', [])),
                 'fiscal_point_of_sale_options' => $this->fiscalPointOfSaleOptions->forBusiness($business),
                 'sale_sectors' => $business->saleSectors->map(fn ($sector) => [
@@ -208,6 +210,7 @@ class BusinessController extends Controller
             'fiscal_catalog' => [
                 'document_types' => config('fiscal.document_types', []),
                 'voucher_types' => config('fiscal.voucher_types', []),
+                'authorization_modes' => config('fiscal.authorization_modes', []),
             ],
             'commercial_catalog' => [
                 'implementation_plans' => array_map(

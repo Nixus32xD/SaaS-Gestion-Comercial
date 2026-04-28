@@ -19,6 +19,7 @@ FISCAL_DEFAULT_POINT_OF_SALE=2
 FISCAL_DEFAULT_DOCUMENT_TYPE=invoice_c
 FISCAL_DEFAULT_CBTE_TYPE=11
 FISCAL_DEFAULT_CONCEPT=1
+FISCAL_DEFAULT_AUTHORIZATION_MODE=cae
 FISCAL_ACTIVITIES=
 ```
 
@@ -35,6 +36,7 @@ Desde el panel de superadmin, cada comercio puede definir:
 - tipo interno de documento;
 - tipo de comprobante ARCA;
 - concepto;
+- modo de autorizacion fiscal: `cae`, `caea` o `auto`;
 - actividades fiscales.
 
 Si el ID externo queda vacio, el SaaS envia el `business_id` interno como fallback.
@@ -97,6 +99,15 @@ Estados persistidos en `sale_fiscal_documents`:
 - `uncertain`: timeout o resultado no confirmado; requiere conciliacion.
 - `processing`: intento creado localmente y pendiente de respuesta.
 
+La autorizacion se guarda en campos genericos para soportar CAE y CAEA sin romper el historico:
+
+- `authorization_type`: `CAE` o `CAEA`;
+- `authorization_code`: codigo de autorizacion;
+- `authorization_expires_at`: vencimiento;
+- `caea_period`, `caea_order`, `caea_report_status`, `caea_reported_at`: datos especificos de CAEA.
+
+Los campos legacy `fiscal_cae` y `fiscal_cae_expires_at` se mantienen para compatibilidad y se completan cuando la autorizacion es CAE.
+
 ## Idempotencia
 
 La primera clave por venta es deterministica:
@@ -114,6 +125,29 @@ sale:{business_id}:{sale_id}:invoice:retry:{attempt_number}
 ```
 
 Si el ultimo intento quedo `uncertain` o `processing`, primero se debe conciliar.
+
+Los errores `502`, `504`, duplicados o problemas de numeracion no habilitan reintento directo: el estado queda `uncertain` y el usuario debe conciliar para verificar si ARCA ya proceso el comprobante.
+
+## Errores visibles para el usuario
+
+El SaaS mapea localmente los errores de la API fiscal con `FiscalApiErrorMapper`. La respuesta de apiArca puede incluir `code`, `message`, `technical_message`, `status`, `retryable`, `requires_reconcile` y `category`.
+
+Categorias soportadas:
+
+- `arca_infrastructure`;
+- `timeout`;
+- `authentication`;
+- `validation`;
+- `numbering`;
+- `duplicated`;
+- `unknown`.
+
+Mensajes base:
+
+- `502`: ARCA tuvo un error interno o de infraestructura. No se debe volver a emitir directamente. Usar Conciliar para verificar si el comprobante fue procesado.
+- `504`: ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usar Conciliar antes de reintentar.
+- autenticacion/certificado: revisar certificado, clave privada, CUIT y servicio habilitado en ARCA.
+- validacion: revisar importes, IVA, documento del receptor, tipo de comprobante y punto de venta.
 
 ## Payload
 

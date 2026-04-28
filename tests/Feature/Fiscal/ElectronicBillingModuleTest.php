@@ -196,7 +196,7 @@ test('electronic billing module shows unavailable state when fiscal api is offli
             ->where('connection.status', 'offline')
             ->where('connection.status_label', 'No disponible')
             ->where('connection.ok', false)
-            ->where('connection.message', 'La API fiscal no esta disponible actualmente. Revisa que el servicio este iniciado e intenta nuevamente.')
+            ->where('connection.message', 'ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.')
             ->where('setup.ready', false)
             ->where('setup.status_label', 'No verificado')
             ->where('activities', [])

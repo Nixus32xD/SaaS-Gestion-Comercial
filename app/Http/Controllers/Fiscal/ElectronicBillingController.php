@@ -6,9 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Business;
 use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalApiClient;
-use App\Services\Fiscal\FiscalCredentialOnboardingService;
+use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalApiException;
 use App\Services\Fiscal\FiscalApiTimeoutException;
+use App\Services\Fiscal\FiscalCredentialOnboardingService;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class ElectronicBillingController extends Controller
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
         private readonly FiscalCredentialOnboardingService $onboardingService,
+        private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
     ) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
@@ -61,6 +63,8 @@ class ElectronicBillingController extends Controller
             'document_type' => $business->fiscal_document_type ?: config('fiscal.defaults.document_type'),
             'cbte_type' => $business->fiscal_cbte_type ?? config('fiscal.defaults.cbte_type'),
             'concept' => $business->fiscal_concept ?? config('fiscal.defaults.concept'),
+            'authorization_mode' => $business->fiscal_authorization_mode
+                ?: config('fiscal.defaults.authorization_mode', 'cae'),
             'activities' => $business->fiscal_activities ?: config('fiscal.defaults.activities', []),
         ];
     }
@@ -78,10 +82,18 @@ class ElectronicBillingController extends Controller
 
             $apiError = $this->apiError($status);
             if ($apiError !== null) {
+                $mappedError = $this->fiscalApiErrorMapper->fromResponse($status);
+
                 return $this->unavailableApiOverview(
                     'error',
                     $apiError['code'] === 'company_not_found' ? 'No encontrada' : 'Error',
-                    $this->friendlyApiErrorMessage($apiError['code'], $apiError['message'], $externalBusinessId)
+                    $apiError['code'] === 'company_not_found'
+                        ? $this->friendlyApiErrorMessage($apiError['code'], $apiError['message'], $externalBusinessId)
+                        : ($mappedError['message'] ?? $this->friendlyApiErrorMessage(
+                            $apiError['code'],
+                            $apiError['message'],
+                            $externalBusinessId
+                        ))
                 );
             }
 
@@ -106,14 +118,18 @@ class ElectronicBillingController extends Controller
                     'data.PtoVenta',
                 ]),
             ];
-        } catch (FiscalApiTimeoutException) {
+        } catch (FiscalApiTimeoutException $exception) {
+            $error = $this->fiscalApiErrorMapper->fromException($exception);
+
             return $this->unavailableApiOverview(
                 'offline',
                 'No disponible',
-                'La API fiscal no esta disponible actualmente. Revisa que el servicio este iniciado e intenta nuevamente.'
+                $error['message']
             );
         } catch (FiscalApiException $exception) {
-            return $this->unavailableApiOverview('error', 'Error', $exception->getMessage());
+            $error = $this->fiscalApiErrorMapper->fromException($exception);
+
+            return $this->unavailableApiOverview('error', 'Error', $error['message']);
         }
     }
 
@@ -296,27 +312,40 @@ class ElectronicBillingController extends Controller
             ->latest('id')
             ->limit(25)
             ->get()
-            ->map(fn (SaleFiscalDocument $document): array => [
-                'id' => $document->id,
-                'sale_id' => $document->sale_id,
-                'sale_number' => $document->sale?->sale_number,
-                'sale_total' => $document->sale?->total !== null ? (float) $document->sale->total : null,
-                'sold_at' => $document->sale?->sold_at?->format('Y-m-d H:i'),
-                'attempt_number' => $document->attempt_number,
-                'status' => $document->fiscal_status,
-                'point_of_sale' => $document->fiscal_point_of_sale,
-                'cbte_type' => $document->fiscal_cbte_type,
-                'number' => $document->fiscal_number,
-                'cae' => $document->fiscal_cae,
-                'cae_expires_at' => $document->fiscal_cae_expires_at?->format('Y-m-d'),
-                'error_code' => $document->fiscal_error_code,
-                'error_message' => $document->fiscal_error_message,
-                'can_reconcile' => $document->requiresReconcile(),
-                'can_retry' => in_array($document->fiscal_status, [
-                    SaleFiscalDocument::STATUS_REJECTED,
-                    SaleFiscalDocument::STATUS_ERROR,
-                ], true),
-            ])
+            ->map(function (SaleFiscalDocument $document): array {
+                $error = $this->fiscalApiErrorMapper->fromDocument($document);
+
+                return [
+                    'id' => $document->id,
+                    'sale_id' => $document->sale_id,
+                    'sale_number' => $document->sale?->sale_number,
+                    'sale_total' => $document->sale?->total !== null ? (float) $document->sale->total : null,
+                    'sold_at' => $document->sale?->sold_at?->format('Y-m-d H:i'),
+                    'attempt_number' => $document->attempt_number,
+                    'status' => $document->fiscal_status,
+                    'point_of_sale' => $document->fiscal_point_of_sale,
+                    'cbte_type' => $document->fiscal_cbte_type,
+                    'number' => $document->fiscal_number,
+                    'cae' => $document->fiscal_cae,
+                    'cae_expires_at' => $document->fiscal_cae_expires_at?->format('Y-m-d'),
+                    'authorization_type' => $document->authorization_type
+                        ?? ($document->fiscal_cae !== null ? SaleFiscalDocument::AUTHORIZATION_CAE : null),
+                    'authorization_code' => $document->authorization_code ?? $document->fiscal_cae,
+                    'authorization_expires_at' => $document->authorization_expires_at?->format('Y-m-d')
+                        ?? $document->fiscal_cae_expires_at?->format('Y-m-d'),
+                    'caea_period' => $document->caea_period,
+                    'caea_order' => $document->caea_order,
+                    'caea_report_status' => $document->caea_report_status,
+                    'caea_reported_at' => $document->caea_reported_at?->format('Y-m-d H:i'),
+                    'error_code' => $document->fiscal_error_code,
+                    'error_message' => $document->fiscal_error_message,
+                    'error_category' => $error['category'] ?? null,
+                    'error_action' => $error['action'] ?? null,
+                    'technical_message' => $error['technical_message'] ?? null,
+                    'can_reconcile' => $document->requiresReconcile(),
+                    'can_retry' => $this->fiscalApiErrorMapper->safeToRetry($document),
+                ];
+            })
             ->values()
             ->all();
     }

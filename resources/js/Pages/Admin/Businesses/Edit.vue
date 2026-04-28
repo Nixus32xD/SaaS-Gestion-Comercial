@@ -73,6 +73,7 @@ const salesSettingsForm = useForm({
     fiscal_document_type: props.sales_settings.fiscal_document_type || 'invoice_c',
     fiscal_cbte_type: props.sales_settings.fiscal_cbte_type ?? 11,
     fiscal_concept: props.sales_settings.fiscal_concept ?? 1,
+    fiscal_authorization_mode: props.sales_settings.fiscal_authorization_mode || 'cae',
     fiscal_activities: props.sales_settings.fiscal_activities || '',
     sale_sectors: (props.sales_settings.sale_sectors || []).map((sector) => ({
         id: sector.id,
@@ -113,6 +114,7 @@ const fiscalConceptOptions = [
 
 const fiscalDocumentTypeOptions = computed(() => props.fiscal_catalog?.document_types || []);
 const fiscalVoucherTypeOptions = computed(() => props.fiscal_catalog?.voucher_types || []);
+const fiscalAuthorizationModeOptions = computed(() => props.fiscal_catalog?.authorization_modes || []);
 const fiscalPointOfSaleOptions = computed(() => props.sales_settings.fiscal_point_of_sale_options?.options || []);
 const fiscalPointOfSaleMessage = computed(() => props.sales_settings.fiscal_point_of_sale_options?.message || null);
 const hasFiscalPointOfSaleOptions = computed(() => fiscalPointOfSaleOptions.value.length > 0);
@@ -539,6 +541,7 @@ const planLabel = (plan) => {
                 <p v-if="salesSettingsForm.errors.fiscal_point_of_sale" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_point_of_sale }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_document_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_document_type }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_cbte_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_cbte_type }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_authorization_mode" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_authorization_mode }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_activities" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_activities }}</p>
 
                 <section class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
@@ -608,6 +611,15 @@ const planLabel = (plan) => {
                             <label class="text-sm font-medium text-slate-300">Concepto</label>
                             <select v-model="salesSettingsForm.fiscal_concept" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
                                 <option v-for="option in fiscalConceptOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Modo autorizacion</label>
+                            <select v-model="salesSettingsForm.fiscal_authorization_mode" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalAuthorizationModeOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </option>
                             </select>
                         </div>
 

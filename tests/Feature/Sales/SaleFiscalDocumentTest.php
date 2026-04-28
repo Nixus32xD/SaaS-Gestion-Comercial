@@ -100,6 +100,9 @@ test('sale fiscal document emission stores authorized response', function () {
     expect($document->fiscal_number)->toBe(1);
     expect($document->fiscal_cae)->toBe('12345678901234');
     expect($document->fiscal_cae_expires_at?->toDateString())->toBe('2026-05-01');
+    expect($document->authorization_type)->toBe(SaleFiscalDocument::AUTHORIZATION_CAE);
+    expect($document->authorization_code)->toBe('12345678901234');
+    expect($document->authorization_expires_at?->toDateString())->toBe('2026-05-01');
     expect($document->fiscal_idempotency_key)->toBe("sale:{$business->id}:{$sale->id}:invoice");
 });
 
@@ -131,7 +134,7 @@ test('sale fiscal document emission stores rejected response', function () {
 
     expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_REJECTED);
     expect($document->fiscal_error_code)->toBe('10016');
-    expect($document->fiscal_error_message)->toBe('Comprobante rechazado por validacion fiscal.');
+    expect($document->fiscal_error_message)->toBe('ARCA rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: Comprobante rechazado por validacion fiscal.');
     expect($document->fiscal_observations)->toBe([
         ['code' => 'OBS', 'message' => 'Revisar datos del receptor.'],
     ]);
@@ -172,7 +175,7 @@ test('sale fiscal document emission normalizes wrapped fiscal api resource respo
         ->from(route('sales.show', $sale))
         ->post(route('sales.fiscal-documents.store', $sale))
         ->assertRedirect(route('sales.show', $sale))
-        ->assertSessionHas('error', 'La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
+        ->assertSessionHas('error', 'ARCA rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
 
     $document = SaleFiscalDocument::query()->firstOrFail();
 
@@ -180,7 +183,7 @@ test('sale fiscal document emission normalizes wrapped fiscal api resource respo
     expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_REJECTED);
     expect($document->fiscal_number)->toBe(1);
     expect($document->fiscal_error_code)->toBe('10223');
-    expect($document->fiscal_error_message)->toBe('La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
+    expect($document->fiscal_error_message)->toBe('ARCA rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
     expect($document->fiscal_observations)->toBe([
         'observations' => [
             [
@@ -207,7 +210,104 @@ test('sale fiscal document timeout leaves local status uncertain', function () {
 
     expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_UNCERTAIN);
     expect($document->fiscal_error_code)->toBe('timeout');
-    expect($document->fiscal_error_message)->toBe('La API fiscal no esta disponible actualmente. Revisa que el servicio este iniciado e intenta nuevamente.');
+    expect($document->fiscal_error_message)->toBe('ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.');
+});
+
+test('arca 502 leaves fiscal document uncertain and blocks direct retry', function () {
+    [, $admin, $sale] = fiscalSaleFixture();
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents' => Http::response([
+            'message' => 'Bad Gateway',
+        ], 502),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->from(route('sales.show', $sale))
+        ->post(route('sales.fiscal-documents.store', $sale))
+        ->assertRedirect(route('sales.show', $sale))
+        ->assertSessionHas('error', 'ARCA tuvo un error interno o de infraestructura. No se debe volver a emitir directamente. Usa Conciliar para verificar si el comprobante fue procesado.');
+
+    $document = SaleFiscalDocument::query()->firstOrFail();
+
+    expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_UNCERTAIN);
+    expect($document->fiscal_error_code)->toBe('http_502');
+
+    $this
+        ->actingAs($admin)
+        ->from(route('sales.show', $sale))
+        ->post(route('sales.fiscal-documents.store', $sale))
+        ->assertRedirect(route('sales.show', $sale))
+        ->assertSessionHasErrors('fiscal');
+
+    expect(SaleFiscalDocument::query()->where('sale_id', $sale->id)->count())->toBe(1);
+    Http::assertSentCount(1);
+});
+
+test('arca 504 leaves fiscal document uncertain and asks for reconcile', function () {
+    [, $admin, $sale] = fiscalSaleFixture();
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents' => Http::response([
+            'message' => 'Gateway Timeout',
+        ], 504),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->from(route('sales.show', $sale))
+        ->post(route('sales.fiscal-documents.store', $sale))
+        ->assertRedirect(route('sales.show', $sale))
+        ->assertSessionHas('error', 'ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.');
+
+    $document = SaleFiscalDocument::query()->firstOrFail();
+
+    expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_UNCERTAIN);
+    expect($document->fiscal_error_code)->toBe('http_504');
+});
+
+test('sale fiscal document emission stores caea authorization fields', function () {
+    [$business, $admin, $sale] = fiscalSaleFixture([
+        'fiscal_authorization_mode' => 'caea',
+    ]);
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents' => Http::response([
+            'id' => 'fdoc-caea-001',
+            'status' => 'authorized',
+            'authorization_type' => 'CAEA',
+            'authorization_code' => '20260412345678',
+            'authorization_expires_at' => '2026-05-15',
+            'number' => 12,
+            'point_of_sale' => 2,
+            'cbte_type' => 11,
+            'caea_period' => '2026-04-2',
+            'caea_order' => 2,
+        ]),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('sales.fiscal-documents.store', $sale))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $document = SaleFiscalDocument::query()->firstOrFail();
+
+    expect($document->authorization_type)->toBe(SaleFiscalDocument::AUTHORIZATION_CAEA);
+    expect($document->authorization_code)->toBe('20260412345678');
+    expect($document->authorization_expires_at?->toDateString())->toBe('2026-05-15');
+    expect($document->caea_period)->toBe('2026-04-2');
+    expect($document->caea_order)->toBe(2);
+    expect($document->caea_report_status)->toBe(SaleFiscalDocument::CAEA_REPORT_PENDING);
+    expect($document->fiscal_cae)->toBeNull();
+
+    Http::assertSent(function (Request $request) use ($sale): bool {
+        return $request->data()['business_id'] === 'empresa-demo-prod'
+            && $request->data()['origin_id'] === (string) $sale->id
+            && $request->data()['authorization_mode'] === 'caea';
+    });
 });
 
 test('authorized fiscal document is not emitted again', function () {
