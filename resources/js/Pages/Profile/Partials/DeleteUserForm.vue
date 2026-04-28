@@ -68,7 +68,7 @@ const closeModal = () => {
                 <div class="mt-6">
                     <InputLabel
                         for="password"
-                        value="Password"
+                        value="Contrasena"
                         class="sr-only"
                     />
 

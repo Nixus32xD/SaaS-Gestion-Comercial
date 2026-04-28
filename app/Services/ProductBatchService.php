@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Models\Business;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\ProductBatchCorrection;
 use App\Models\ProductBatchMovement;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ProductBatchService
@@ -155,6 +157,72 @@ class ProductBatchService
             ->where('product_id', $product->id)
             ->available()
             ->sum('quantity'), 3);
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function correctBatch(Business $business, Product $product, ProductBatch $batch, array $context = []): ProductBatch
+    {
+        $newBatchCode = $this->normalizeBatchCode($context['batch_code'] ?? null);
+        $newExpiresAt = $this->normalizeDate($context['expires_at'] ?? null);
+        $newUnitCost = $this->normalizeMoney($context['unit_cost'] ?? null);
+        $reason = trim((string) ($context['reason'] ?? '')) ?: null;
+
+        if ($newBatchCode === null) {
+            throw ValidationException::withMessages([
+                'batch_code' => 'El lote debe tener un codigo.',
+            ]);
+        }
+
+        $previousBatchCode = $batch->batch_code;
+        $previousExpiresAt = $batch->expires_at?->toDateString();
+        $previousUnitCost = $batch->unit_cost !== null ? round((float) $batch->unit_cost, 2) : null;
+        $nextExpiresAt = $newExpiresAt?->toDateString();
+
+        $hasChanges = $previousBatchCode !== $newBatchCode
+            || $previousExpiresAt !== $nextExpiresAt
+            || $previousUnitCost !== $newUnitCost;
+
+        if (! $hasChanges) {
+            return $batch->fresh();
+        }
+
+        DB::transaction(function () use (
+            $batch,
+            $business,
+            $product,
+            $context,
+            $newBatchCode,
+            $nextExpiresAt,
+            $newUnitCost,
+            $previousBatchCode,
+            $previousExpiresAt,
+            $previousUnitCost,
+            $reason
+        ): void {
+            $batch->update([
+                'batch_code' => $newBatchCode,
+                'expires_at' => $nextExpiresAt,
+                'unit_cost' => $newUnitCost,
+            ]);
+
+            ProductBatchCorrection::query()->create([
+                'business_id' => $business->id,
+                'product_id' => $product->id,
+                'product_batch_id' => $batch->id,
+                'corrected_by' => $context['created_by'] ?? null,
+                'previous_batch_code' => $previousBatchCode,
+                'new_batch_code' => $newBatchCode,
+                'previous_expires_at' => $previousExpiresAt,
+                'new_expires_at' => $nextExpiresAt,
+                'previous_unit_cost' => $previousUnitCost,
+                'new_unit_cost' => $newUnitCost,
+                'reason' => $reason,
+            ]);
+        });
+
+        return $batch->fresh();
     }
 
     private function generateBatchCode(int $businessId, int $productId): string
