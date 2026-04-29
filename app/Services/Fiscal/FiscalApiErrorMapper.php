@@ -83,6 +83,11 @@ class FiscalApiErrorMapper
         $technicalMessage = trim((string) ($technicalMessage ?? ''));
         $code = trim((string) ($code ?? ($httpStatus !== null ? "http_{$httpStatus}" : 'api_error')));
 
+        if ($this->isDocumentWithoutNumber($code, $technicalMessage)) {
+            $retryable = true;
+            $requiresReconcile = false;
+        }
+
         return [
             'code' => $code,
             'message' => $this->userMessage($category, $technicalMessage),
@@ -157,9 +162,16 @@ class FiscalApiErrorMapper
             $document->fiscal_status,
             null
         );
-        $requiresReconcile = $document->requiresReconcile()
-            || $this->defaultRequiresReconcile($category, $document->fiscal_status);
-        $retryable = $this->defaultRetryable($category, $document->fiscal_status) && ! $requiresReconcile;
+        $documentWithoutNumber = $this->isDocumentWithoutNumber(
+            $document->fiscal_error_code,
+            $document->fiscal_error_message
+        );
+        $requiresReconcile = $documentWithoutNumber
+            ? false
+            : ($document->requiresReconcile()
+                || $this->defaultRequiresReconcile($category, $document->fiscal_status));
+        $retryable = $documentWithoutNumber
+            || ($this->defaultRetryable($category, $document->fiscal_status) && ! $requiresReconcile);
 
         return [
             'code' => $document->fiscal_error_code ?? $document->fiscal_status,
@@ -179,6 +191,7 @@ class FiscalApiErrorMapper
         if (! in_array($document->fiscal_status, [
             SaleFiscalDocument::STATUS_REJECTED,
             SaleFiscalDocument::STATUS_ERROR,
+            SaleFiscalDocument::STATUS_UNCERTAIN,
         ], true)) {
             return false;
         }
@@ -312,6 +325,14 @@ class FiscalApiErrorMapper
                 SaleFiscalDocument::STATUS_UNCERTAIN,
                 SaleFiscalDocument::STATUS_PROCESSING,
             ], true);
+    }
+
+    private function isDocumentWithoutNumber(?string $code, ?string $message): bool
+    {
+        $haystack = strtolower(trim(($code ?? '').' '.($message ?? '')));
+
+        return str_contains($haystack, 'document_without_number')
+            || str_contains($haystack, 'no voucher number');
     }
 
     private function userMessage(string $category, string $technicalMessage): string
