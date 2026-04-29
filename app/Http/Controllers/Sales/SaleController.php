@@ -232,7 +232,7 @@ class SaleController extends Controller
                 'production_confirmation_required' => app()->environment('production')
                     || config('fiscal.environment') === 'production',
                 'can_issue' => $this->canIssueFiscalDocument($fiscalEnabled, $fiscalDocument),
-                'can_reconcile' => $fiscalEnabled && $fiscalDocument?->requiresReconcile(),
+                'can_reconcile' => $this->canReconcileFiscalDocument($fiscalEnabled, $fiscalDocument),
                 'document' => $this->mapFiscalDocument($fiscalDocument),
             ],
             'receipt_feature_available' => $receiptFeatureAvailable,
@@ -405,6 +405,17 @@ class SaleController extends Controller
         }
 
         return $this->fiscalApiErrorMapper->safeToRetry($fiscalDocument);
+    }
+
+    private function canReconcileFiscalDocument(bool $fiscalEnabled, ?SaleFiscalDocument $fiscalDocument): bool
+    {
+        if (! $fiscalEnabled || $fiscalDocument === null || ! $fiscalDocument->requiresReconcile()) {
+            return false;
+        }
+
+        $error = $this->fiscalApiErrorMapper->fromDocument($fiscalDocument);
+
+        return (bool) ($error['requires_reconcile'] ?? true);
     }
 
     private function shouldAutoIssueFiscalDocument(Business $business): bool

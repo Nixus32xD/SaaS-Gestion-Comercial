@@ -405,6 +405,100 @@ test('api fiscal 504 leaves fiscal document uncertain and asks for reconcile', f
     expect($document->fiscal_error_code)->toBe('http_504');
 });
 
+test('document without voucher number is shown as retryable instead of reconcilable', function () {
+    [$business, $admin, $sale] = fiscalSaleFixture();
+
+    SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_document_id' => 'fdoc-without-number',
+        'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_error_code' => 'document_without_number',
+        'fiscal_error_message' => 'Document has no voucher number to reconcile.',
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'attempted_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->get(route('sales.show', $sale))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('fiscal.can_issue', true)
+            ->where('fiscal.can_reconcile', false)
+            ->where('fiscal.document.fiscal_status', SaleFiscalDocument::STATUS_UNCERTAIN)
+            ->where('fiscal.document.fiscal_error_action', 'reintentar')
+        );
+});
+
+test('reconcile document without voucher number converts the attempt to retryable error', function () {
+    [$business, $admin, $sale] = fiscalSaleFixture();
+
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_document_id' => 'fdoc-without-number',
+        'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'attempted_at' => now(),
+    ]);
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents/fdoc-without-number/reconcile' => Http::response([
+            'message' => 'Document has no voucher number to reconcile.',
+            'error_code' => 'document_without_number',
+        ], 409),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('sales.fiscal-documents.reconcile', [
+            'sale' => $sale,
+            'saleFiscalDocument' => $document,
+        ]))
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    $document->refresh();
+
+    expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_ERROR)
+        ->and($document->fiscal_error_code)->toBe('document_without_number');
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents' => Http::response([
+            'id' => 'fdoc-retry-after-without-number',
+            'status' => 'authorized',
+            'cae' => '52345678901234',
+            'cae_expires_at' => '2026-05-01',
+            'number' => 2,
+            'point_of_sale' => 2,
+            'cbte_type' => 11,
+        ]),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('sales.fiscal-documents.store', $sale))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $documents = SaleFiscalDocument::query()
+        ->where('sale_id', $sale->id)
+        ->orderBy('attempt_number')
+        ->get();
+
+    expect($documents)->toHaveCount(2)
+        ->and($documents[1]->attempt_number)->toBe(2)
+        ->and($documents[1]->fiscal_status)->toBe(SaleFiscalDocument::STATUS_AUTHORIZED)
+        ->and($documents[1]->fiscal_idempotency_key)->toBe("sale:{$business->id}:{$sale->id}:invoice:retry:2");
+});
+
 test('sale fiscal document emission stores caea authorization fields', function () {
     [$business, $admin, $sale] = fiscalSaleFixture([
         'fiscal_authorization_mode' => 'caea',

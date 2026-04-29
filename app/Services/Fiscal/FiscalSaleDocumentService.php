@@ -34,13 +34,15 @@ class FiscalSaleDocumentService
             ]);
         }
 
-        if ($latestDocument?->requiresReconcile()) {
+        $latestDocumentCanRetry = $latestDocument !== null && $this->errorMapper->safeToRetry($latestDocument);
+
+        if ($latestDocument?->requiresReconcile() && ! $latestDocumentCanRetry) {
             throw ValidationException::withMessages([
                 'fiscal' => 'La venta tiene un comprobante fiscal incierto o en proceso. Conciliar antes de reintentar.',
             ]);
         }
 
-        if ($latestDocument !== null && ! $this->errorMapper->safeToRetry($latestDocument)) {
+        if ($latestDocument !== null && ! $latestDocumentCanRetry) {
             throw ValidationException::withMessages([
                 'fiscal' => 'El ultimo estado fiscal no es seguro para reintentar. Revisa el detalle fiscal o concilia antes de emitir nuevamente.',
             ]);
@@ -116,7 +118,9 @@ class FiscalSaleDocumentService
 
         if ($apiError !== null) {
             if ((bool) $apiError['requires_reconcile']
-                || ($reconciling && $status === SaleFiscalDocument::STATUS_ERROR)) {
+                || ($reconciling
+                    && $status === SaleFiscalDocument::STATUS_ERROR
+                    && $apiError['code'] !== 'document_without_number')) {
                 $status = SaleFiscalDocument::STATUS_UNCERTAIN;
             } elseif ($status === SaleFiscalDocument::STATUS_AUTHORIZED) {
                 $status = SaleFiscalDocument::STATUS_ERROR;
