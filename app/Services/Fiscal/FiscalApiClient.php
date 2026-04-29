@@ -69,6 +69,27 @@ class FiscalApiClient
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
+    public function generateCredentialCsr(string $company, array $payload): array
+    {
+        return $this->post('/fiscal/companies/'.$this->pathSegment($company).'/credentials/csr', $payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function storeCredentialCertificate(string $company, string|int $credentialId, array $payload): array
+    {
+        return $this->put(
+            '/fiscal/companies/'.$this->pathSegment($company).'/credentials/'.$this->pathSegment($credentialId).'/certificate',
+            $payload,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
     public function createDocument(array $payload): array
     {
         return $this->post('/fiscal/documents', $payload);

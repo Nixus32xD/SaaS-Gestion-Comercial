@@ -1,7 +1,7 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
     configuration: { type: Object, required: true },
@@ -11,7 +11,30 @@ const props = defineProps({
     points_of_sale: { type: Array, default: () => [] },
     summary: { type: Object, required: true },
     documents: { type: Array, default: () => [] },
+    can_manage_credentials: { type: Boolean, default: false },
+    credential_onboarding: { type: Object, default: () => ({}) },
 });
+
+const sanitizedBusinessId = String(props.configuration.external_business_id || 'empresa')
+    .replace(/[^A-Za-z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+const defaultKeyName = `${sanitizedBusinessId || 'empresa'}.key`;
+
+const csrForm = useForm({
+    key_name: props.credential_onboarding.key_name || defaultKeyName,
+    common_name: props.configuration.external_business_id || '',
+    organization_name: '',
+    country_name: 'AR',
+});
+
+const certificateForm = useForm({
+    credential_id: props.credential_onboarding.credential_id || '',
+    certificate: '',
+    active: true,
+});
+
+const certificateFileName = ref('');
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -206,6 +229,50 @@ const displayRows = (rows, formatter) => {
 
 const activityRows = computed(() => displayRows(props.activities, formatActivity));
 const pointOfSaleRows = computed(() => displayRows(props.points_of_sale, formatPointOfSale));
+const generatedCsr = computed(() => props.credential_onboarding?.csr || '');
+const generatedCredentialId = computed(() => props.credential_onboarding?.credential_id || '');
+
+const generateCsr = () => {
+    csrForm.post(route('electronic-billing.credentials.csr'), {
+        preserveScroll: true,
+        preserveState: false,
+    });
+};
+
+const uploadCertificate = () => {
+    certificateForm.post(route('electronic-billing.credentials.certificate.store'), {
+        preserveScroll: true,
+        preserveState: false,
+        onSuccess: () => certificateForm.reset('certificate'),
+    });
+};
+
+const loadCertificateFile = async (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    certificateFileName.value = file.name;
+    certificateForm.certificate = await file.text();
+};
+
+const copyCsr = async () => {
+    if (!generatedCsr.value || !navigator.clipboard) return;
+
+    await navigator.clipboard.writeText(generatedCsr.value);
+};
+
+const downloadCsr = () => {
+    if (!generatedCsr.value) return;
+
+    const blob = new Blob([generatedCsr.value], { type: 'application/pkcs10' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${csrForm.key_name.replace(/\.key$/i, '') || 'credencial-fiscal'}.csr`;
+    link.click();
+    URL.revokeObjectURL(url);
+};
 
 const retryDocument = (document) => {
     if (!window.confirm('Reintentar emision fiscal para esta venta?')) return;
@@ -341,6 +408,165 @@ const reconcileDocument = (document) => {
                         </div>
                     </dl>
                 </article>
+            </section>
+
+            <section v-if="can_manage_credentials" class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-100">Credencial fiscal API</h3>
+                        <p class="mt-1 text-sm text-slate-300/80">CSR y certificado administrados por la API fiscal.</p>
+                    </div>
+                    <span v-if="generatedCredentialId" class="rounded-full border border-cyan-100/25 bg-slate-950/35 px-3 py-1 text-xs font-semibold text-slate-200">
+                        Credencial #{{ generatedCredentialId }}
+                    </span>
+                </div>
+
+                <div class="mt-5 grid gap-5 xl:grid-cols-2">
+                    <form class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4" @submit.prevent="generateCsr">
+                        <h4 class="text-sm font-semibold text-slate-100">Generar CSR</h4>
+
+                        <div class="mt-4 grid gap-3">
+                            <label class="grid gap-1 text-sm text-slate-300">
+                                <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Key name API</span>
+                                <input
+                                    v-model="csrForm.key_name"
+                                    type="text"
+                                    class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
+                                    autocomplete="off"
+                                >
+                            </label>
+                            <label class="grid gap-1 text-sm text-slate-300">
+                                <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Common name</span>
+                                <input
+                                    v-model="csrForm.common_name"
+                                    type="text"
+                                    class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
+                                    autocomplete="off"
+                                >
+                            </label>
+                            <label class="grid gap-1 text-sm text-slate-300">
+                                <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Razon social</span>
+                                <input
+                                    v-model="csrForm.organization_name"
+                                    type="text"
+                                    class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
+                                    autocomplete="off"
+                                >
+                            </label>
+                            <label class="grid gap-1 text-sm text-slate-300">
+                                <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Pais</span>
+                                <input
+                                    v-model="csrForm.country_name"
+                                    type="text"
+                                    maxlength="2"
+                                    class="w-24 rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm uppercase text-slate-100 outline-none focus:border-cyan-200/60"
+                                    autocomplete="off"
+                                >
+                            </label>
+                        </div>
+
+                        <button
+                            type="submit"
+                            class="mt-4 inline-flex items-center justify-center rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-60"
+                            :disabled="csrForm.processing"
+                        >
+                            {{ csrForm.processing ? 'Generando...' : 'Generar CSR' }}
+                        </button>
+                    </form>
+
+                    <div class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h4 class="text-sm font-semibold text-slate-100">CSR generado</h4>
+                            <div v-if="generatedCsr" class="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded-lg border border-cyan-100/25 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800/70"
+                                    @click="copyCsr"
+                                >
+                                    Copiar
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-lg border border-cyan-100/25 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800/70"
+                                    @click="downloadCsr"
+                                >
+                                    Descargar
+                                </button>
+                            </div>
+                        </div>
+
+                        <textarea
+                            :value="generatedCsr || 'Todavia no se genero un CSR en esta sesion.'"
+                            readonly
+                            rows="12"
+                            class="mt-4 w-full resize-y rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 font-mono text-xs text-slate-100 outline-none"
+                        />
+
+                        <dl v-if="generatedCsr" class="mt-3 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
+                            <div>
+                                <dt class="uppercase tracking-[0.18em] text-slate-400">Key name</dt>
+                                <dd class="mt-1 font-semibold text-slate-100">{{ credential_onboarding.key_name || '-' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="uppercase tracking-[0.18em] text-slate-400">Estado API</dt>
+                                <dd class="mt-1 font-semibold text-slate-100">{{ credential_onboarding.credential_status || '-' }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <form class="mt-5 rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4" @submit.prevent="uploadCertificate">
+                    <h4 class="text-sm font-semibold text-slate-100">Cargar certificado CRT en API</h4>
+
+                    <div class="mt-4 grid gap-3 xl:grid-cols-[12rem_minmax(0,1fr)]">
+                        <label class="grid gap-1 text-sm text-slate-300">
+                            <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Credencial API</span>
+                            <input
+                                v-model="certificateForm.credential_id"
+                                type="number"
+                                min="1"
+                                class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
+                            >
+                        </label>
+                        <label class="grid gap-1 text-sm text-slate-300">
+                            <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Archivo CRT</span>
+                            <input
+                                type="file"
+                                accept=".crt,.cer,.pem,text/plain,application/x-x509-ca-cert"
+                                class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyan-100"
+                                @change="loadCertificateFile"
+                            >
+                            <span v-if="certificateFileName" class="text-xs text-slate-400">{{ certificateFileName }}</span>
+                        </label>
+                    </div>
+
+                    <label class="mt-3 grid gap-1 text-sm text-slate-300">
+                        <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Contenido del CRT</span>
+                        <textarea
+                            v-model="certificateForm.certificate"
+                            rows="8"
+                            class="w-full resize-y rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 font-mono text-xs text-slate-100 outline-none focus:border-cyan-200/60"
+                            autocomplete="off"
+                        />
+                    </label>
+
+                    <label class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-200">
+                        <input
+                            v-model="certificateForm.active"
+                            type="checkbox"
+                            class="rounded border-cyan-100/30 bg-slate-950/60 text-cyan-400 focus:ring-cyan-300"
+                        >
+                        Activar credencial
+                    </label>
+
+                    <button
+                        type="submit"
+                        class="mt-4 inline-flex items-center justify-center rounded-lg border border-emerald-200/45 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-60"
+                        :disabled="certificateForm.processing"
+                    >
+                        {{ certificateForm.processing ? 'Cargando...' : 'Cargar CRT en API' }}
+                    </button>
+                </form>
             </section>
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">

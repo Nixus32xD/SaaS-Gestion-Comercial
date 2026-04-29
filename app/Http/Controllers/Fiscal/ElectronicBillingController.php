@@ -39,6 +39,14 @@ class ElectronicBillingController extends Controller
             'points_of_sale' => $apiOverview['points_of_sale'],
             'summary' => $this->summary($business),
             'documents' => $this->documents($business),
+            'can_manage_credentials' => request()->user()?->isBusinessAdmin() ?? false,
+            'credential_onboarding' => session('fiscal_credential_onboarding', [
+                'credential_id' => null,
+                'credential_status' => null,
+                'key_name' => null,
+                'csr' => null,
+                'created' => false,
+            ]),
         ]);
     }
 
