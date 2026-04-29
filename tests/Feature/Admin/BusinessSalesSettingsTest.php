@@ -57,6 +57,7 @@ test('superadmin can configure fiscal cuit for a business', function () {
         ->put(route('admin.businesses.sales-settings.update', $business), [
             'fiscal_enabled' => true,
             'fiscal_external_business_id' => 'empresa-demo-prod',
+            'fiscal_environment' => 'production',
             'fiscal_cuit' => '30-71234567-1',
             'fiscal_point_of_sale' => 2,
             'fiscal_document_type' => 'invoice_c',
@@ -71,6 +72,7 @@ test('superadmin can configure fiscal cuit for a business', function () {
 
     expect($business->fiscal_enabled)->toBeTrue();
     expect($business->fiscal_external_business_id)->toBe('empresa-demo-prod');
+    expect($business->fiscal_environment)->toBe('production');
     expect($business->fiscal_cuit)->toBe('30712345671');
     expect($business->fiscal_authorization_mode)->toBe('caea');
     expect($business->fiscal_activities)->toBe([492140]);
@@ -100,6 +102,7 @@ test('enabling fiscal billing syncs the external fiscal company', function () {
         ->put(route('admin.businesses.sales-settings.update', $business), [
             'fiscal_enabled' => true,
             'fiscal_external_business_id' => 'empresa-demo-prod',
+            'fiscal_environment' => 'production',
             'fiscal_cuit' => '30-71234567-1',
             'fiscal_point_of_sale' => 2,
             'fiscal_document_type' => 'invoice_c',
@@ -120,7 +123,7 @@ test('enabling fiscal billing syncs the external fiscal company', function () {
             && $payload['external_business_id'] === 'empresa-demo-prod'
             && $payload['cuit'] === '30712345671'
             && $payload['legal_name'] === 'Empresa Demo SA'
-            && $payload['environment'] === 'testing'
+            && $payload['environment'] === 'production'
             && $payload['default_point_of_sale'] === 2
             && $payload['default_voucher_type'] === 11
             && $payload['enabled'] === true
@@ -175,13 +178,9 @@ test('business edit exposes fiscal selects and point of sale options from fiscal
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/points-of-sale' => Http::response([
             'data' => [
                 'points_of_sale' => [
-                    'ResultGet' => [
-                        'PtoVenta' => [
-                            ['Nro' => 2, 'EmisionTipo' => 'CAE', 'Bloqueado' => 'N'],
-                            ['Nro' => 4, 'EmisionTipo' => 'MANUAL', 'Bloqueado' => 'N'],
-                            ['Nro' => 5, 'EmisionTipo' => 'CAEA', 'Bloqueado' => 'S'],
-                        ],
-                    ],
+                    ['number' => 2, 'type' => 'CAE', 'blocked' => false],
+                    ['number' => 4, 'type' => 'MANUAL', 'blocked' => false],
+                    ['number' => 5, 'type' => 'CAEA', 'blocked' => true],
                 ],
             ],
         ]),
@@ -191,6 +190,7 @@ test('business edit exposes fiscal selects and point of sale options from fiscal
     $business = Business::factory()->create([
         'fiscal_enabled' => true,
         'fiscal_external_business_id' => 'empresa-demo-prod',
+        'fiscal_environment' => 'testing',
         'fiscal_point_of_sale' => 2,
         'fiscal_document_type' => 'invoice_c',
         'fiscal_cbte_type' => 11,
@@ -206,6 +206,8 @@ test('business edit exposes fiscal selects and point of sale options from fiscal
             ->where('fiscal_catalog.document_types.2.label', 'Factura C')
             ->where('fiscal_catalog.voucher_types.6.value', 11)
             ->where('fiscal_catalog.voucher_types.6.label', 'Factura C')
+            ->where('fiscal_catalog.environments.0.value', 'testing')
+            ->where('sales_settings.fiscal_environment', 'testing')
             ->where('sales_settings.fiscal_point_of_sale_options.status', 'ok')
             ->where('sales_settings.fiscal_point_of_sale_options.options.0.value', 2)
             ->where('sales_settings.fiscal_point_of_sale_options.options.0.selectable', true)
@@ -214,7 +216,7 @@ test('business edit exposes fiscal selects and point of sale options from fiscal
             ->where('sales_settings.fiscal_point_of_sale_options.options.1.disabled_reason', 'No es punto de venta electronico')
             ->where('sales_settings.fiscal_point_of_sale_options.options.2.value', 5)
             ->where('sales_settings.fiscal_point_of_sale_options.options.2.selectable', false)
-            ->where('sales_settings.fiscal_point_of_sale_options.options.2.disabled_reason', 'Bloqueado en ARCA')
+            ->where('sales_settings.fiscal_point_of_sale_options.options.2.disabled_reason', 'Bloqueado por API fiscal')
             ->where('fiscal_catalog.authorization_modes.0.value', 'cae')
         );
 

@@ -27,7 +27,7 @@ class FiscalPointOfSaleOptionsService
         if (! $business->hasElectronicBilling()) {
             return $this->unavailable(
                 'disabled',
-                'Activa facturacion electronica y guarda para consultar puntos de venta desde ARCA.'
+                'Activa facturacion electronica y guarda para consultar puntos de venta desde la API fiscal.'
             );
         }
 
@@ -50,9 +50,7 @@ class FiscalPointOfSaleOptionsService
 
             return $this->unavailable(
                 'error',
-                $apiError['code'] === '602'
-                    ? $this->friendlyMessage($apiError['code'], $apiError['message'])
-                    : ($mappedError['message'] ?? $this->friendlyMessage($apiError['code'], $apiError['message']))
+                $mappedError['message'] ?? $this->friendlyMessage($apiError['code'], $apiError['message'])
             );
         }
 
@@ -66,7 +64,7 @@ class FiscalPointOfSaleOptionsService
         if ($options === []) {
             return $this->unavailable(
                 'empty',
-                'ARCA no devolvio puntos de venta electronicos para esta empresa fiscal.'
+                'La API fiscal no devolvio puntos de venta electronicos para esta empresa fiscal.'
             );
         }
 
@@ -98,11 +96,6 @@ class FiscalPointOfSaleOptionsService
         foreach ([
             'points_of_sale',
             'data.points_of_sale',
-            'data.PtoVenta',
-            'data.points_of_sale.PtoVenta',
-            'data.points_of_sale.ResultGet.PtoVenta',
-            'data.ResultGet.PtoVenta',
-            'ResultGet.PtoVenta',
         ] as $key) {
             $value = data_get($response, $key);
 
@@ -128,9 +121,6 @@ class FiscalPointOfSaleOptionsService
     private function looksLikePointOfSaleRow(array $row): bool
     {
         return data_get($row, 'number') !== null
-            || data_get($row, 'Nro') !== null
-            || data_get($row, 'pto_vta') !== null
-            || data_get($row, 'PtoVta') !== null
             || data_get($row, 'point_of_sale') !== null
             || data_get($row, 'id') !== null;
     }
@@ -142,9 +132,6 @@ class FiscalPointOfSaleOptionsService
     private function pointOfSaleOption(array $row): ?array
     {
         $number = data_get($row, 'number')
-            ?? data_get($row, 'Nro')
-            ?? data_get($row, 'pto_vta')
-            ?? data_get($row, 'PtoVta')
             ?? data_get($row, 'point_of_sale')
             ?? data_get($row, 'id');
 
@@ -154,20 +141,19 @@ class FiscalPointOfSaleOptionsService
 
         $emissionType = strtoupper(trim((string) (
             data_get($row, 'type')
-            ?? data_get($row, 'EmisionTipo')
             ?? data_get($row, 'emission_type')
             ?? ''
         )));
-        $blocked = data_get($row, 'blocked') ?? data_get($row, 'Bloqueado');
-        $disabledAt = data_get($row, 'FchBaja') ?? data_get($row, 'disabled_at');
-        $isBlocked = $blocked === true || strtoupper((string) $blocked) === 'S';
+        $blocked = data_get($row, 'blocked');
+        $disabledAt = data_get($row, 'disabled_at');
+        $isBlocked = $blocked === true;
         $isElectronic = $emissionType === '' || in_array($emissionType, ['CAE', 'CAEA'], true);
         $disabledReason = null;
 
         if (! $isElectronic) {
             $disabledReason = 'No es punto de venta electronico';
         } elseif ($isBlocked) {
-            $disabledReason = 'Bloqueado en ARCA';
+            $disabledReason = 'Bloqueado por API fiscal';
         } elseif ($disabledAt !== null && $disabledAt !== '') {
             $disabledReason = 'Dado de baja';
         }
@@ -195,9 +181,6 @@ class FiscalPointOfSaleOptionsService
     {
         $code = data_get($response, 'error.code')
             ?? data_get($response, 'error_code')
-            ?? data_get($response, 'data.points_of_sale.Errors.Err.Code')
-            ?? data_get($response, 'data.points_of_sale.Errors.Err.0.Code')
-            ?? data_get($response, 'Errors.Err.Code')
             ?? (data_get($response, 'status') === 'error' ? 'api_error' : null);
 
         if ($code === null) {
@@ -209,9 +192,6 @@ class FiscalPointOfSaleOptionsService
             'message' => (string) (
                 data_get($response, 'error.message')
                 ?? data_get($response, 'message')
-                ?? data_get($response, 'data.points_of_sale.Errors.Err.Msg')
-                ?? data_get($response, 'data.points_of_sale.Errors.Err.0.Msg')
-                ?? data_get($response, 'Errors.Err.Msg')
                 ?? ''
             ),
         ];
@@ -220,7 +200,6 @@ class FiscalPointOfSaleOptionsService
     private function friendlyMessage(string $code, string $message): string
     {
         return match ($code) {
-            '602' => 'ARCA no devolvio puntos de venta electronicos para esta empresa fiscal.',
             'company_not_found' => 'La empresa fiscal no existe en la API fiscal. Guarda la configuracion fiscal para crearla.',
             default => $message !== '' ? $message : 'La API fiscal no devolvio puntos de venta.',
         };

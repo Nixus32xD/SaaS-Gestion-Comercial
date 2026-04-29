@@ -82,7 +82,7 @@ const fiscalActionMessage = computed(() => {
     const action = fiscalDocument.value?.fiscal_error_action;
 
     if (action === 'conciliar') return 'Conciliar antes de reintentar.';
-    if (action === 'revisar_configuracion') return 'Revisar certificado, CUIT, clave privada y servicio habilitado en ARCA.';
+    if (action === 'revisar_configuracion') return 'Revisar token, CUIT y configuracion fiscal externa.';
     if (action === 'revisar_datos') return 'Revisar datos del comprobante antes de emitir nuevamente.';
     if (action === 'reintentar') return 'Se puede reintentar cuando los datos ya fueron corregidos.';
 
@@ -111,7 +111,7 @@ const fiscalObservationText = (observation) => {
 
 const issueFiscalDocument = () => {
     if (props.fiscal.production_confirmation_required) {
-        const confirmed = window.confirm('Vas a emitir un comprobante fiscal en produccion. Esta accion puede impactar en ARCA. Continuar?');
+        const confirmed = window.confirm('Vas a emitir un comprobante fiscal en produccion. Esta accion puede tener impacto fiscal. Continuar?');
 
         if (!confirmed) return;
     } else if (!window.confirm('Emitir comprobante fiscal para esta venta?')) {

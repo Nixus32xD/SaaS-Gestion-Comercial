@@ -35,12 +35,18 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             ->filter()
             ->values()
             ->all();
+        $fiscalEnvironments = collect((array) config('fiscal.environments', []))
+            ->pluck('value')
+            ->filter()
+            ->values()
+            ->all();
 
         return [
             'advanced_sale_settings_enabled' => ['required', 'boolean'],
             'global_product_catalog_enabled' => ['required', 'boolean'],
             'fiscal_enabled' => ['required', 'boolean'],
             'fiscal_external_business_id' => ['nullable', 'string', 'max:120'],
+            'fiscal_environment' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', Rule::in($fiscalEnvironments)],
             'fiscal_cuit' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
             'fiscal_point_of_sale' => ['nullable', 'integer', 'min:1', 'max:99999'],
             'fiscal_document_type' => ['nullable', 'string', 'max:40', Rule::in($documentTypes)],
@@ -78,11 +84,20 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $fiscalEnvironment = strtolower(trim((string) $this->input(
+            'fiscal_environment',
+            config('fiscal.environment', 'testing')
+        )));
+        $fiscalEnvironment = in_array($fiscalEnvironment, ['testing', 'production'], true)
+            ? $fiscalEnvironment
+            : 'testing';
+
         $this->merge([
             'advanced_sale_settings_enabled' => $this->boolean('advanced_sale_settings_enabled'),
             'global_product_catalog_enabled' => $this->boolean('global_product_catalog_enabled'),
             'fiscal_enabled' => $this->boolean('fiscal_enabled'),
             'fiscal_external_business_id' => trim((string) $this->input('fiscal_external_business_id')),
+            'fiscal_environment' => $fiscalEnvironment,
             'fiscal_cuit' => preg_replace('/\D+/', '', (string) $this->input('fiscal_cuit', '')) ?: null,
             'fiscal_point_of_sale' => $this->filled('fiscal_point_of_sale')
                 ? (int) $this->input('fiscal_point_of_sale')

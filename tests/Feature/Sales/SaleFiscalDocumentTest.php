@@ -134,7 +134,7 @@ test('sale fiscal document emission stores rejected response', function () {
 
     expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_REJECTED);
     expect($document->fiscal_error_code)->toBe('10016');
-    expect($document->fiscal_error_message)->toBe('ARCA rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: Comprobante rechazado por validacion fiscal.');
+    expect($document->fiscal_error_message)->toBe('La API fiscal rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: Comprobante rechazado por validacion fiscal.');
     expect($document->fiscal_observations)->toBe([
         ['code' => 'OBS', 'message' => 'Revisar datos del receptor.'],
     ]);
@@ -175,7 +175,7 @@ test('sale fiscal document emission normalizes wrapped fiscal api resource respo
         ->from(route('sales.show', $sale))
         ->post(route('sales.fiscal-documents.store', $sale))
         ->assertRedirect(route('sales.show', $sale))
-        ->assertSessionHas('error', 'ARCA rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
+        ->assertSessionHas('error', 'La API fiscal rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
 
     $document = SaleFiscalDocument::query()->firstOrFail();
 
@@ -183,7 +183,7 @@ test('sale fiscal document emission normalizes wrapped fiscal api resource respo
     expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_REJECTED);
     expect($document->fiscal_number)->toBe(1);
     expect($document->fiscal_error_code)->toBe('10223');
-    expect($document->fiscal_error_message)->toBe('ARCA rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
+    expect($document->fiscal_error_message)->toBe('La API fiscal rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta. Detalle: La actividad seleccionada 492140 no se encuentra vinculada al emisor o no esta activa.');
     expect($document->fiscal_observations)->toBe([
         'observations' => [
             [
@@ -210,10 +210,10 @@ test('sale fiscal document timeout leaves local status uncertain', function () {
 
     expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_UNCERTAIN);
     expect($document->fiscal_error_code)->toBe('timeout');
-    expect($document->fiscal_error_message)->toBe('ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.');
+    expect($document->fiscal_error_message)->toBe('La API fiscal no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.');
 });
 
-test('arca 502 leaves fiscal document uncertain and blocks direct retry', function () {
+test('api fiscal 502 leaves fiscal document uncertain and blocks direct retry', function () {
     [, $admin, $sale] = fiscalSaleFixture();
 
     Http::fake([
@@ -227,7 +227,7 @@ test('arca 502 leaves fiscal document uncertain and blocks direct retry', functi
         ->from(route('sales.show', $sale))
         ->post(route('sales.fiscal-documents.store', $sale))
         ->assertRedirect(route('sales.show', $sale))
-        ->assertSessionHas('error', 'ARCA tuvo un error interno o de infraestructura. No se debe volver a emitir directamente. Usa Conciliar para verificar si el comprobante fue procesado.');
+        ->assertSessionHas('error', 'La API fiscal informo un error interno o de infraestructura. No se debe volver a emitir directamente. Usa Conciliar para verificar si el comprobante fue procesado.');
 
     $document = SaleFiscalDocument::query()->firstOrFail();
 
@@ -245,7 +245,7 @@ test('arca 502 leaves fiscal document uncertain and blocks direct retry', functi
     Http::assertSentCount(1);
 });
 
-test('arca 504 leaves fiscal document uncertain and asks for reconcile', function () {
+test('api fiscal 504 leaves fiscal document uncertain and asks for reconcile', function () {
     [, $admin, $sale] = fiscalSaleFixture();
 
     Http::fake([
@@ -259,7 +259,7 @@ test('arca 504 leaves fiscal document uncertain and asks for reconcile', functio
         ->from(route('sales.show', $sale))
         ->post(route('sales.fiscal-documents.store', $sale))
         ->assertRedirect(route('sales.show', $sale))
-        ->assertSessionHas('error', 'ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.');
+        ->assertSessionHas('error', 'La API fiscal no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.');
 
     $document = SaleFiscalDocument::query()->firstOrFail();
 

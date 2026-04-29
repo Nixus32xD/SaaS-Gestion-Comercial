@@ -6,7 +6,7 @@ use App\Models\SaleFiscalDocument;
 
 class FiscalApiErrorMapper
 {
-    public const CATEGORY_ARCA_INFRASTRUCTURE = 'arca_infrastructure';
+    public const CATEGORY_PROVIDER_INFRASTRUCTURE = 'provider_infrastructure';
 
     public const CATEGORY_TIMEOUT = 'timeout';
 
@@ -35,8 +35,6 @@ class FiscalApiErrorMapper
             'data.code',
             'errors.0.code',
             'data.errors.0.code',
-            'Errors.Err.Code',
-            'data.Errors.Err.Code',
         ]);
         $technicalMessage = $this->firstString($response, [
             'error.technical_message',
@@ -53,8 +51,6 @@ class FiscalApiErrorMapper
             'data.error_description',
             'errors.0.message',
             'data.errors.0.message',
-            'Errors.Err.Msg',
-            'data.Errors.Err.Msg',
         ]);
         $status = data_get($response, 'status')
             ?? data_get($response, 'data.status')
@@ -247,7 +243,7 @@ class FiscalApiErrorMapper
         ]))));
 
         if ($httpStatus === 502 || str_contains($haystack, 'http_502') || str_contains($haystack, 'bad gateway')) {
-            return self::CATEGORY_ARCA_INFRASTRUCTURE;
+            return self::CATEGORY_PROVIDER_INFRASTRUCTURE;
         }
 
         if (in_array($httpStatus, [408, 504], true)
@@ -259,11 +255,6 @@ class FiscalApiErrorMapper
 
         if (in_array($httpStatus, [401, 403], true)
             || str_contains($haystack, 'token')
-            || str_contains($haystack, 'certificado')
-            || str_contains($haystack, 'certificate')
-            || str_contains($haystack, 'clave privada')
-            || str_contains($haystack, 'private key')
-            || str_contains($haystack, 'wsaa')
             || str_contains($haystack, 'autentic')
             || str_contains($haystack, 'unauthor')
             || str_contains($haystack, 'forbidden')) {
@@ -312,7 +303,7 @@ class FiscalApiErrorMapper
     private function defaultRequiresReconcile(string $category, mixed $status): bool
     {
         return in_array($category, [
-            self::CATEGORY_ARCA_INFRASTRUCTURE,
+            self::CATEGORY_PROVIDER_INFRASTRUCTURE,
             self::CATEGORY_TIMEOUT,
             self::CATEGORY_NUMBERING,
             self::CATEGORY_DUPLICATED,
@@ -326,17 +317,17 @@ class FiscalApiErrorMapper
     private function userMessage(string $category, string $technicalMessage): string
     {
         $message = match ($category) {
-            self::CATEGORY_ARCA_INFRASTRUCTURE => 'ARCA tuvo un error interno o de infraestructura. No se debe volver a emitir directamente. Usa Conciliar para verificar si el comprobante fue procesado.',
-            self::CATEGORY_TIMEOUT => 'ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.',
-            self::CATEGORY_AUTHENTICATION => 'La autenticacion fiscal fallo. Revisa certificado, clave privada, CUIT y servicio habilitado en ARCA.',
-            self::CATEGORY_VALIDATION => 'ARCA rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta.',
-            self::CATEGORY_NUMBERING => 'ARCA informo un problema de numeracion o punto de venta. Usa Conciliar antes de emitir nuevamente.',
+            self::CATEGORY_PROVIDER_INFRASTRUCTURE => 'La API fiscal informo un error interno o de infraestructura. No se debe volver a emitir directamente. Usa Conciliar para verificar si el comprobante fue procesado.',
+            self::CATEGORY_TIMEOUT => 'La API fiscal no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.',
+            self::CATEGORY_AUTHENTICATION => 'La autenticacion contra la API fiscal fallo. Revisa el token, el CUIT y la configuracion fiscal externa.',
+            self::CATEGORY_VALIDATION => 'La API fiscal rechazo los datos del comprobante. Revisa importes, IVA, documento del receptor, tipo de comprobante y punto de venta.',
+            self::CATEGORY_NUMBERING => 'La API fiscal informo un problema de numeracion o punto de venta. Usa Conciliar antes de emitir nuevamente.',
             self::CATEGORY_DUPLICATED => 'La API fiscal informo un comprobante duplicado o ya existente. Usa Conciliar para recuperar el estado real.',
             default => 'No se pudo determinar el resultado fiscal. Revisa el detalle tecnico y concilia si el estado no es claro.',
         };
 
         if ($technicalMessage === '' || in_array($category, [
-            self::CATEGORY_ARCA_INFRASTRUCTURE,
+            self::CATEGORY_PROVIDER_INFRASTRUCTURE,
             self::CATEGORY_TIMEOUT,
             self::CATEGORY_AUTHENTICATION,
         ], true)) {

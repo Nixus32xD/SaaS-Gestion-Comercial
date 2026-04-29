@@ -8,19 +8,13 @@ $activities = collect(explode(',', (string) env('FISCAL_ACTIVITIES', '')))
     ->values()
     ->all();
 
-$apiUrl = trim((string) env('FISCAL_API_URL', ''));
-$defaultBaseUrl = $apiUrl !== ''
-    ? rtrim($apiUrl, '/').'/api'
-    : 'http://127.0.0.1:8000/api';
-
 return [
     'enabled' => env('FISCAL_ENABLED', false),
-    'base_url' => env('FISCAL_API_BASE_URL', $defaultBaseUrl),
+    'base_url' => env('FISCAL_API_BASE_URL'),
     'token' => env('FISCAL_API_TOKEN'),
     'timeout' => (int) env('FISCAL_API_TIMEOUT', 60),
     'connect_timeout' => (int) env('FISCAL_API_CONNECT_TIMEOUT', 3),
-    'status_timeout' => (int) env('FISCAL_API_STATUS_TIMEOUT', 5),
-    'environment' => env('FISCAL_ENVIRONMENT', env('APP_ENV', 'local')),
+    'environment' => env('FISCAL_ENVIRONMENT', 'testing'),
 
     'defaults' => [
         'point_of_sale' => (int) env('FISCAL_DEFAULT_POINT_OF_SALE', 2),
@@ -37,6 +31,11 @@ return [
         ['value' => 'cae', 'label' => 'CAE normal'],
         ['value' => 'caea', 'label' => 'CAEA contingencia'],
         ['value' => 'auto', 'label' => 'Automatico'],
+    ],
+
+    'environments' => [
+        ['value' => 'testing', 'label' => 'Testing'],
+        ['value' => 'production', 'label' => 'Produccion'],
     ],
 
     'document_types' => [

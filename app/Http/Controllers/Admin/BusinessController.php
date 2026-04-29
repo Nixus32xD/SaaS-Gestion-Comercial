@@ -183,6 +183,9 @@ class BusinessController extends Controller
                 'global_product_catalog_enabled' => $business->hasGlobalProductCatalog(),
                 'fiscal_enabled' => $business->fiscal_enabled,
                 'fiscal_external_business_id' => $business->fiscal_external_business_id,
+                'fiscal_environment' => in_array($business->fiscal_environment, ['testing', 'production'], true)
+                    ? $business->fiscal_environment
+                    : 'testing',
                 'fiscal_cuit' => $business->fiscal_cuit,
                 'fiscal_point_of_sale' => $business->fiscal_point_of_sale ?? config('fiscal.defaults.point_of_sale'),
                 'fiscal_document_type' => $business->fiscal_document_type ?: config('fiscal.defaults.document_type'),
@@ -211,6 +214,7 @@ class BusinessController extends Controller
                 'document_types' => config('fiscal.document_types', []),
                 'voucher_types' => config('fiscal.voucher_types', []),
                 'authorization_modes' => config('fiscal.authorization_modes', []),
+                'environments' => config('fiscal.environments', []),
             ],
             'commercial_catalog' => [
                 'implementation_plans' => array_map(

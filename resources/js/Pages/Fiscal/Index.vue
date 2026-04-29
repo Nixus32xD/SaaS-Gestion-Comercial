@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 
 const props = defineProps({
     configuration: { type: Object, required: true },
@@ -9,24 +9,9 @@ const props = defineProps({
     setup: { type: Object, required: true },
     activities: { type: Array, default: () => [] },
     points_of_sale: { type: Array, default: () => [] },
-    onboarding: { type: Object, required: true },
     summary: { type: Object, required: true },
     documents: { type: Array, default: () => [] },
 });
-
-const csrForm = useForm({
-    key_name: props.onboarding.defaults?.key_name || '',
-    common_name: props.onboarding.defaults?.common_name || '',
-    organization_name: props.onboarding.defaults?.organization_name || '',
-    country_name: props.onboarding.defaults?.country_name || 'AR',
-});
-
-const certificateForm = useForm({
-    certificate: '',
-    certificate_file: null,
-});
-
-const testForm = useForm({});
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -42,21 +27,6 @@ const formatCuit = (value) => {
     }
 
     return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`;
-};
-
-const dateTimeLabel = (value) => {
-    if (!value) return null;
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-
-    return new Intl.DateTimeFormat('es-AR', {
-        dateStyle: 'short',
-        timeStyle: 'short',
-    }).format(date);
 };
 
 const summaryCards = computed(() => [
@@ -113,31 +83,7 @@ const connectionTone = computed(() => (
 ));
 
 const setupTone = computed(() => (props.setup.ready ? 'emerald' : 'amber'));
-const onboardingCredential = computed(() => props.onboarding.credential || null);
-const onboardingStatus = computed(() => props.onboarding.status || 'sin_configurar');
 const fiscalCuitLabel = computed(() => formatCuit(props.configuration.fiscal_cuit));
-const fiscalCuitInstruction = computed(() => (
-    props.configuration.fiscal_cuit ? `al CUIT ${fiscalCuitLabel.value}` : 'al contribuyente emisor'
-));
-const onboardingTone = computed(() => {
-    if (onboardingStatus.value === 'active') return 'emerald';
-    if (onboardingStatus.value === 'error') return 'rose';
-    if (onboardingStatus.value === 'pending_certificate' || onboardingStatus.value === 'certificate_uploaded') return 'amber';
-
-    return 'slate';
-});
-
-const canUploadCertificate = computed(() => (
-    Boolean(props.onboarding.can_manage)
-    && Boolean(onboardingCredential.value?.id)
-    && onboardingStatus.value !== 'active'
-));
-
-const canTestCredentials = computed(() => (
-    Boolean(props.onboarding.can_manage)
-    && Boolean(onboardingCredential.value?.id)
-    && onboardingStatus.value === 'active'
-));
 
 const voucherLabel = (document) => {
     if (!document.point_of_sale || !document.number) {
@@ -196,7 +142,7 @@ const valueAt = (row, keys) => {
 const apiErrorMessage = (row) => {
     if (!row || typeof row !== 'object') return null;
 
-    const error = valueAt(row, ['Errors.Err', 'Error.Err', 'errors.err', 'error']);
+    const error = valueAt(row, ['error']);
 
     if (typeof error === 'string') {
         return error;
@@ -206,14 +152,14 @@ const apiErrorMessage = (row) => {
         return null;
     }
 
-    const code = valueAt(error, ['Code', 'code']);
-    const message = valueAt(error, ['Msg', 'message', 'Description', 'description']);
+    const code = valueAt(error, ['code']);
+    const message = valueAt(error, ['message', 'description']);
 
     if (!code && !message) {
         return null;
     }
 
-    return [code ? `ARCA ${code}` : 'ARCA', message].filter(Boolean).join(': ');
+    return [code ? `API fiscal ${code}` : 'API fiscal', message].filter(Boolean).join(': ');
 };
 
 const formatActivity = (row) => {
@@ -221,8 +167,8 @@ const formatActivity = (row) => {
         return String(row);
     }
 
-    const code = valueAt(row, ['code', 'Id', 'id']);
-    const name = valueAt(row, ['name', 'Desc', 'description']);
+    const code = valueAt(row, ['code', 'id']);
+    const name = valueAt(row, ['name', 'description']);
 
     return [code, name].filter(Boolean).join(' - ') || JSON.stringify(row);
 };
@@ -232,10 +178,10 @@ const formatPointOfSale = (row) => {
         return String(row);
     }
 
-    const number = valueAt(row, ['number', 'Nro', 'pto_vta', 'PtoVta', 'point_of_sale', 'id']);
-    const type = valueAt(row, ['type', 'EmisionTipo', 'description', 'Descripcion', 'name']);
-    const blocked = valueAt(row, ['blocked', 'Bloqueado']);
-    const status = blocked === 'S' || blocked === true ? 'bloqueado' : null;
+    const number = valueAt(row, ['number', 'point_of_sale', 'id']);
+    const type = valueAt(row, ['type', 'emission_type', 'description', 'name']);
+    const blocked = valueAt(row, ['blocked']);
+    const status = blocked === true ? 'bloqueado' : null;
 
     return [
         number ? `PV ${number}` : null,
@@ -260,51 +206,6 @@ const displayRows = (rows, formatter) => {
 
 const activityRows = computed(() => displayRows(props.activities, formatActivity));
 const pointOfSaleRows = computed(() => displayRows(props.points_of_sale, formatPointOfSale));
-
-const generateCsr = () => {
-    csrForm.post(route('electronic-billing.credentials.csr'), {
-        preserveScroll: true,
-    });
-};
-
-const downloadCsr = () => {
-    const csr = onboardingCredential.value?.csr;
-
-    if (!csr) return;
-
-    const blob = new Blob([csr], { type: 'application/pkcs10' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-
-    link.href = url;
-    link.download = (onboardingCredential.value?.key_name || 'certificado.key').replace(/\.key$/i, '.csr');
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-};
-
-const handleCertificateFile = (event) => {
-    certificateForm.certificate_file = event.target.files?.[0] || null;
-};
-
-const uploadCertificate = () => {
-    if (!onboardingCredential.value?.id) return;
-
-    certificateForm.post(route('electronic-billing.credentials.certificate.store', onboardingCredential.value.id), {
-        forceFormData: true,
-        preserveScroll: true,
-        onSuccess: () => certificateForm.reset('certificate', 'certificate_file'),
-    });
-};
-
-const testCredentials = () => {
-    if (!onboardingCredential.value?.id) return;
-
-    testForm.post(route('electronic-billing.credentials.test', onboardingCredential.value.id), {
-        preserveScroll: true,
-    });
-};
 
 const retryDocument = (document) => {
     if (!window.confirm('Reintentar emision fiscal para esta venta?')) return;
@@ -418,7 +319,7 @@ const reconcileDocument = (document) => {
                     <div class="flex items-center justify-between gap-3">
                         <div>
                             <h3 class="text-base font-semibold text-slate-100">Setup fiscal</h3>
-                            <p class="mt-1 text-sm text-slate-300/80">Certificados y autorizacion residen en la API fiscal externa.</p>
+                            <p class="mt-1 text-sm text-slate-300/80">Estado operativo informado por la API fiscal externa.</p>
                         </div>
                         <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(setupTone)">
                             {{ setup.status_label }}
@@ -427,177 +328,19 @@ const reconcileDocument = (document) => {
 
                     <dl class="mt-4 grid gap-3 text-sm text-slate-300">
                         <div>
-                            <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Certificado</dt>
-                            <dd class="mt-1 font-semibold text-slate-100">{{ setup.certificate_status }}</dd>
-                            <dd v-if="setup.certificate_expires_at" class="mt-1 text-xs text-slate-400">Vence {{ dateTimeLabel(setup.certificate_expires_at) }}</dd>
+                            <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Estado operativo</dt>
+                            <dd class="mt-1 font-semibold text-slate-100">{{ setup.ready ? 'Listo' : 'Revisar setup' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">WSAA</dt>
-                            <dd class="mt-1 font-semibold text-slate-100">{{ setup.wsaa_status }}</dd>
-                            <dd v-if="setup.access_ticket_expires_at" class="mt-1 text-xs text-slate-400">Vence {{ dateTimeLabel(setup.access_ticket_expires_at) }}</dd>
+                            <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Ambiente fiscal</dt>
+                            <dd class="mt-1 font-semibold text-slate-100">{{ setup.environment || '-' }}</dd>
+                        </div>
+                        <div v-if="setup.message">
+                            <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Detalle</dt>
+                            <dd class="mt-1 font-semibold text-slate-100">{{ setup.message }}</dd>
                         </div>
                     </dl>
                 </article>
-            </section>
-
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <h3 class="text-base font-semibold text-slate-100">Onboarding certificado ARCA</h3>
-                        <p class="mt-1 text-sm text-slate-300/80">La API fiscal genera la key privada y el SaaS solo administra el CSR y el certificado publico.</p>
-                    </div>
-                    <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(onboardingTone)">
-                        {{ onboarding.credential?.status_label || onboarding.status_label }}
-                    </span>
-                </div>
-
-                <div class="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
-                    <div class="grid gap-4">
-                        <form
-                            v-if="onboarding.can_manage"
-                            class="grid gap-3 rounded-xl border border-cyan-100/15 bg-slate-950/25 p-4 md:grid-cols-2"
-                            @submit.prevent="generateCsr"
-                        >
-                            <div>
-                                <label class="text-xs uppercase tracking-[0.18em] text-slate-400">Nombre de key</label>
-                                <input
-                                    v-model="csrForm.key_name"
-                                    type="text"
-                                    class="mt-1 w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400"
-                                    placeholder="empresa-demo.key"
-                                />
-                                <p v-if="csrForm.errors.key_name" class="mt-1 text-xs text-rose-200">{{ csrForm.errors.key_name }}</p>
-                            </div>
-                            <div>
-                                <label class="text-xs uppercase tracking-[0.18em] text-slate-400">Common name</label>
-                                <input
-                                    v-model="csrForm.common_name"
-                                    type="text"
-                                    class="mt-1 w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
-                                />
-                                <p v-if="csrForm.errors.common_name" class="mt-1 text-xs text-rose-200">{{ csrForm.errors.common_name }}</p>
-                            </div>
-                            <div>
-                                <label class="text-xs uppercase tracking-[0.18em] text-slate-400">Razon social</label>
-                                <input
-                                    v-model="csrForm.organization_name"
-                                    type="text"
-                                    class="mt-1 w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
-                                />
-                                <p v-if="csrForm.errors.organization_name" class="mt-1 text-xs text-rose-200">{{ csrForm.errors.organization_name }}</p>
-                            </div>
-                            <div>
-                                <label class="text-xs uppercase tracking-[0.18em] text-slate-400">Pais</label>
-                                <input
-                                    v-model="csrForm.country_name"
-                                    type="text"
-                                    maxlength="2"
-                                    class="mt-1 w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm uppercase text-slate-100"
-                                />
-                                <p v-if="csrForm.errors.country_name" class="mt-1 text-xs text-rose-200">{{ csrForm.errors.country_name }}</p>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-3 md:col-span-2">
-                                <button
-                                    type="submit"
-                                    class="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-60"
-                                    :disabled="csrForm.processing"
-                                >
-                                    Generar CSR
-                                </button>
-                                <button
-                                    v-if="onboardingCredential?.csr"
-                                    type="button"
-                                    class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
-                                    @click="downloadCsr"
-                                >
-                                    Descargar CSR
-                                </button>
-                            </div>
-                        </form>
-
-                        <div v-else class="rounded-xl border border-cyan-100/15 bg-slate-950/25 p-4 text-sm text-slate-300">
-                            El onboarding del certificado lo puede ejecutar un administrador del comercio.
-                        </div>
-
-                        <div v-if="onboardingCredential?.csr" class="rounded-xl border border-cyan-100/15 bg-slate-950/25 p-4">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <p class="text-xs uppercase tracking-[0.18em] text-slate-400">CSR generado</p>
-                                    <p class="mt-1 text-sm font-semibold text-slate-100">{{ onboardingCredential.key_name }}</p>
-                                </div>
-                                <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(onboardingTone)">
-                                    {{ onboardingCredential.status_label }}
-                                </span>
-                            </div>
-                            <pre class="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-cyan-100/15 bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-200">{{ onboardingCredential.csr }}</pre>
-                        </div>
-
-                        <form
-                            v-if="canUploadCertificate"
-                            class="grid gap-3 rounded-xl border border-cyan-100/15 bg-slate-950/25 p-4"
-                            @submit.prevent="uploadCertificate"
-                        >
-                            <div>
-                                <label class="text-xs uppercase tracking-[0.18em] text-slate-400">Certificado .crt</label>
-                                <textarea
-                                    v-model="certificateForm.certificate"
-                                    rows="7"
-                                    class="mt-1 w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-xs text-slate-100 placeholder:text-slate-500"
-                                    placeholder="-----BEGIN CERTIFICATE-----"
-                                />
-                            </div>
-                            <div>
-                                <input
-                                    type="file"
-                                    accept=".crt,.cer,.pem,text/plain,application/x-x509-ca-cert"
-                                    class="block w-full text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-300 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950 hover:file:bg-cyan-200"
-                                    @change="handleCertificateFile"
-                                />
-                                <p v-if="certificateForm.errors.certificate" class="mt-2 text-xs text-rose-200">{{ certificateForm.errors.certificate }}</p>
-                                <p v-if="certificateForm.errors.certificate_file" class="mt-2 text-xs text-rose-200">{{ certificateForm.errors.certificate_file }}</p>
-                            </div>
-                            <button
-                                type="submit"
-                                class="w-fit rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
-                                :disabled="certificateForm.processing"
-                            >
-                                Cargar certificado
-                            </button>
-                        </form>
-
-                        <div v-if="onboardingCredential?.last_error_message" class="rounded-xl border border-rose-200/35 bg-rose-400/10 p-4 text-sm text-rose-100">
-                            <p class="font-semibold">{{ onboardingCredential.last_error_code || 'Error fiscal' }}</p>
-                            <p class="mt-1">{{ onboardingCredential.last_error_message }}</p>
-                        </div>
-
-                        <div v-if="canTestCredentials" class="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200/25 bg-emerald-400/10 p-4">
-                            <button
-                                type="button"
-                                class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
-                                :disabled="testForm.processing"
-                                @click="testCredentials"
-                            >
-                                Probar credenciales
-                            </button>
-                            <p class="text-sm text-emerald-100">
-                                <span v-if="onboardingCredential.last_test_status === 'ok'">Ultimo test correcto {{ dateTimeLabel(onboardingCredential.last_tested_at) }}.</span>
-                                <span v-else>Verifica WSAA y WSFEv1 contra la API fiscal.</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <aside class="rounded-xl border border-cyan-100/15 bg-slate-950/25 p-4 text-sm text-slate-300">
-                        <p class="font-semibold text-slate-100">Pasos en ARCA</p>
-                        <ol class="mt-3 list-decimal space-y-2 pl-5">
-                            <li>Ingresar con clave fiscal {{ fiscalCuitInstruction }}.</li>
-                            <li>Ir a Administracion de Certificados Digitales.</li>
-                            <li>Cargar el CSR generado por el SaaS.</li>
-                            <li>Descargar el certificado .crt emitido por ARCA.</li>
-                            <li>Asociar o delegar el certificado al web service correspondiente desde Administrador de Relaciones de Clave Fiscal.</li>
-                            <li>Verificar que el punto de venta este habilitado para web services.</li>
-                        </ol>
-                    </aside>
-                </div>
             </section>
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
@@ -617,7 +360,7 @@ const reconcileDocument = (document) => {
                         <dd class="mt-1 font-semibold text-slate-100">{{ configuration.document_type }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Tipo ARCA</dt>
+                        <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Tipo fiscal</dt>
                         <dd class="mt-1 font-semibold text-slate-100">{{ configuration.cbte_type }}</dd>
                     </div>
                     <div>

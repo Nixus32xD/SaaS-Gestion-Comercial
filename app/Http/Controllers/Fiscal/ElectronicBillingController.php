@@ -9,10 +9,8 @@ use App\Services\Fiscal\FiscalApiClient;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalApiException;
 use App\Services\Fiscal\FiscalApiTimeoutException;
-use App\Services\Fiscal\FiscalCredentialOnboardingService;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Support\CurrentBusiness;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,11 +19,10 @@ class ElectronicBillingController extends Controller
     public function __construct(
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
-        private readonly FiscalCredentialOnboardingService $onboardingService,
         private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
     ) {}
 
-    public function index(Request $request, CurrentBusiness $currentBusiness): Response
+    public function index(CurrentBusiness $currentBusiness): Response
     {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
@@ -40,7 +37,6 @@ class ElectronicBillingController extends Controller
             'setup' => $apiOverview['setup'],
             'activities' => $apiOverview['activities'],
             'points_of_sale' => $apiOverview['points_of_sale'],
-            'onboarding' => $this->onboardingService->overview($business, $externalBusinessId, $request->user()),
             'summary' => $this->summary($business),
             'documents' => $this->documents($business),
         ]);
@@ -110,12 +106,10 @@ class ElectronicBillingController extends Controller
                 'activities' => $this->listPayload($activities, [
                     'activities',
                     'data.activities',
-                    'data.Actividades.Actividad',
                 ]),
                 'points_of_sale' => $this->listPayload($pointsOfSale, [
                     'points_of_sale',
                     'data.points_of_sale',
-                    'data.PtoVenta',
                 ]),
             ];
         } catch (FiscalApiTimeoutException $exception) {
@@ -148,8 +142,8 @@ class ElectronicBillingController extends Controller
             'setup' => [
                 'ready' => false,
                 'status_label' => 'No verificado',
-                'certificate_status' => 'No verificado',
-                'wsaa_status' => 'No verificado',
+                'environment' => null,
+                'message' => null,
             ],
             'activities' => [],
             'points_of_sale' => [],
@@ -163,55 +157,24 @@ class ElectronicBillingController extends Controller
     private function setup(array $status): array
     {
         $payload = $this->payloadData($status);
-        $hasStructuredCredential = data_get($payload, 'credential.configured') !== null;
-
-        if ($hasStructuredCredential) {
-            $credentialConfigured = (bool) data_get($payload, 'credential.configured');
-            $credentialActive = (bool) data_get($payload, 'credential.active');
-            $companyEnabled = (bool) data_get($payload, 'enabled', true);
-            $ticketConfigured = (bool) data_get($payload, 'access_ticket.configured');
-            $ticketValid = (bool) data_get($payload, 'access_ticket.valid');
-
-            return [
-                'ready' => $companyEnabled && $credentialConfigured && $credentialActive,
-                'status_label' => $companyEnabled && $credentialConfigured && $credentialActive
-                    ? 'Credenciales cargadas'
-                    : 'Revisar setup',
-                'certificate_status' => $credentialActive
-                    ? 'Activo'
-                    : ($credentialConfigured ? 'Configurado inactivo' : 'No configurado'),
-                'certificate_expires_at' => data_get($payload, 'credential.certificate_expires_at'),
-                'wsaa_status' => $ticketValid
-                    ? 'Ticket vigente'
-                    : ($ticketConfigured ? 'Ticket vencido' : 'No generado'),
-                'access_ticket_expires_at' => data_get($payload, 'access_ticket.expiration_time'),
-            ];
-        }
 
         $ready = (bool) (
-            data_get($status, 'ready')
-            ?? data_get($status, 'is_ready')
-            ?? data_get($status, 'setup.ready')
-            ?? data_get($status, 'certificate.active')
+            data_get($payload, 'ready')
+            ?? data_get($payload, 'is_ready')
+            ?? data_get($payload, 'setup.ready')
             ?? false
         );
 
         return [
             'ready' => $ready,
-            'status_label' => $ready ? 'Listo' : 'Revisar setup',
-            'certificate_status' => data_get($status, 'certificate.status')
-                ?? data_get($status, 'certificates.status')
-                ?? data_get($status, 'setup.certificate_status')
-                ?? data_get($status, 'certificate_status')
-                ?? 'unknown',
-            'certificate_expires_at' => data_get($status, 'certificate.expires_at')
-                ?? data_get($status, 'certificate_expires_at'),
-            'wsaa_status' => data_get($status, 'wsaa.status')
-                ?? data_get($status, 'setup.wsaa_status')
-                ?? data_get($status, 'wsaa_status')
-                ?? 'unknown',
-            'access_ticket_expires_at' => data_get($status, 'wsaa.expiration_time')
-                ?? data_get($status, 'access_ticket.expiration_time'),
+            'status_label' => data_get($payload, 'status_label')
+                ?? data_get($payload, 'setup.status_label')
+                ?? ($ready ? 'Listo' : 'Revisar setup'),
+            'environment' => data_get($payload, 'environment')
+                ?? data_get($payload, 'setup.environment')
+                ?? config('fiscal.environment'),
+            'message' => data_get($payload, 'message')
+                ?? data_get($payload, 'setup.message'),
         ];
     }
 
@@ -276,7 +239,7 @@ class ElectronicBillingController extends Controller
     {
         return match ($code) {
             'company_not_found' => "La API fiscal no encontro la empresa fiscal '{$externalBusinessId}'. Crea esa company en la API fiscal o corrige el ID externo del comercio.",
-            'arca_http_error' => 'ARCA respondio con un error al consultar el estado fiscal. Revisa los logs de la API fiscal y vuelve a intentar.',
+            'provider_http_error' => 'La API fiscal informo un error del proveedor al consultar el estado. Revisa los logs de la API fiscal y vuelve a intentar.',
             default => $message !== '' ? $message : 'La API fiscal rechazo la consulta de estado.',
         };
     }

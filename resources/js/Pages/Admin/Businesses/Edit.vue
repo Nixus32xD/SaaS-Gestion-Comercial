@@ -22,7 +22,7 @@ const props = defineProps({
     },
     fiscal_catalog: {
         type: Object,
-        default: () => ({ document_types: [], voucher_types: [] }),
+        default: () => ({ document_types: [], voucher_types: [], authorization_modes: [], environments: [] }),
     },
 });
 
@@ -68,6 +68,7 @@ const salesSettingsForm = useForm({
     global_product_catalog_enabled: Boolean(props.sales_settings.global_product_catalog_enabled),
     fiscal_enabled: Boolean(props.sales_settings.fiscal_enabled),
     fiscal_external_business_id: props.sales_settings.fiscal_external_business_id || '',
+    fiscal_environment: props.sales_settings.fiscal_environment || 'testing',
     fiscal_cuit: props.sales_settings.fiscal_cuit || '',
     fiscal_point_of_sale: props.sales_settings.fiscal_point_of_sale ?? 2,
     fiscal_document_type: props.sales_settings.fiscal_document_type || 'invoice_c',
@@ -115,6 +116,7 @@ const fiscalConceptOptions = [
 const fiscalDocumentTypeOptions = computed(() => props.fiscal_catalog?.document_types || []);
 const fiscalVoucherTypeOptions = computed(() => props.fiscal_catalog?.voucher_types || []);
 const fiscalAuthorizationModeOptions = computed(() => props.fiscal_catalog?.authorization_modes || []);
+const fiscalEnvironmentOptions = computed(() => props.fiscal_catalog?.environments || []);
 const fiscalPointOfSaleOptions = computed(() => props.sales_settings.fiscal_point_of_sale_options?.options || []);
 const fiscalPointOfSaleMessage = computed(() => props.sales_settings.fiscal_point_of_sale_options?.message || null);
 const hasFiscalPointOfSaleOptions = computed(() => fiscalPointOfSaleOptions.value.length > 0);
@@ -559,6 +561,15 @@ const planLabel = (plan) => {
                         </div>
 
                         <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Ambiente fiscal</label>
+                            <select v-model="salesSettingsForm.fiscal_environment" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalEnvironmentOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
                             <label class="text-sm font-medium text-slate-300">CUIT fiscal</label>
                             <input v-model="salesSettingsForm.fiscal_cuit" type="text" inputmode="numeric" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="20-12345678-6" />
                         </div>
@@ -599,7 +610,7 @@ const planLabel = (plan) => {
                         </div>
 
                         <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">Tipo comprobante ARCA</label>
+                            <label class="text-sm font-medium text-slate-300">Tipo comprobante fiscal</label>
                             <select v-model.number="salesSettingsForm.fiscal_cbte_type" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
                                 <option v-for="option in fiscalVoucherTypeOptions" :key="option.value" :value="option.value">
                                     {{ option.label }} - codigo {{ option.value }}

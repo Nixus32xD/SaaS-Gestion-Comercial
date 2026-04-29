@@ -85,14 +85,15 @@ test('electronic billing module shows fiscal api status and recent documents whe
     Http::fake([
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/status' => Http::response([
             'ready' => true,
-            'certificate' => ['status' => 'active'],
-            'wsaa' => ['status' => 'ok'],
+            'status_label' => 'Listo',
+            'environment' => 'testing',
+            'message' => 'Empresa fiscal configurada.',
         ]),
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/activities' => Http::response([
             'activities' => [['code' => 492140, 'name' => 'Servicios']],
         ]),
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/points-of-sale' => Http::response([
-            'points_of_sale' => [['number' => 2, 'type' => 'WSFE']],
+            'points_of_sale' => [['number' => 2, 'type' => 'CAE']],
         ]),
     ]);
 
@@ -125,17 +126,10 @@ test('electronic billing module normalizes nested fiscal api setup payload', fun
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/status' => Http::response([
             'data' => [
                 'business_id' => 'empresa-demo-prod',
-                'enabled' => true,
-                'credential' => [
-                    'configured' => true,
-                    'active' => true,
-                    'certificate_expires_at' => '2026-05-01T00:00:00-03:00',
-                ],
-                'access_ticket' => [
-                    'configured' => true,
-                    'valid' => false,
-                    'expiration_time' => '2026-04-24T12:00:00-03:00',
-                ],
+                'ready' => true,
+                'status_label' => 'Listo',
+                'environment' => 'testing',
+                'message' => 'Empresa fiscal operativa.',
             ],
         ]),
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/activities' => Http::response([
@@ -143,7 +137,7 @@ test('electronic billing module normalizes nested fiscal api setup payload', fun
                 'company_id' => 1,
                 'business_id' => 'empresa-demo-prod',
                 'environment' => 'testing',
-                'activities' => [['Id' => 492140, 'Desc' => 'Servicios']],
+                'activities' => [['code' => 492140, 'name' => 'Servicios']],
             ],
         ]),
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/points-of-sale' => Http::response([
@@ -151,14 +145,7 @@ test('electronic billing module normalizes nested fiscal api setup payload', fun
                 'company_id' => 1,
                 'business_id' => 'empresa-demo-prod',
                 'environment' => 'testing',
-                'points_of_sale' => [
-                    'Errors' => [
-                        'Err' => [
-                            'Code' => '602',
-                            'Msg' => 'Sin Resultados: - Metodo FEParamGetPtosVenta',
-                        ],
-                    ],
-                ],
+                'points_of_sale' => [['number' => 2, 'type' => 'CAE']],
             ],
         ]),
     ]);
@@ -170,11 +157,11 @@ test('electronic billing module normalizes nested fiscal api setup payload', fun
         ->assertInertia(fn (Assert $page) => $page
             ->component('Fiscal/Index')
             ->where('setup.ready', true)
-            ->where('setup.certificate_status', 'Activo')
-            ->where('setup.wsaa_status', 'Ticket vencido')
-            ->where('activities.0.Id', 492140)
-            ->where('activities.0.Desc', 'Servicios')
-            ->where('points_of_sale.0.Errors.Err.Code', '602')
+            ->where('setup.status_label', 'Listo')
+            ->where('setup.environment', 'testing')
+            ->where('activities.0.code', 492140)
+            ->where('activities.0.name', 'Servicios')
+            ->where('points_of_sale.0.number', 2)
         );
 });
 
@@ -196,7 +183,7 @@ test('electronic billing module shows unavailable state when fiscal api is offli
             ->where('connection.status', 'offline')
             ->where('connection.status_label', 'No disponible')
             ->where('connection.ok', false)
-            ->where('connection.message', 'ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.')
+            ->where('connection.message', 'La API fiscal no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.')
             ->where('setup.ready', false)
             ->where('setup.status_label', 'No verificado')
             ->where('activities', [])
