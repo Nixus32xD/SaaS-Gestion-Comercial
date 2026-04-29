@@ -10,6 +10,7 @@ use App\Http\Controllers\Customers\CustomerAccountController;
 use App\Http\Controllers\Customers\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Fiscal\ElectronicBillingController;
+use App\Http\Controllers\Fiscal\FiscalCredentialProxyController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -98,6 +99,9 @@ Route::middleware(['auth', 'business'])->group(function (): void {
 });
 
 Route::middleware(['auth', 'business', 'business.admin'])->group(function (): void {
+    Route::post('/electronic-billing/credentials/csr', [FiscalCredentialProxyController::class, 'generateCsr'])->name('electronic-billing.credentials.csr');
+    Route::post('/electronic-billing/credentials/certificate', [FiscalCredentialProxyController::class, 'storeCertificate'])->name('electronic-billing.credentials.certificate.store');
+
     Route::get('/users', [BusinessUserController::class, 'index'])->name('users.index');
     Route::post('/users', [BusinessUserController::class, 'store'])->name('users.store');
     Route::patch('/users/{user}/status', [BusinessUserController::class, 'updateStatus'])->name('users.status');

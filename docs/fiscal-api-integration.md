@@ -14,7 +14,6 @@ FISCAL_API_BASE_URL=http://127.0.0.1:8000/api
 FISCAL_API_TOKEN=un-token-largo-seguro
 FISCAL_API_TIMEOUT=60
 FISCAL_API_CONNECT_TIMEOUT=3
-FISCAL_API_STATUS_TIMEOUT=5
 FISCAL_DEFAULT_POINT_OF_SALE=2
 FISCAL_DEFAULT_DOCUMENT_TYPE=invoice_c
 FISCAL_DEFAULT_CBTE_TYPE=11
@@ -40,7 +39,7 @@ Desde el panel de superadmin, cada comercio puede definir:
 - actividades fiscales.
 
 Si el ID externo queda vacio, el SaaS envia el `business_id` interno como fallback.
-El CUIT fiscal se guarda normalizado con 11 digitos y se usa como referencia visual del setup ARCA y como metadata del CSR. No reemplaza al ID externo que identifica al comercio dentro de la API fiscal.
+El CUIT fiscal se guarda normalizado con 11 digitos y se usa como referencia visual del setup fiscal. No reemplaza al ID externo que identifica al comercio dentro de la API fiscal.
 
 Cuando `FISCAL_ENABLED=true` y se habilita facturacion electronica para un comercio, el guardado de funciones sincroniza la empresa fiscal en la API externa con `POST /api/fiscal/companies`. Si se cambia el ID externo de una empresa fiscal ya habilitada, primero intenta actualizar la company anterior con `PUT /api/fiscal/companies/{company}` y, si no existe, crea la nueva. Para la API externa, cualquier ambiente distinto de `production` se envia como `testing`.
 
@@ -50,13 +49,13 @@ El SaaS no genera ni guarda claves privadas. Para configurar una credencial fisc
 
 1. el administrador del comercio verifica el CUIT fiscal configurado y solicita un CSR desde `/electronic-billing`;
 2. la API fiscal externa genera o reutiliza la `.key`, persiste la key en su almacenamiento seguro y devuelve el CSR;
-3. el SaaS guarda solo metadatos locales de onboarding, el ID de credencial, el nombre visible de la key, el estado y el CSR;
+3. el SaaS muestra el ID de credencial, el nombre visible de la key, el estado y el CSR devueltos por la API, sin persistirlos como credencial local;
 4. el administrador ingresa con clave fiscal al CUIT correspondiente, sube el CSR en ARCA/AFIP y descarga el certificado `.crt`;
 5. el administrador pega o sube el `.crt` en el SaaS;
 6. el SaaS envia el certificado a la API fiscal externa para validar que matchee con la key generada;
-7. si la API confirma la validacion, la credencial local queda activa y se puede ejecutar el test de credenciales.
+7. si la API confirma la validacion, la credencial queda activa en la API fiscal.
 
-Errores como `certificate_private_key_mismatch`, `certificate_expired` o `private_key_invalid` se muestran como errores de onboarding, sin almacenar el certificado completo en el SaaS.
+El SaaS no tiene endpoint de test de credenciales. Errores como `certificate_private_key_mismatch`, `certificate_expired` o `private_key_invalid` se muestran como errores de onboarding informados por la API, sin almacenar el certificado en el SaaS.
 
 ## Modulo opcional
 
@@ -134,7 +133,7 @@ El SaaS mapea localmente los errores de la API fiscal con `FiscalApiErrorMapper`
 
 Categorias soportadas:
 
-- `arca_infrastructure`;
+- `provider_infrastructure`;
 - `timeout`;
 - `authentication`;
 - `validation`;
@@ -144,9 +143,9 @@ Categorias soportadas:
 
 Mensajes base:
 
-- `502`: ARCA tuvo un error interno o de infraestructura. No se debe volver a emitir directamente. Usar Conciliar para verificar si el comprobante fue procesado.
-- `504`: ARCA no respondio a tiempo. El estado del comprobante quedo incierto. Usar Conciliar antes de reintentar.
-- autenticacion/certificado: revisar certificado, clave privada, CUIT y servicio habilitado en ARCA.
+- `502`: la API fiscal informo un error interno o de infraestructura. No se debe volver a emitir directamente. Usar Conciliar para verificar si el comprobante fue procesado.
+- `504`: la API fiscal no respondio a tiempo. El estado del comprobante quedo incierto. Usar Conciliar antes de reintentar.
+- autenticacion/configuracion: revisar token, CUIT y configuracion fiscal externa.
 - validacion: revisar importes, IVA, documento del receptor, tipo de comprobante y punto de venta.
 
 ## Payload

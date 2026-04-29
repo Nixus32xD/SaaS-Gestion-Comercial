@@ -108,6 +108,7 @@ test('electronic billing module shows fiscal api status and recent documents whe
             ->where('configuration.point_of_sale', 2)
             ->where('connection.status', 'connected')
             ->where('setup.ready', true)
+            ->where('can_manage_credentials', true)
             ->where('summary.authorized', 1)
             ->where('documents.0.status', SaleFiscalDocument::STATUS_AUTHORIZED)
             ->where('documents.0.sale_number', 'S-000001')
@@ -115,6 +116,100 @@ test('electronic billing module shows fiscal api status and recent documents whe
 
     Http::assertSentCount(3);
     Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer testing-fiscal-token'));
+});
+
+test('business admin generates fiscal credential csr through fiscal api proxy', function () {
+    $this->withoutVite();
+
+    [, $admin] = electronicBillingBusinessFixture();
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/credentials/csr' => Http::response([
+            'data' => [
+                'credential' => [
+                    'id' => 17,
+                    'key_name' => 'empresa-demo.key',
+                    'status' => 'pending_certificate',
+                ],
+                'csr' => "-----BEGIN CERTIFICATE REQUEST-----\ntest\n-----END CERTIFICATE REQUEST-----",
+            ],
+            'meta' => [
+                'created' => true,
+            ],
+        ], 201),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('electronic-billing.credentials.csr'), [
+            'key_name' => 'empresa-demo.key',
+            'common_name' => 'empresa-demo-prod',
+            'organization_name' => 'Empresa Demo SA',
+            'country_name' => 'AR',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'CSR generado por la API fiscal.')
+        ->assertSessionHas('fiscal_credential_onboarding', fn (array $payload): bool => $payload['credential_id'] === 17
+            && $payload['key_name'] === 'empresa-demo.key'
+            && str_contains($payload['csr'], 'BEGIN CERTIFICATE REQUEST'));
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+        && $request->url() === 'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/credentials/csr'
+        && $request->hasHeader('Authorization', 'Bearer testing-fiscal-token')
+        && $request->data()['key_name'] === 'empresa-demo.key'
+        && ! array_key_exists('private_key', $request->data()));
+});
+
+test('business admin uploads fiscal certificate through fiscal api proxy without local storage', function () {
+    $this->withoutVite();
+
+    [, $admin] = electronicBillingBusinessFixture();
+    $certificate = "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----";
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/credentials/17/certificate' => Http::response([
+            'data' => [
+                'credential' => [
+                    'id' => 17,
+                    'status' => 'active',
+                    'active' => true,
+                ],
+            ],
+        ]),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('electronic-billing.credentials.certificate.store'), [
+            'credential_id' => 17,
+            'certificate' => $certificate,
+            'active' => true,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Certificado cargado en la API fiscal.');
+
+    Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT'
+        && $request->url() === 'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/credentials/17/certificate'
+        && $request->hasHeader('Authorization', 'Bearer testing-fiscal-token')
+        && $request->data()['certificate'] === $certificate
+        && $request->data()['active'] === true
+        && ! array_key_exists('private_key', $request->data()));
+});
+
+test('business staff cannot proxy fiscal credential onboarding', function () {
+    $this->withoutVite();
+
+    [$business] = electronicBillingBusinessFixture();
+    $staff = User::factory()->staff($business->id)->create();
+
+    $this
+        ->actingAs($staff)
+        ->post(route('electronic-billing.credentials.csr'), [
+            'key_name' => 'empresa-demo.key',
+        ])
+        ->assertForbidden();
+
+    Http::assertNothingSent();
 });
 
 test('electronic billing module normalizes nested fiscal api setup payload', function () {
