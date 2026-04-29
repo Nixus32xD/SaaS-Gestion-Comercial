@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Sales\StoreSaleRequest;
 use App\Http\Requests\Sales\StoreSaleReceiptRequest;
+use App\Http\Requests\Sales\StoreSaleRequest;
 use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Models\Customer;
@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalApiErrorMapper;
+use App\Services\Fiscal\FiscalSaleDocumentService;
 use App\Services\SaleReceiptService;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
@@ -32,6 +33,7 @@ class SaleController extends Controller
 {
     public function __construct(
         private readonly SaleService $saleService,
+        private readonly FiscalSaleDocumentService $fiscalSaleDocumentService,
         private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
         private readonly SaleReceiptService $saleReceiptService,
     ) {}
@@ -178,12 +180,32 @@ class SaleController extends Controller
             }
         }
 
-        $redirect = redirect()
-            ->route('sales.show', ['sale' => $sale, 'auto_back' => 1])
-            ->with('success', 'Venta registrada correctamente.');
+        $fiscalDocument = null;
+        $fiscalWarning = null;
 
-        if ($warning !== null) {
-            $redirect->with('warning', $warning);
+        if ($this->shouldAutoIssueFiscalDocument($business)) {
+            try {
+                $fiscalDocument = $this->fiscalSaleDocumentService->issue($sale);
+            } catch (Throwable $exception) {
+                report($exception);
+
+                $fiscalWarning = 'Venta registrada, pero no se pudo iniciar la emision fiscal. Emitila desde el detalle de la venta.';
+            }
+        }
+
+        $success = $fiscalDocument?->fiscal_status === SaleFiscalDocument::STATUS_AUTHORIZED
+            ? 'Venta registrada y comprobante fiscal autorizado correctamente.'
+            : 'Venta registrada correctamente.';
+        $fiscalWarning ??= $this->autoIssueWarning($fiscalDocument);
+        $autoBack = $fiscalWarning === null;
+
+        $redirect = redirect()
+            ->route('sales.show', ['sale' => $sale, 'auto_back' => $autoBack ? 1 : 0])
+            ->with('success', $success);
+
+        $warnings = array_values(array_filter([$warning, $fiscalWarning]));
+        if ($warnings !== []) {
+            $redirect->with('warning', implode(' ', $warnings));
         }
 
         return $redirect;
@@ -383,6 +405,28 @@ class SaleController extends Controller
         }
 
         return $this->fiscalApiErrorMapper->safeToRetry($fiscalDocument);
+    }
+
+    private function shouldAutoIssueFiscalDocument(Business $business): bool
+    {
+        return (bool) config('fiscal.enabled') && $business->hasElectronicBilling();
+    }
+
+    private function autoIssueWarning(?SaleFiscalDocument $document): ?string
+    {
+        if ($document === null || $document->fiscal_status === SaleFiscalDocument::STATUS_AUTHORIZED) {
+            return null;
+        }
+
+        if ($document->fiscal_status === SaleFiscalDocument::STATUS_UNCERTAIN) {
+            return 'Venta registrada, pero el estado fiscal quedo incierto. Conciliar desde el detalle antes de reintentar.';
+        }
+
+        if ($document->fiscal_status === SaleFiscalDocument::STATUS_REJECTED) {
+            return 'Venta registrada, pero la API fiscal rechazo el comprobante. Revisar y reintentar desde el detalle de la venta.';
+        }
+
+        return 'Venta registrada, pero no se pudo autorizar el comprobante fiscal. Emitila o reintentala desde el detalle de la venta.';
     }
 
     /**

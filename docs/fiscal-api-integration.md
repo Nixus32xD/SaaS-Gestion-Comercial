@@ -77,9 +77,16 @@ La pantalla interna del modulo es `/electronic-billing` y expone:
 
 ## Flujo de venta
 
-La venta se registra primero con el flujo existente de stock y totales. No se emite automaticamente.
+La venta se registra primero con el flujo existente de stock y totales. Si la
+facturacion electronica esta habilitada para el comercio, el SaaS intenta emitir
+automaticamente el comprobante fiscal al terminar de registrar la venta.
 
-Desde el detalle de venta se puede emitir el comprobante fiscal. El backend arma el payload y llama a:
+Si la API autoriza, el detalle de venta queda con CAE/CAEA, numero y vencimiento.
+Si la API rechaza, falla o deja el estado incierto, la venta queda registrada y
+el intento fiscal queda guardado para resolverlo desde el detalle de la venta.
+
+Desde el cierre de venta o desde el detalle de venta, el backend arma el payload
+y llama a:
 
 - `POST /api/fiscal/documents`
 

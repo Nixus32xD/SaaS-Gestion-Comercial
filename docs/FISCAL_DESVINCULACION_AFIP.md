@@ -21,6 +21,12 @@ Venta del SaaS
 
 El SaaS conserva solo estado local de la venta fiscal: `fiscal_document_id`, estado, autorizacion devuelta por la API, payload enviado, response recibida y datos necesarios para conciliacion/reintento.
 
+Al registrar una venta, si la facturacion electronica esta habilitada para el
+comercio, el SaaS intenta emitir automaticamente contra `POST /fiscal/documents`.
+Si la emision falla, queda un `sale_fiscal_document` local con el estado
+correspondiente y el usuario puede emitir, reintentar o conciliar desde el
+detalle de la venta.
+
 ## Onboarding operativo por proxy
 
 Como el operador puede tener acceso solo al SaaS, se habilito un flujo minimo de
