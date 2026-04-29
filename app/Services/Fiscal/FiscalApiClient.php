@@ -7,6 +7,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Throwable;
 
 class FiscalApiClient
@@ -37,7 +38,7 @@ class FiscalApiClient
             'status' => "/fiscal/companies/{$company}/status",
             'activities' => "/fiscal/companies/{$company}/activities",
             'points_of_sale' => "/fiscal/companies/{$company}/points-of-sale",
-        ], $this->statusTimeout());
+        ], $this->defaultTimeout());
     }
 
     /**
@@ -45,7 +46,7 @@ class FiscalApiClient
      */
     public function companyStatus(string $company): array
     {
-        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/status', [], $this->statusTimeout());
+        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/status');
     }
 
     /**
@@ -53,7 +54,7 @@ class FiscalApiClient
      */
     public function companyActivities(string $company): array
     {
-        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/activities', [], $this->statusTimeout());
+        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/activities');
     }
 
     /**
@@ -61,36 +62,7 @@ class FiscalApiClient
      */
     public function companyPointsOfSale(string $company): array
     {
-        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/points-of-sale', [], $this->statusTimeout());
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     * @return array<string, mixed>
-     */
-    public function generateCredentialCsr(string $company, array $payload): array
-    {
-        return $this->post('/fiscal/companies/'.$this->pathSegment($company).'/credentials/csr', $payload);
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     * @return array<string, mixed>
-     */
-    public function uploadCredentialCertificate(string $company, string|int $credential, array $payload): array
-    {
-        return $this->put(
-            '/fiscal/companies/'.$this->pathSegment($company).'/credentials/'.$this->pathSegment($credential).'/certificate',
-            $payload
-        );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function testCredentials(string $company): array
-    {
-        return $this->post('/fiscal/companies/'.$this->pathSegment($company).'/credentials/test', []);
+        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/points-of-sale');
     }
 
     /**
@@ -155,6 +127,7 @@ class FiscalApiClient
                     ->asJson()
                     ->connectTimeout($this->connectTimeout())
                     ->timeout($timeout)
+                    ->withHeaders(['X-Trace-Id' => $this->traceId()])
                     ->withToken($token)
                     ->get($uri);
             }
@@ -217,6 +190,7 @@ class FiscalApiClient
             ->asJson()
             ->connectTimeout($this->connectTimeout())
             ->timeout($timeout ?? $this->defaultTimeout())
+            ->withHeaders(['X-Trace-Id' => $this->traceId()])
             ->withToken($this->token());
     }
 
@@ -301,13 +275,13 @@ class FiscalApiClient
         return max(1, (int) config('fiscal.connect_timeout', 3));
     }
 
-    private function statusTimeout(): int
-    {
-        return max(1, (int) config('fiscal.status_timeout', 5));
-    }
-
     private function connectionUnavailableMessage(): string
     {
         return 'La API fiscal no esta disponible actualmente. Revisa que el servicio este iniciado e intenta nuevamente.';
+    }
+
+    private function traceId(): string
+    {
+        return (string) Str::uuid();
     }
 }

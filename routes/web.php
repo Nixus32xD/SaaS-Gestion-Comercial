@@ -10,7 +10,6 @@ use App\Http\Controllers\Customers\CustomerAccountController;
 use App\Http\Controllers\Customers\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Fiscal\ElectronicBillingController;
-use App\Http\Controllers\Fiscal\FiscalCredentialOnboardingController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -104,9 +103,6 @@ Route::middleware(['auth', 'business', 'business.admin'])->group(function (): vo
     Route::patch('/users/{user}/status', [BusinessUserController::class, 'updateStatus'])->name('users.status');
     Route::get('/notifications', [NotificationSettingsController::class, 'edit'])->name('notifications.edit');
     Route::put('/notifications', [NotificationSettingsController::class, 'update'])->name('notifications.update');
-    Route::post('/electronic-billing/credentials/csr', [FiscalCredentialOnboardingController::class, 'generateCsr'])->name('electronic-billing.credentials.csr');
-    Route::post('/electronic-billing/credentials/{credential}/certificate', [FiscalCredentialOnboardingController::class, 'uploadCertificate'])->name('electronic-billing.credentials.certificate.store');
-    Route::post('/electronic-billing/credentials/{credential}/test', [FiscalCredentialOnboardingController::class, 'test'])->name('electronic-billing.credentials.test');
 });
 
 Route::middleware('auth')->group(function () {

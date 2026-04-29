@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Deprecated: tabla historica sin uso activo; el SaaS ya no gestiona credenciales fiscales locales.
         Schema::create('business_fiscal_credentials', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('business_id')->constrained('businesses')->cascadeOnDelete();

@@ -80,6 +80,8 @@ class FiscalCompanySyncService
 
         return $this->normalizedFiscalValue($business->fiscal_external_business_id)
             !== $this->normalizedFiscalValue($payload['fiscal_external_business_id'] ?? null)
+            || $this->normalizedFiscalValue($business->fiscal_environment)
+            !== $this->normalizedFiscalValue($this->apiEnvironment($payload))
             || $this->normalizedFiscalValue($business->fiscal_cuit)
             !== $this->normalizedFiscalValue($payload['fiscal_cuit'] ?? null)
             || (int) ($business->fiscal_point_of_sale ?? 0)
@@ -131,7 +133,7 @@ class FiscalCompanySyncService
             'external_business_id' => $externalBusinessId,
             'cuit' => $cuit,
             'legal_name' => trim($business->name) !== '' ? $business->name : 'Comercio '.$business->id,
-            'environment' => $this->apiEnvironment(),
+            'environment' => $this->apiEnvironment($payload),
             'default_point_of_sale' => $this->intOrDefault(
                 $payload['fiscal_point_of_sale'] ?? null,
                 (int) config('fiscal.defaults.point_of_sale', 2)
@@ -157,9 +159,14 @@ class FiscalCompanySyncService
         ];
     }
 
-    private function apiEnvironment(): string
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function apiEnvironment(array $payload): string
     {
-        return config('fiscal.environment') === 'production' ? 'production' : 'testing';
+        $environment = strtolower(trim((string) ($payload['fiscal_environment'] ?? config('fiscal.environment', 'testing'))));
+
+        return $environment === 'production' ? 'production' : 'testing';
     }
 
     private function intOrDefault(mixed $value, int $default): int

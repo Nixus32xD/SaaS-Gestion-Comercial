@@ -33,6 +33,7 @@ class Business extends Model
         'subscription_notes',
         'fiscal_enabled',
         'fiscal_external_business_id',
+        'fiscal_environment',
         'fiscal_cuit',
         'fiscal_point_of_sale',
         'fiscal_document_type',
@@ -141,14 +142,6 @@ class Business extends Model
     public function saleFiscalDocuments(): HasMany
     {
         return $this->hasMany(SaleFiscalDocument::class);
-    }
-
-    /**
-     * @return HasMany<BusinessFiscalCredential, $this>
-     */
-    public function fiscalCredentials(): HasMany
-    {
-        return $this->hasMany(BusinessFiscalCredential::class);
     }
 
     /**
