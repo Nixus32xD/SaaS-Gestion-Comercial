@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
                                     class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
                                     @click="issueFiscalDocument"
                                 >
-                                    Emitir factura
+                                    {{ fiscalIssueLabel }}
                                 </button>
 
                                 <button

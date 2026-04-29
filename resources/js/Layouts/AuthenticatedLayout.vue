@@ -158,11 +158,15 @@ const closeSidebar = () => {
                     <p class="mt-1">{{ subscriptionNotice.client_notice || subscriptionNotice.status_message }}</p>
                 </section>
                 <section
-                    v-if="$page.props.flash?.success || $page.props.flash?.error"
+                    v-if="$page.props.flash?.success || $page.props.flash?.warning || $page.props.flash?.error"
                     class="mb-6 rounded-2xl border p-4 text-sm"
-                    :class="$page.props.flash?.error ? 'border-rose-200/45 bg-rose-400/15 text-rose-100' : 'border-emerald-200/45 bg-emerald-400/15 text-emerald-100'"
+                    :class="$page.props.flash?.error
+                        ? 'border-rose-200/45 bg-rose-400/15 text-rose-100'
+                        : ($page.props.flash?.warning
+                            ? 'border-amber-200/45 bg-amber-400/15 text-amber-50'
+                            : 'border-emerald-200/45 bg-emerald-400/15 text-emerald-100')"
                 >
-                    {{ $page.props.flash?.error || $page.props.flash?.success }}
+                    {{ $page.props.flash?.error || $page.props.flash?.warning || $page.props.flash?.success }}
                 </section>
                 <section
                     v-if="$page.props.errors && Object.keys($page.props.errors).length"

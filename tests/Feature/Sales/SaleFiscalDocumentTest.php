@@ -67,6 +67,44 @@ function fiscalSaleFixture(array $businessOverrides = []): array
     return [$business, $admin, $sale, $product];
 }
 
+function fiscalSaleStoreFixture(array $businessOverrides = []): array
+{
+    config()->set('fiscal.enabled', true);
+    config()->set('fiscal.base_url', 'http://127.0.0.1:8000/api');
+    config()->set('fiscal.token', 'testing-fiscal-token');
+    config()->set('fiscal.defaults.point_of_sale', 2);
+    config()->set('fiscal.defaults.cbte_type', 11);
+    config()->set('fiscal.defaults.concept', 1);
+    config()->set('fiscal.defaults.activities', []);
+
+    $business = Business::factory()->create([
+        'fiscal_enabled' => true,
+        'fiscal_external_business_id' => 'empresa-demo-prod',
+        'fiscal_point_of_sale' => 2,
+        'fiscal_document_type' => 'invoice_c',
+        'fiscal_cbte_type' => 11,
+        'fiscal_concept' => 1,
+        'fiscal_activities' => [492140],
+        ...$businessOverrides,
+    ]);
+
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Servicio mostrador',
+        'slug' => 'servicio-mostrador-'.$business->id,
+        'unit_type' => 'unit',
+        'sale_price' => 1000,
+        'cost_price' => 0,
+        'stock' => 10,
+        'min_stock' => 0,
+        'is_active' => true,
+    ]);
+
+    return [$business, $admin, $product];
+}
+
 test('sale fiscal document emission stores authorized response', function () {
     [$business, $admin, $sale] = fiscalSaleFixture();
 
@@ -104,6 +142,106 @@ test('sale fiscal document emission stores authorized response', function () {
     expect($document->authorization_code)->toBe('12345678901234');
     expect($document->authorization_expires_at?->toDateString())->toBe('2026-05-01');
     expect($document->fiscal_idempotency_key)->toBe("sale:{$business->id}:{$sale->id}:invoice");
+});
+
+test('sale creation auto issues fiscal document when fiscal api authorizes', function () {
+    [$business, $admin, $product] = fiscalSaleStoreFixture();
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents' => Http::response([
+            'data' => [
+                'id' => 91,
+                'status' => 'authorized',
+                'cae' => '12345678901234',
+                'cae_expires_at' => '2026-05-01',
+                'number' => 1,
+                'point_of_sale' => 2,
+                'cbte_type' => 11,
+            ],
+        ], 201),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/sales', [
+            'payment_status' => 'paid',
+            'payment_method' => 'cash',
+            'amount_received' => 1000,
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 1000,
+            ]],
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Venta registrada y comprobante fiscal autorizado correctamente.')
+        ->assertSessionMissing('warning');
+
+    $sale = Sale::query()->firstOrFail();
+    $document = SaleFiscalDocument::query()->firstOrFail();
+
+    expect($document->sale_id)->toBe($sale->id)
+        ->and($document->business_id)->toBe($business->id)
+        ->and($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_AUTHORIZED)
+        ->and($document->fiscal_document_id)->toBe('91')
+        ->and($document->fiscal_cae)->toBe('12345678901234');
+
+    Http::assertSent(function (Request $request) use ($sale): bool {
+        return $request->url() === 'http://127.0.0.1:8000/api/fiscal/documents'
+            && $request->data()['origin_type'] === 'sale'
+            && $request->data()['origin_id'] === (string) $sale->id
+            && $request->data()['sale_id'] === 'S-000001';
+    });
+});
+
+test('sale creation keeps sale and exposes manual fiscal retry when auto issue fails', function () {
+    [, $admin, $product] = fiscalSaleStoreFixture();
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents' => Http::response([
+            'data' => [
+                'id' => 92,
+                'status' => 'rejected',
+                'error' => [
+                    'code' => '10016',
+                    'message' => 'Datos fiscales invalidos.',
+                ],
+            ],
+        ], 201),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/sales', [
+            'payment_status' => 'paid',
+            'payment_method' => 'cash',
+            'amount_received' => 1000,
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 1000,
+            ]],
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Venta registrada correctamente.')
+        ->assertSessionHas('warning', 'Venta registrada, pero la API fiscal rechazo el comprobante. Revisar y reintentar desde el detalle de la venta.');
+
+    $sale = Sale::query()->firstOrFail();
+    $document = SaleFiscalDocument::query()->firstOrFail();
+
+    expect($document->sale_id)->toBe($sale->id)
+        ->and($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_REJECTED)
+        ->and($document->fiscal_error_code)->toBe('10016');
+
+    $this
+        ->actingAs($admin)
+        ->get(route('sales.show', $sale))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('fiscal.enabled', true)
+            ->where('fiscal.can_issue', true)
+            ->where('fiscal.document.fiscal_status', SaleFiscalDocument::STATUS_REJECTED)
+        );
 });
 
 test('sale fiscal document emission stores rejected response', function () {

@@ -70,6 +70,7 @@ class HandleInertiaRequests extends Middleware
             'business_subscription' => $business ? app(BusinessBillingService::class)->maintenanceSummary($business) : null,
             'flash' => [
                 'success' => $request->session()->get('success'),
+                'warning' => $request->session()->get('warning'),
                 'error' => $request->session()->get('error'),
             ],
         ];
