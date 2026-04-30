@@ -161,6 +161,16 @@ class ElectronicBillingController extends Controller
                 'status_label' => 'No verificado',
                 'environment' => null,
                 'message' => null,
+                'credential' => [
+                    'configured' => false,
+                    'id' => null,
+                    'key_name' => null,
+                    'status' => null,
+                    'active' => false,
+                    'csr_generated' => false,
+                    'certificate_loaded' => false,
+                    'certificate_expires_at' => null,
+                ],
             ],
             'activities' => [],
             'points_of_sale' => [],
@@ -192,6 +202,16 @@ class ElectronicBillingController extends Controller
                 ?? config('fiscal.environment'),
             'message' => data_get($payload, 'message')
                 ?? data_get($payload, 'setup.message'),
+            'credential' => [
+                'configured' => (bool) data_get($payload, 'credential.configured', false),
+                'id' => data_get($payload, 'credential.id'),
+                'key_name' => data_get($payload, 'credential.key_name'),
+                'status' => data_get($payload, 'credential.status'),
+                'active' => (bool) data_get($payload, 'credential.active', false),
+                'csr_generated' => (bool) data_get($payload, 'credential.csr_generated', false),
+                'certificate_loaded' => (bool) data_get($payload, 'credential.certificate_loaded', false),
+                'certificate_expires_at' => data_get($payload, 'credential.certificate_expires_at'),
+            ],
         ];
     }
 

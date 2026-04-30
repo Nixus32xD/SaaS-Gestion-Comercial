@@ -88,6 +88,16 @@ test('electronic billing module shows fiscal api status and recent documents whe
             'status_label' => 'Listo',
             'environment' => 'testing',
             'message' => 'Empresa fiscal configurada.',
+            'credential' => [
+                'configured' => true,
+                'id' => 17,
+                'key_name' => 'empresa-demo.key',
+                'status' => 'active',
+                'active' => true,
+                'csr_generated' => true,
+                'certificate_loaded' => true,
+                'certificate_expires_at' => '2027-04-30T00:00:00-03:00',
+            ],
         ]),
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/activities' => Http::response([
             'activities' => [['code' => 492140, 'name' => 'Servicios']],
@@ -108,6 +118,9 @@ test('electronic billing module shows fiscal api status and recent documents whe
             ->where('configuration.point_of_sale', 2)
             ->where('connection.status', 'connected')
             ->where('setup.ready', true)
+            ->where('setup.credential.id', 17)
+            ->where('setup.credential.csr_generated', true)
+            ->where('setup.credential.certificate_loaded', true)
             ->where('can_manage_credentials', true)
             ->where('summary.authorized', 1)
             ->where('documents.0.status', SaleFiscalDocument::STATUS_AUTHORIZED)
@@ -225,6 +238,16 @@ test('electronic billing module normalizes nested fiscal api setup payload', fun
                 'status_label' => 'Listo',
                 'environment' => 'testing',
                 'message' => 'Empresa fiscal operativa.',
+                'credential' => [
+                    'configured' => true,
+                    'id' => 23,
+                    'key_name' => 'empresa-demo-prod.key',
+                    'status' => 'pending_certificate',
+                    'active' => false,
+                    'csr_generated' => true,
+                    'certificate_loaded' => false,
+                    'certificate_expires_at' => null,
+                ],
             ],
         ]),
         'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/activities' => Http::response([
@@ -254,6 +277,9 @@ test('electronic billing module normalizes nested fiscal api setup payload', fun
             ->where('setup.ready', true)
             ->where('setup.status_label', 'Listo')
             ->where('setup.environment', 'testing')
+            ->where('setup.credential.id', 23)
+            ->where('setup.credential.csr_generated', true)
+            ->where('setup.credential.certificate_loaded', false)
             ->where('activities.0.code', 492140)
             ->where('activities.0.name', 'Servicios')
             ->where('points_of_sale.0.number', 2)

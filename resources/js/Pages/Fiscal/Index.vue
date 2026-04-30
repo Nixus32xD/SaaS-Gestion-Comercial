@@ -20,16 +20,17 @@ const sanitizedBusinessId = String(props.configuration.external_business_id || '
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 const defaultKeyName = `${sanitizedBusinessId || 'empresa'}.key`;
+const setupCredential = props.setup?.credential || {};
 
 const csrForm = useForm({
-    key_name: props.credential_onboarding.key_name || defaultKeyName,
+    key_name: props.credential_onboarding.key_name || setupCredential.key_name || defaultKeyName,
     common_name: props.configuration.external_business_id || '',
     organization_name: '',
     country_name: 'AR',
 });
 
 const certificateForm = useForm({
-    credential_id: props.credential_onboarding.credential_id || '',
+    credential_id: props.credential_onboarding.credential_id || setupCredential.id || '',
     certificate: '',
     active: true,
 });
@@ -229,10 +230,24 @@ const displayRows = (rows, formatter) => {
 
 const activityRows = computed(() => displayRows(props.activities, formatActivity));
 const pointOfSaleRows = computed(() => displayRows(props.points_of_sale, formatPointOfSale));
+const credential = computed(() => props.setup?.credential || {});
 const generatedCsr = computed(() => props.credential_onboarding?.csr || '');
-const generatedCredentialId = computed(() => props.credential_onboarding?.credential_id || '');
+const hasGeneratedCsr = computed(() => Boolean(generatedCsr.value || credential.value.csr_generated));
+const hasLoadedCertificate = computed(() => Boolean(credential.value.certificate_loaded));
+const generatedCredentialId = computed(() => props.credential_onboarding?.credential_id || credential.value.id || '');
+const credentialKeyName = computed(() => props.credential_onboarding?.key_name || credential.value.key_name || '-');
+const credentialStatus = computed(() => props.credential_onboarding?.credential_status || credential.value.status || '-');
+const csrPlaceholder = computed(() => {
+    if (generatedCsr.value) return generatedCsr.value;
+    if (hasLoadedCertificate.value) return 'El certificado ya esta cargado en la API fiscal.';
+    if (hasGeneratedCsr.value) return 'El CSR ya fue generado en la API fiscal. No se muestra nuevamente desde el estado.';
+
+    return 'Todavia no se genero un CSR en esta sesion.';
+});
 
 const generateCsr = () => {
+    if (hasGeneratedCsr.value || hasLoadedCertificate.value) return;
+
     csrForm.post(route('electronic-billing.credentials.csr'), {
         preserveScroll: true,
         preserveState: false,
@@ -240,6 +255,8 @@ const generateCsr = () => {
 };
 
 const uploadCertificate = () => {
+    if (hasLoadedCertificate.value) return;
+
     certificateForm.post(route('electronic-billing.credentials.certificate.store'), {
         preserveScroll: true,
         preserveState: false,
@@ -421,6 +438,19 @@ const reconcileDocument = (document) => {
                     </span>
                 </div>
 
+                <p
+                    v-if="hasLoadedCertificate"
+                    class="mt-4 rounded-lg border border-emerald-200/35 bg-emerald-400/10 px-3 py-2 text-sm font-semibold text-emerald-100"
+                >
+                    La credencial fiscal ya tiene certificado cargado en la API.
+                </p>
+                <p
+                    v-else-if="hasGeneratedCsr"
+                    class="mt-4 rounded-lg border border-amber-200/35 bg-amber-400/10 px-3 py-2 text-sm font-semibold text-amber-100"
+                >
+                    El CSR ya fue generado. Carga el CRT devuelto por ARCA para activar la credencial.
+                </p>
+
                 <div class="mt-5 grid gap-5 xl:grid-cols-2">
                     <form class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4" @submit.prevent="generateCsr">
                         <h4 class="text-sm font-semibold text-slate-100">Generar CSR</h4>
@@ -433,6 +463,7 @@ const reconcileDocument = (document) => {
                                     type="text"
                                     class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
                                     autocomplete="off"
+                                    :disabled="hasGeneratedCsr || hasLoadedCertificate"
                                 >
                             </label>
                             <label class="grid gap-1 text-sm text-slate-300">
@@ -442,6 +473,7 @@ const reconcileDocument = (document) => {
                                     type="text"
                                     class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
                                     autocomplete="off"
+                                    :disabled="hasGeneratedCsr || hasLoadedCertificate"
                                 >
                             </label>
                             <label class="grid gap-1 text-sm text-slate-300">
@@ -451,6 +483,7 @@ const reconcileDocument = (document) => {
                                     type="text"
                                     class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
                                     autocomplete="off"
+                                    :disabled="hasGeneratedCsr || hasLoadedCertificate"
                                 >
                             </label>
                             <label class="grid gap-1 text-sm text-slate-300">
@@ -461,6 +494,7 @@ const reconcileDocument = (document) => {
                                     maxlength="2"
                                     class="w-24 rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm uppercase text-slate-100 outline-none focus:border-cyan-200/60"
                                     autocomplete="off"
+                                    :disabled="hasGeneratedCsr || hasLoadedCertificate"
                                 >
                             </label>
                         </div>
@@ -468,7 +502,7 @@ const reconcileDocument = (document) => {
                         <button
                             type="submit"
                             class="mt-4 inline-flex items-center justify-center rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="csrForm.processing"
+                            :disabled="csrForm.processing || hasGeneratedCsr || hasLoadedCertificate"
                         >
                             {{ csrForm.processing ? 'Generando...' : 'Generar CSR' }}
                         </button>
@@ -496,20 +530,20 @@ const reconcileDocument = (document) => {
                         </div>
 
                         <textarea
-                            :value="generatedCsr || 'Todavia no se genero un CSR en esta sesion.'"
+                            :value="csrPlaceholder"
                             readonly
                             rows="12"
                             class="mt-4 w-full resize-y rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 font-mono text-xs text-slate-100 outline-none"
                         />
 
-                        <dl v-if="generatedCsr" class="mt-3 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
+                        <dl v-if="hasGeneratedCsr || hasLoadedCertificate" class="mt-3 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
                             <div>
                                 <dt class="uppercase tracking-[0.18em] text-slate-400">Key name</dt>
-                                <dd class="mt-1 font-semibold text-slate-100">{{ credential_onboarding.key_name || '-' }}</dd>
+                                <dd class="mt-1 font-semibold text-slate-100">{{ credentialKeyName }}</dd>
                             </div>
                             <div>
                                 <dt class="uppercase tracking-[0.18em] text-slate-400">Estado API</dt>
-                                <dd class="mt-1 font-semibold text-slate-100">{{ credential_onboarding.credential_status || '-' }}</dd>
+                                <dd class="mt-1 font-semibold text-slate-100">{{ credentialStatus }}</dd>
                             </div>
                         </dl>
                     </div>
@@ -526,6 +560,7 @@ const reconcileDocument = (document) => {
                                 type="number"
                                 min="1"
                                 class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
+                                :disabled="hasLoadedCertificate"
                             >
                         </label>
                         <label class="grid gap-1 text-sm text-slate-300">
@@ -535,6 +570,7 @@ const reconcileDocument = (document) => {
                                 accept=".crt,.cer,.pem,text/plain,application/x-x509-ca-cert"
                                 class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyan-100"
                                 @change="loadCertificateFile"
+                                :disabled="hasLoadedCertificate"
                             >
                             <span v-if="certificateFileName" class="text-xs text-slate-400">{{ certificateFileName }}</span>
                         </label>
@@ -547,6 +583,7 @@ const reconcileDocument = (document) => {
                             rows="8"
                             class="w-full resize-y rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 font-mono text-xs text-slate-100 outline-none focus:border-cyan-200/60"
                             autocomplete="off"
+                            :disabled="hasLoadedCertificate"
                         />
                     </label>
 
@@ -555,6 +592,7 @@ const reconcileDocument = (document) => {
                             v-model="certificateForm.active"
                             type="checkbox"
                             class="rounded border-cyan-100/30 bg-slate-950/60 text-cyan-400 focus:ring-cyan-300"
+                            :disabled="hasLoadedCertificate"
                         >
                         Activar credencial
                     </label>
@@ -562,7 +600,7 @@ const reconcileDocument = (document) => {
                     <button
                         type="submit"
                         class="mt-4 inline-flex items-center justify-center rounded-lg border border-emerald-200/45 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-                        :disabled="certificateForm.processing"
+                        :disabled="certificateForm.processing || hasLoadedCertificate"
                     >
                         {{ certificateForm.processing ? 'Cargando...' : 'Cargar CRT en API' }}
                     </button>
