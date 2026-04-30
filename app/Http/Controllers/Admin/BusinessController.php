@@ -193,6 +193,13 @@ class BusinessController extends Controller
                 'fiscal_concept' => $business->fiscal_concept ?? config('fiscal.defaults.concept'),
                 'fiscal_authorization_mode' => $business->fiscal_authorization_mode
                     ?: config('fiscal.defaults.authorization_mode', 'cae'),
+                'fiscal_caea_code' => $business->fiscal_caea_code,
+                'fiscal_caea_period' => $business->fiscal_caea_period,
+                'fiscal_caea_order' => $business->fiscal_caea_order,
+                'fiscal_caea_from' => $business->fiscal_caea_from?->format('Y-m-d'),
+                'fiscal_caea_to' => $business->fiscal_caea_to?->format('Y-m-d'),
+                'fiscal_caea_due_date' => $business->fiscal_caea_due_date?->format('Y-m-d'),
+                'fiscal_caea_report_deadline' => $business->fiscal_caea_report_deadline?->format('Y-m-d'),
                 'fiscal_activities' => implode(', ', $business->fiscal_activities ?: config('fiscal.defaults.activities', [])),
                 'fiscal_point_of_sale_options' => $this->fiscalPointOfSaleOptions->forBusiness($business),
                 'sale_sectors' => $business->saleSectors->map(fn ($sector) => [

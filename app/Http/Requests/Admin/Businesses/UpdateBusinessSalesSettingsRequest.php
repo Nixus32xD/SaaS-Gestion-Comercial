@@ -53,6 +53,13 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_cbte_type' => ['nullable', 'integer', 'min:1', 'max:999', Rule::in($voucherTypes)],
             'fiscal_concept' => ['nullable', 'integer', 'in:1,2,3'],
             'fiscal_authorization_mode' => ['nullable', 'string', Rule::in($authorizationModes)],
+            'fiscal_caea_code' => ['nullable', 'string', 'digits:14'],
+            'fiscal_caea_period' => ['nullable', 'string', 'digits:6'],
+            'fiscal_caea_order' => ['nullable', 'integer', 'in:1,2'],
+            'fiscal_caea_from' => ['nullable', 'date'],
+            'fiscal_caea_to' => ['nullable', 'date'],
+            'fiscal_caea_due_date' => ['nullable', 'date'],
+            'fiscal_caea_report_deadline' => ['nullable', 'date'],
             'fiscal_activities' => ['nullable', 'array'],
             'fiscal_activities.*' => ['integer', 'min:1'],
             'sale_sectors' => ['nullable', 'array'],
@@ -113,6 +120,13 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
                 'fiscal_authorization_mode',
                 config('fiscal.defaults.authorization_mode', 'cae')
             )),
+            'fiscal_caea_code' => preg_replace('/\D+/', '', (string) $this->input('fiscal_caea_code', '')) ?: null,
+            'fiscal_caea_period' => preg_replace('/\D+/', '', (string) $this->input('fiscal_caea_period', '')) ?: null,
+            'fiscal_caea_order' => $this->filled('fiscal_caea_order') ? (int) $this->input('fiscal_caea_order') : null,
+            'fiscal_caea_from' => $this->input('fiscal_caea_from') ?: null,
+            'fiscal_caea_to' => $this->input('fiscal_caea_to') ?: null,
+            'fiscal_caea_due_date' => $this->input('fiscal_caea_due_date') ?: null,
+            'fiscal_caea_report_deadline' => $this->input('fiscal_caea_report_deadline') ?: null,
             'fiscal_activities' => collect(explode(',', (string) $this->input('fiscal_activities', '')))
                 ->map(fn (string $activity): string => trim($activity))
                 ->filter()

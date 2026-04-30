@@ -52,6 +52,13 @@ class FiscalSaleDocumentService
         $idempotencyKey = $this->idempotencyKey($sale, $attemptNumber);
         $payload = $this->payloadBuilder->build($sale, $idempotencyKey);
 
+        if (($payload['authorization_type'] ?? null) === SaleFiscalDocument::AUTHORIZATION_CAEA
+            && ! filled(data_get($payload, 'caea.code'))) {
+            throw ValidationException::withMessages([
+                'fiscal' => 'El comercio esta configurado para CAEA pero no tiene un CAEA vigente cargado.',
+            ]);
+        }
+
         $document = SaleFiscalDocument::query()->create([
             'business_id' => $sale->business_id,
             'sale_id' => $sale->id,
@@ -154,10 +161,10 @@ class FiscalSaleDocumentService
                 ?? $document->caea_order,
             'caea_report_status' => data_get($payload, 'caea_report_status')
                 ?? data_get($payload, 'caea.report_status')
-                ?? $this->defaultCaeaReportStatus($status, $authorizationType, $document),
+                ?? $this->defaultCaeaReportStatus($payload, $status, $authorizationType, $document),
             'caea_reported_at' => $this->dateTimeOrNull(
                 data_get($payload, 'caea_reported_at') ?? data_get($payload, 'caea.reported_at')
-            ) ?? $document->caea_reported_at,
+            ) ?? ($this->isReportedCaea($payload, $authorizationType) ? now() : $document->caea_reported_at),
             'fiscal_error_code' => $apiError['code'] ?? null,
             'fiscal_error_message' => $apiError['message'] ?? null,
             'fiscal_response' => $response,
@@ -380,20 +387,37 @@ class FiscalSaleDocumentService
     }
 
     private function defaultCaeaReportStatus(
+        array $payload,
         string $status,
         ?string $authorizationType,
         SaleFiscalDocument $document
     ): ?string {
-        if ($document->caea_report_status !== null) {
-            return $document->caea_report_status;
-        }
-
         if ($authorizationType !== SaleFiscalDocument::AUTHORIZATION_CAEA) {
             return null;
+        }
+
+        $apiFiscalStatus = data_get($payload, 'fiscal_status');
+
+        if ($apiFiscalStatus === SaleFiscalDocument::CAEA_REPORT_REPORTED) {
+            return SaleFiscalDocument::CAEA_REPORT_REPORTED;
+        }
+
+        if ($document->caea_report_status !== null) {
+            return $document->caea_report_status;
         }
 
         return $status === SaleFiscalDocument::STATUS_AUTHORIZED
             ? SaleFiscalDocument::CAEA_REPORT_PENDING
             : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function isReportedCaea(array $payload, ?string $authorizationType): bool
+    {
+        return $authorizationType === SaleFiscalDocument::AUTHORIZATION_CAEA
+            && (data_get($payload, 'fiscal_status') === SaleFiscalDocument::CAEA_REPORT_REPORTED
+                || data_get($payload, 'caea.report_status') === SaleFiscalDocument::CAEA_REPORT_REPORTED);
     }
 }

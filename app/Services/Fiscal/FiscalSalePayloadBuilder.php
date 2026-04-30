@@ -21,6 +21,7 @@ class FiscalSalePayloadBuilder
         $voucherDate = $sale->sold_at?->toDateString() ?? now()->toDateString();
         $concept = $this->concept($business);
 
+        $authorizationMode = $this->authorizationMode($business);
         $payload = [
             'business_id' => $this->externalBusinessId($business),
             'sale_id' => $sale->sale_number ?: (string) $sale->id,
@@ -31,7 +32,8 @@ class FiscalSalePayloadBuilder
             'point_of_sale' => $this->pointOfSale($business),
             'cbte_type' => $this->cbteType($business),
             'concept' => $concept,
-            'authorization_mode' => $this->authorizationMode($business),
+            'authorization_mode' => $authorizationMode,
+            'authorization_type' => $authorizationMode === 'caea' ? 'CAEA' : 'CAE',
             'customer' => $this->defaultCustomer(),
             'amounts' => $this->amounts($sale),
             'currency' => (string) config('fiscal.defaults.currency', 'PES'),
@@ -46,6 +48,10 @@ class FiscalSalePayloadBuilder
         $activities = $this->activities($business);
         if ($activities !== []) {
             $payload['activities'] = $activities;
+        }
+
+        if ($authorizationMode === 'caea') {
+            $payload['caea'] = $this->caea($business);
         }
 
         if (in_array($concept, [2, 3], true)) {
@@ -89,6 +95,23 @@ class FiscalSalePayloadBuilder
         ))));
 
         return in_array($mode, ['cae', 'caea', 'auto'], true) ? $mode : 'cae';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function caea(Business $business): array
+    {
+        return array_filter([
+            'code' => $business->fiscal_caea_code,
+            'period' => $business->fiscal_caea_period,
+            'order' => $business->fiscal_caea_order,
+            'from' => $business->fiscal_caea_from?->format('Ymd'),
+            'to' => $business->fiscal_caea_to?->format('Ymd'),
+            'due_date' => $business->fiscal_caea_due_date?->toDateString(),
+            'report_deadline' => $business->fiscal_caea_report_deadline?->toDateString(),
+            'report_now' => true,
+        ], fn (mixed $value): bool => $value !== null && $value !== '');
     }
 
     /**
