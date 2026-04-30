@@ -66,6 +66,36 @@ class FiscalApiClient
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function requestCaea(string $company, string $period, int $order): array
+    {
+        return $this->post('/fiscal/companies/'.$this->pathSegment($company).'/caea/request', [
+            'period' => $period,
+            'order' => $order,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function consultCaea(string $company, string $period, int $order): array
+    {
+        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/caea/consult', [
+            'period' => $period,
+            'order' => $order,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function reportCaeaDocument(string|int $documentId): array
+    {
+        return $this->post('/fiscal/documents/'.$this->pathSegment($documentId).'/caea/report', []);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */

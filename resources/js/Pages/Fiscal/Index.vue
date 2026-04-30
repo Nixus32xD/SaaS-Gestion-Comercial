@@ -597,6 +597,13 @@ const reconcileDocument = (document) => {
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Modo autorizacion</dt>
                         <dd class="mt-1 font-semibold text-slate-100">{{ authorizationModeLabel }}</dd>
                     </div>
+                    <div v-if="configuration.authorization_mode === 'caea'">
+                        <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">CAEA vigente</dt>
+                        <dd class="mt-1 font-semibold text-slate-100">{{ configuration.caea?.code || '-' }}</dd>
+                        <p v-if="configuration.caea?.period" class="mt-1 text-xs text-slate-400">
+                            {{ configuration.caea.period }} / orden {{ configuration.caea.order || '-' }}
+                        </p>
+                    </div>
                     <div class="md:col-span-2">
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Actividades configuradas</dt>
                         <dd class="mt-1 font-semibold text-slate-100">{{ compactList(configuration.activities || []) }}</dd>

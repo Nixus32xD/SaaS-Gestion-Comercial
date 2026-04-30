@@ -502,6 +502,9 @@ test('reconcile document without voucher number converts the attempt to retryabl
 test('sale fiscal document emission stores caea authorization fields', function () {
     [$business, $admin, $sale] = fiscalSaleFixture([
         'fiscal_authorization_mode' => 'caea',
+        'fiscal_caea_code' => '20260412345678',
+        'fiscal_caea_period' => '202604',
+        'fiscal_caea_order' => 2,
     ]);
 
     Http::fake([
@@ -538,7 +541,9 @@ test('sale fiscal document emission stores caea authorization fields', function 
     Http::assertSent(function (Request $request) use ($sale): bool {
         return $request->data()['business_id'] === 'empresa-demo-prod'
             && $request->data()['origin_id'] === (string) $sale->id
-            && $request->data()['authorization_mode'] === 'caea';
+            && $request->data()['authorization_mode'] === 'caea'
+            && $request->data()['authorization_type'] === 'CAEA'
+            && data_get($request->data(), 'caea.code') === '20260412345678';
     });
 });
 

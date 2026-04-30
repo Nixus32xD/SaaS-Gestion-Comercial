@@ -75,6 +75,13 @@ const salesSettingsForm = useForm({
     fiscal_cbte_type: props.sales_settings.fiscal_cbte_type ?? 11,
     fiscal_concept: props.sales_settings.fiscal_concept ?? 1,
     fiscal_authorization_mode: props.sales_settings.fiscal_authorization_mode || 'cae',
+    fiscal_caea_code: props.sales_settings.fiscal_caea_code || '',
+    fiscal_caea_period: props.sales_settings.fiscal_caea_period || '',
+    fiscal_caea_order: props.sales_settings.fiscal_caea_order || '',
+    fiscal_caea_from: props.sales_settings.fiscal_caea_from || '',
+    fiscal_caea_to: props.sales_settings.fiscal_caea_to || '',
+    fiscal_caea_due_date: props.sales_settings.fiscal_caea_due_date || '',
+    fiscal_caea_report_deadline: props.sales_settings.fiscal_caea_report_deadline || '',
     fiscal_activities: props.sales_settings.fiscal_activities || '',
     sale_sectors: (props.sales_settings.sale_sectors || []).map((sector) => ({
         id: sector.id,
@@ -544,6 +551,8 @@ const planLabel = (plan) => {
                 <p v-if="salesSettingsForm.errors.fiscal_document_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_document_type }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_cbte_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_cbte_type }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_authorization_mode" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_authorization_mode }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_caea_code" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_caea_code }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_caea_period" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_caea_period }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_activities" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_activities }}</p>
 
                 <section class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
@@ -637,6 +646,41 @@ const planLabel = (plan) => {
                         <div class="space-y-1">
                             <label class="text-sm font-medium text-slate-300">Actividades</label>
                             <input v-model="salesSettingsForm.fiscal_activities" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="492140" />
+                        </div>
+                    </div>
+
+                    <div v-if="salesSettingsForm.fiscal_authorization_mode === 'caea'" class="mt-4 grid gap-4 md:grid-cols-4">
+                        <div class="space-y-1 md:col-span-2">
+                            <label class="text-sm font-medium text-slate-300">CAEA vigente</label>
+                            <input v-model="salesSettingsForm.fiscal_caea_code" type="text" maxlength="14" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="14 digitos" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Periodo</label>
+                            <input v-model="salesSettingsForm.fiscal_caea_period" type="text" maxlength="6" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="AAAAMM" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Orden</label>
+                            <select v-model="salesSettingsForm.fiscal_caea_order" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option value="">-</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Desde</label>
+                            <input v-model="salesSettingsForm.fiscal_caea_from" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Hasta</label>
+                            <input v-model="salesSettingsForm.fiscal_caea_to" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Vencimiento</label>
+                            <input v-model="salesSettingsForm.fiscal_caea_due_date" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Tope informe</label>
+                            <input v-model="salesSettingsForm.fiscal_caea_report_deadline" type="date" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
                         </div>
                     </div>
                 </section>

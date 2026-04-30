@@ -69,6 +69,15 @@ class ElectronicBillingController extends Controller
             'concept' => $business->fiscal_concept ?? config('fiscal.defaults.concept'),
             'authorization_mode' => $business->fiscal_authorization_mode
                 ?: config('fiscal.defaults.authorization_mode', 'cae'),
+            'caea' => [
+                'code' => $business->fiscal_caea_code,
+                'period' => $business->fiscal_caea_period,
+                'order' => $business->fiscal_caea_order,
+                'from' => $business->fiscal_caea_from?->format('Y-m-d'),
+                'to' => $business->fiscal_caea_to?->format('Y-m-d'),
+                'due_date' => $business->fiscal_caea_due_date?->format('Y-m-d'),
+                'report_deadline' => $business->fiscal_caea_report_deadline?->format('Y-m-d'),
+            ],
             'activities' => $business->fiscal_activities ?: config('fiscal.defaults.activities', []),
         ];
     }

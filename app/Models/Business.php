@@ -40,6 +40,13 @@ class Business extends Model
         'fiscal_cbte_type',
         'fiscal_concept',
         'fiscal_authorization_mode',
+        'fiscal_caea_code',
+        'fiscal_caea_period',
+        'fiscal_caea_order',
+        'fiscal_caea_from',
+        'fiscal_caea_to',
+        'fiscal_caea_due_date',
+        'fiscal_caea_report_deadline',
         'fiscal_activities',
         'is_active',
     ];
@@ -60,6 +67,11 @@ class Business extends Model
             'fiscal_point_of_sale' => 'int',
             'fiscal_cbte_type' => 'int',
             'fiscal_concept' => 'int',
+            'fiscal_caea_order' => 'int',
+            'fiscal_caea_from' => 'date',
+            'fiscal_caea_to' => 'date',
+            'fiscal_caea_due_date' => 'date',
+            'fiscal_caea_report_deadline' => 'date',
             'fiscal_activities' => 'array',
         ];
     }

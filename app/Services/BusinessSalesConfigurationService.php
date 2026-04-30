@@ -50,6 +50,13 @@ class BusinessSalesConfigurationService
                 'fiscal_concept' => $payload['fiscal_concept'] ?: null,
                 'fiscal_authorization_mode' => $payload['fiscal_authorization_mode']
                     ?: config('fiscal.defaults.authorization_mode', 'cae'),
+                'fiscal_caea_code' => $payload['fiscal_caea_code'] ?: null,
+                'fiscal_caea_period' => $payload['fiscal_caea_period'] ?: null,
+                'fiscal_caea_order' => $payload['fiscal_caea_order'] ?: null,
+                'fiscal_caea_from' => $payload['fiscal_caea_from'] ?: null,
+                'fiscal_caea_to' => $payload['fiscal_caea_to'] ?: null,
+                'fiscal_caea_due_date' => $payload['fiscal_caea_due_date'] ?: null,
+                'fiscal_caea_report_deadline' => $payload['fiscal_caea_report_deadline'] ?: null,
                 'fiscal_activities' => $payload['fiscal_activities'] ?: null,
             ]);
 
