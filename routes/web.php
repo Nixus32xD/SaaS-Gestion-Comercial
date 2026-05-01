@@ -88,6 +88,7 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/sales/{sale}/receipt', [SaleController::class, 'downloadReceipt'])->name('sales.receipt.download');
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
     Route::post('/sales/{sale}/fiscal-documents', [SaleFiscalDocumentController::class, 'store'])->name('sales.fiscal-documents.store');
+    Route::get('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/pdf', [SaleFiscalDocumentController::class, 'downloadPdf'])->name('sales.fiscal-documents.pdf');
     Route::post('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/reconcile', [SaleFiscalDocumentController::class, 'reconcile'])->name('sales.fiscal-documents.reconcile');
 
     Route::get('/purchases', [PurchaseController::class, 'index'])->name('purchases.index');
