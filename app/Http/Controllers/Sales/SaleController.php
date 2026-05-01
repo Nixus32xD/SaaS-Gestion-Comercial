@@ -470,6 +470,12 @@ class SaleController extends Controller
             'caea_order' => $document->caea_order,
             'caea_report_status' => $document->caea_report_status,
             'caea_reported_at' => $document->caea_reported_at?->format('Y-m-d H:i'),
+            'pdf_url' => $document->isAuthorized()
+                ? route('sales.fiscal-documents.pdf', [
+                    'sale' => $document->sale_id,
+                    'saleFiscalDocument' => $document->id,
+                ])
+                : null,
             'fiscal_error_code' => $document->fiscal_error_code,
             'fiscal_error_message' => $document->fiscal_error_message,
             'fiscal_error_category' => $error['category'] ?? null,

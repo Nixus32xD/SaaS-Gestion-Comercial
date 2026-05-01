@@ -318,6 +318,16 @@ onBeforeUnmount(() => {
                                 >
                                     Conciliar
                                 </button>
+
+                                <a
+                                    v-if="fiscalDocument?.pdf_url"
+                                    :href="fiscalDocument.pdf_url"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-slate-800/70"
+                                >
+                                    Descargar PDF
+                                </a>
                             </div>
                         </div>
                     </AppPanel>

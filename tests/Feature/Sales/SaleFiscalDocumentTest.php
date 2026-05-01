@@ -5,6 +5,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Models\User;
+use App\Services\Fiscal\FiscalQrService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -698,4 +699,167 @@ test('sale fiscal payload is generated from sale data', function () {
             && $payload['items'][0]['subtotal'] === 54562.74
             && $payload['idempotency_key'] === "sale:{$business->id}:{$sale->id}:invoice";
     });
+});
+
+test('fiscal qr payload and url are generated for authorized cae document', function () {
+    [$business, , $sale] = fiscalSaleFixture([
+        'fiscal_cuit' => '20440587780',
+    ]);
+
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_document_id' => 'fdoc-qr-001',
+        'fiscal_status' => SaleFiscalDocument::STATUS_AUTHORIZED,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_number' => 2,
+        'fiscal_cae' => '86173407873027',
+        'fiscal_cae_expires_at' => '2026-05-01',
+        'authorization_type' => SaleFiscalDocument::AUTHORIZATION_CAE,
+        'authorization_code' => '86173407873027',
+        'authorization_expires_at' => '2026-05-01',
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'fiscal_payload' => [
+            'voucher_date' => '2026-04-21',
+            'currency' => 'PES',
+            'currency_rate' => 1,
+            'customer' => [
+                'doc_type' => 99,
+                'doc_number' => 0,
+                'name' => 'Consumidor Final',
+            ],
+        ],
+        'attempted_at' => now(),
+        'authorized_at' => now(),
+    ]);
+
+    $service = app(FiscalQrService::class);
+    $payload = $service->payload($document);
+    $url = $service->url($document);
+
+    expect($payload)->toMatchArray([
+        'ver' => 1,
+        'fecha' => '2026-04-21',
+        'cuit' => 20440587780,
+        'ptoVta' => 2,
+        'tipoCmp' => 11,
+        'nroCmp' => 2,
+        'importe' => 54562.74,
+        'moneda' => 'PES',
+        'ctz' => 1.0,
+        'tipoDocRec' => 99,
+        'nroDocRec' => 0,
+        'tipoCodAut' => 'E',
+        'codAut' => 86173407873027,
+    ]);
+
+    expect($url)->toStartWith('https://www.arca.gob.ar/fe/qr/?p=');
+
+    $decoded = json_decode(base64_decode(substr($url, strlen('https://www.arca.gob.ar/fe/qr/?p='))), true);
+
+    expect($decoded)->toBe($payload);
+});
+
+test('fiscal qr payload uses caea authorization type', function () {
+    [$business, , $sale] = fiscalSaleFixture([
+        'fiscal_cuit' => '20440587780',
+    ]);
+
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_document_id' => 'fdoc-qr-caea',
+        'fiscal_status' => SaleFiscalDocument::STATUS_AUTHORIZED,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_number' => 3,
+        'authorization_type' => SaleFiscalDocument::AUTHORIZATION_CAEA,
+        'authorization_code' => '20260412345678',
+        'authorization_expires_at' => '2026-05-15',
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'fiscal_payload' => [
+            'voucher_date' => '2026-04-21',
+            'currency' => 'PES',
+            'currency_rate' => 1,
+        ],
+        'attempted_at' => now(),
+        'authorized_at' => now(),
+    ]);
+
+    expect(app(FiscalQrService::class)->payload($document)['tipoCodAut'])->toBe('A');
+});
+
+test('authorized fiscal document pdf can be downloaded', function () {
+    [$business, $admin, $sale] = fiscalSaleFixture([
+        'fiscal_cuit' => '20440587780',
+    ]);
+
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_document_id' => 'fdoc-pdf-001',
+        'fiscal_status' => SaleFiscalDocument::STATUS_AUTHORIZED,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_number' => 2,
+        'fiscal_cae' => '86173407873027',
+        'fiscal_cae_expires_at' => '2026-05-01',
+        'authorization_type' => SaleFiscalDocument::AUTHORIZATION_CAE,
+        'authorization_code' => '86173407873027',
+        'authorization_expires_at' => '2026-05-01',
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'fiscal_payload' => [
+            'voucher_date' => '2026-04-21',
+            'currency' => 'PES',
+            'currency_rate' => 1,
+            'customer' => [
+                'doc_type' => 99,
+                'doc_number' => 0,
+                'name' => 'Consumidor Final',
+            ],
+        ],
+        'attempted_at' => now(),
+        'authorized_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->get(route('sales.fiscal-documents.pdf', [
+            'sale' => $sale,
+            'saleFiscalDocument' => $document,
+        ]))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf');
+});
+
+test('fiscal document pdf is blocked when document is not authorized', function () {
+    [$business, $admin, $sale] = fiscalSaleFixture([
+        'fiscal_cuit' => '20440587780',
+    ]);
+
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_status' => SaleFiscalDocument::STATUS_REJECTED,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_number' => 2,
+        'fiscal_error_code' => '10016',
+        'fiscal_error_message' => 'Rechazado.',
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'attempted_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->get(route('sales.fiscal-documents.pdf', [
+            'sale' => $sale,
+            'saleFiscalDocument' => $document,
+        ]))
+        ->assertStatus(422);
 });

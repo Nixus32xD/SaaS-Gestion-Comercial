@@ -5,13 +5,19 @@ namespace App\Http\Controllers\Sales;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
+use App\Services\Fiscal\FiscalPdfService;
 use App\Services\Fiscal\FiscalSaleDocumentService;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 
 class SaleFiscalDocumentController extends Controller
 {
-    public function __construct(private readonly FiscalSaleDocumentService $fiscalSaleDocumentService) {}
+    public function __construct(
+        private readonly FiscalSaleDocumentService $fiscalSaleDocumentService,
+        private readonly FiscalPdfService $fiscalPdfService,
+    ) {}
 
     public function store(CurrentBusiness $currentBusiness, Sale $sale): RedirectResponse
     {
@@ -40,6 +46,25 @@ class SaleFiscalDocumentController extends Controller
         $document = $this->fiscalSaleDocumentService->reconcile($saleFiscalDocument);
 
         return $this->redirectWithFiscalStatus($document);
+    }
+
+    public function downloadPdf(
+        CurrentBusiness $currentBusiness,
+        Sale $sale,
+        SaleFiscalDocument $saleFiscalDocument
+    ): Response {
+        $business = $currentBusiness->get();
+        abort_if($business === null, 404);
+        abort_if($sale->business_id !== $business->id, 403);
+        abort_if($saleFiscalDocument->business_id !== $business->id, 403);
+        abort_if($saleFiscalDocument->sale_id !== $sale->id, 403);
+        abort_unless((bool) config('fiscal.enabled') && $business->hasElectronicBilling(), 403);
+
+        try {
+            return $this->fiscalPdfService->download($saleFiscalDocument);
+        } catch (ValidationException $exception) {
+            abort(422, collect($exception->errors())->flatten()->first() ?: 'No se pudo generar el PDF fiscal.');
+        }
     }
 
     private function redirectWithFiscalStatus(SaleFiscalDocument $document): RedirectResponse
