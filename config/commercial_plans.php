@@ -20,13 +20,20 @@ return [
         'Ventas y compras con impacto automatico en stock.',
         'Productos, categorias, proveedores y usuarios internos.',
         'Lotes, vencimientos y alertas por mail configurables.',
+        'Facturacion electronica por API fiscal externa, con CAE, CAEA y conciliacion.',
+        'Comprobantes fiscales en PDF con QR ARCA descargable desde la venta.',
         'Operacion por comercio lista para correr en Laravel Cloud.',
     ],
     'plan_summaries' => [
         [
             'title' => 'Implementacion inicial',
-            'price' => 'Desde ARS 95.000',
-            'description' => 'Tres planes cerrados segun el volumen inicial del catalogo: 30, 100 o 250 productos.',
+            'price' => '',
+            'description' => 'Tres niveles segun volumen inicial, capacitacion y acompanamiento requerido.',
+            'features' => [
+                'Express: configuracion base, capacitacion breve y hasta 30 productos.',
+                'Esencial: suma capacitacion completa, ajustes de arranque y hasta 100 productos.',
+                'Plus: suma implementacion completa, capacitacion por sectores y hasta 250 productos.',
+            ],
         ],
         [
             'title' => 'Carga adicional',
