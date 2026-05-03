@@ -93,8 +93,14 @@ const props = defineProps({
                     <div class="mt-6 space-y-3">
                         <article v-for="plan in props.planSummaries" :key="plan.title" class="summary-card">
                             <p class="text-sm text-cyan-100/85">{{ plan.title }}</p>
-                            <h4 class="title mt-2 text-2xl font-bold text-white">{{ plan.price }}</h4>
+                            <h4 v-if="plan.price" class="title mt-2 text-2xl font-bold text-white">{{ plan.price }}</h4>
                             <p class="mt-2 text-sm leading-6 text-slate-200/90">{{ plan.description }}</p>
+                            <ul v-if="plan.features?.length" class="mt-3 space-y-2 text-sm leading-6 text-slate-200/90">
+                                <li v-for="feature in plan.features" :key="feature" class="flex items-start gap-2">
+                                    <span class="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-cyan-300" />
+                                    <span>{{ feature }}</span>
+                                </li>
+                            </ul>
                         </article>
                     </div>
 
