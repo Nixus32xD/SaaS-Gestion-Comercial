@@ -7,7 +7,6 @@ const props = defineProps({
     heroHighlights: { type: Array, default: () => [] },
     coreFeatures: { type: Array, default: () => [] },
     planSummaries: { type: Array, default: () => [] },
-    pricingNotes: { type: Array, default: () => [] },
     businessTypes: { type: Array, default: () => [] },
 });
 </script>
@@ -83,40 +82,34 @@ const props = defineProps({
                     </article>
                 </section>
 
-                <section class="entry panel price" style="animation-delay: 180ms">
-                    <p class="eyebrow text-sm uppercase tracking-[0.2em] text-cyan-100/90">Propuesta comercial</p>
-                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion simple y acompanada</h3>
+                <section class="entry panel offer" style="animation-delay: 180ms">
+                    <p class="eyebrow text-sm uppercase tracking-[0.2em] text-cyan-100/90">Acompanamiento</p>
+                    <h3 class="title mt-3 text-2xl font-bold text-white">Implementacion segun tu comercio</h3>
                     <p class="mt-4 text-sm leading-6 text-slate-200/90">
-                        Tres formas de contratar el servicio segun la etapa en la que este tu comercio.
+                        Definimos el alcance por volumen de productos, carga inicial y soporte necesario.
                     </p>
 
                     <div class="mt-6 space-y-3">
                         <article v-for="plan in props.planSummaries" :key="plan.title" class="summary-card">
-                            <p class="text-sm text-cyan-100/85">{{ plan.title }}</p>
+                            <p class="title text-base font-semibold text-white">{{ plan.title }}</p>
                             <h4 v-if="plan.price" class="title mt-2 text-2xl font-bold text-white">{{ plan.price }}</h4>
                             <p class="mt-2 text-sm leading-6 text-slate-200/90">{{ plan.description }}</p>
-                            <ul v-if="plan.features?.length" class="mt-3 space-y-2 text-sm leading-6 text-slate-200/90">
-                                <li v-for="feature in plan.features" :key="feature" class="flex items-start gap-2">
-                                    <span class="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-cyan-300" />
+                            <ul v-if="plan.features?.length" class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-cyan-50">
+                                <li
+                                    v-for="feature in plan.features"
+                                    :key="feature"
+                                    class="rounded-full border border-cyan-100/20 bg-cyan-300/10 px-3 py-1"
+                                >
                                     <span>{{ feature }}</span>
                                 </li>
                             </ul>
                         </article>
                     </div>
 
-                    <div class="mt-6 rounded-2xl border border-cyan-100/15 bg-slate-950/30 px-4 py-4">
-                        <ul class="space-y-2 text-sm text-slate-300">
-                            <li v-for="note in props.pricingNotes" :key="note" class="flex items-start gap-3">
-                                <span class="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-cyan-300" />
-                                <span>{{ note }}</span>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div class="cta-block mt-6">
+                    <div class="cta-block mt-5">
                         <p class="title text-lg font-semibold text-white">Listo para avanzar</p>
                         <p class="mt-2 text-sm leading-6 text-slate-200/90">
-                            Si queres implementarlo o definir el plan adecuado, te respondo por WhatsApp.
+                            Contame tu caso y te propongo una implementacion acorde al comercio.
                         </p>
                         <a
                             :href="props.whatsappUrl"
@@ -207,7 +200,7 @@ const props = defineProps({
     padding: 1.25rem;
 }
 
-.price {
+.offer {
     box-shadow: 0 20px 45px rgba(8, 47, 73, 0.36);
 }
 
