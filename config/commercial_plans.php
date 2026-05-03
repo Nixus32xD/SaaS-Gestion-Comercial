@@ -37,13 +37,23 @@ return [
         ],
         [
             'title' => 'Carga adicional',
-            'price' => 'Desde $500 por producto',
-            'description' => 'Disponible para ampliaciones posteriores, no como reemplazo del plan inicial.',
+            'price' => '',
+            'description' => 'Para ampliar el catalogo despues de la implementacion inicial.',
+            'features' => [
+                'Por unidad: carga manual individual y revision basica de datos.',
+                'Pack 100: carga estructurada para ampliaciones medianas.',
+                'Pack 250: carga masiva asistida con revision de categorias y precios.',
+            ],
         ],
         [
             'title' => 'Mantenimiento mensual',
-            'price' => 'Desde ARS 25.000 / mes',
-            'description' => 'Soporte, correcciones y mejoras menores para sostener la operacion.',
+            'price' => '',
+            'description' => 'Niveles de soporte para sostener la operacion despues de salir a usar el sistema.',
+            'features' => [
+                'Basico: soporte continuo, correccion de errores y actualizaciones menores.',
+                'Operativo: suma prioridad media, revision mensual y bonificacion parcial en ajustes.',
+                'Prioritario: suma prioridad alta, seguimiento cercano y bolsa mensual para ajustes menores.',
+            ],
         ],
     ],
     'pricing_notes' => [
