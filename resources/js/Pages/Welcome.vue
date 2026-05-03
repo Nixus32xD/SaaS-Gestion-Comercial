@@ -4,7 +4,6 @@ import { Head, Link } from '@inertiajs/vue3';
 const props = defineProps({
     canLogin: { type: Boolean, default: false },
     whatsappUrl: { type: String, default: '' },
-    pricingSections: { type: Array, default: () => [] },
     heroHighlights: { type: Array, default: () => [] },
     coreFeatures: { type: Array, default: () => [] },
     planSummaries: { type: Array, default: () => [] },
@@ -124,72 +123,6 @@ const props = defineProps({
                     </div>
                 </section>
             </main>
-
-            <section class="entry mx-auto mt-2 w-full max-w-6xl px-4 pb-10" style="animation-delay: 260ms">
-                <div class="rounded-[2rem] border border-white/10 bg-white/95 px-6 py-10 text-slate-900 shadow-2xl shadow-slate-950/20 md:px-10">
-                    <div class="mx-auto max-w-3xl text-center">
-                        <p class="eyebrow text-sm uppercase tracking-[0.25em] text-cyan-700">Grilla de precios</p>
-                        <h2 class="title mt-3 text-3xl font-bold text-slate-950 md:text-4xl">
-                            Planes del Sistema de Gestion Comercial
-                        </h2>
-                        <p class="mt-4 text-base leading-7 text-slate-600 md:text-lg">
-                            Si queres ver el detalle completo, aca tenes la grilla por instalacion, carga y mantenimiento.
-                        </p>
-                    </div>
-
-                    <div class="mt-10 space-y-10">
-                        <section v-for="section in props.pricingSections" :key="section.title">
-                            <div class="max-w-2xl">
-                                <h3 class="title text-2xl font-bold text-slate-950">{{ section.title }}</h3>
-                                <p class="mt-2 text-sm leading-6 text-slate-600">
-                                    {{ section.description }}
-                                </p>
-                            </div>
-
-                            <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-                                <article
-                                    v-for="plan in section.plans"
-                                    :key="`${section.title}-${plan.title}`"
-                                    class="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-lg"
-                                    :class="plan.featured ? 'ring-2 ring-cyan-500/20' : ''"
-                                >
-                                    <div class="flex-1">
-                                        <p class="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
-                                            {{ plan.subtitle }}
-                                        </p>
-                                        <h4 class="title mt-3 text-2xl font-bold text-slate-950">{{ plan.title }}</h4>
-                                        <p class="mt-3 text-sm leading-6 text-slate-600">{{ plan.description }}</p>
-
-                                        <div class="mt-6">
-                                            <div class="flex flex-wrap items-baseline gap-2">
-                                                <span
-                                                    v-if="plan.priceLabel"
-                                                    class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"
-                                                >
-                                                    {{ plan.priceLabel }}
-                                                </span>
-                                                <p class="title text-3xl font-semibold text-slate-950">
-                                                    {{ plan.price }}
-                                                </p>
-                                                <span v-if="plan.priceSuffix" class="text-base font-medium text-slate-500">
-                                                    {{ plan.priceSuffix }}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <ul v-if="plan.features.length" class="mt-6 space-y-3 text-sm text-slate-700">
-                                            <li v-for="feature in plan.features" :key="feature" class="flex items-start gap-3">
-                                                <span class="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-cyan-500" />
-                                                <span>{{ feature }}</span>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </article>
-                            </div>
-                        </section>
-                    </div>
-                </div>
-            </section>
         </div>
     </div>
 </template>
