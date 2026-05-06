@@ -9,6 +9,7 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     customers: { type: Array, default: () => [] },
     advanced_sale_settings: { type: Object, default: () => ({ enabled: false, sale_sectors: [], payment_destinations: [] }) },
+    fiscal: { type: Object, default: () => ({ enabled: false, issuer_condition: 'monotributo', receiver_iva_conditions: [] }) },
     receipt_feature_available: { type: Boolean, default: false },
 });
 
@@ -44,6 +45,14 @@ const nowLocalDateTime = () => {
 
 const form = useForm({
     customer_id: null,
+    fiscal_customer: {
+        with_data: false,
+        name: '',
+        document_type: 'CUIT',
+        document_number: '',
+        iva_condition: 'consumidor_final',
+        address: '',
+    },
     payment_status: 'paid',
     payment_method: 'cash',
     sale_sector_id: null,
@@ -172,6 +181,12 @@ watch(() => form.payment_status, (value) => {
 watch(() => form.payment_method, (value) => {
     if (value !== 'cash') {
         form.amount_received = '';
+    }
+});
+
+watch(() => form.fiscal_customer.iva_condition, (value) => {
+    if (['responsable_inscripto', 'monotributo', 'exento'].includes(value)) {
+        form.fiscal_customer.document_type = 'CUIT';
     }
 });
 
@@ -408,6 +423,24 @@ const subtotal = computed(() => form.items.reduce((acc, item) => acc + getLineSu
 const total = computed(() => Math.max(0, subtotal.value - Number(form.discount || 0)));
 const customerOptions = computed(() => props.customers || []);
 const selectedCustomer = computed(() => customerOptions.value.find((customer) => customer.id === form.customer_id) || null);
+const fiscalEnabled = computed(() => Boolean(props.fiscal?.enabled));
+const fiscalReceiverIvaOptions = computed(() => props.fiscal?.receiver_iva_conditions || []);
+const fiscalCustomerWithData = computed(() => Boolean(form.fiscal_customer?.with_data));
+const fiscalCustomerRequiresCuit = computed(() => (
+    fiscalCustomerWithData.value
+    && ['responsable_inscripto', 'monotributo', 'exento'].includes(form.fiscal_customer.iva_condition)
+));
+const fiscalCustomerReady = computed(() => {
+    if (!fiscalCustomerWithData.value) return true;
+
+    const documentNumber = String(form.fiscal_customer.document_number || '').replace(/\D+/g, '');
+
+    return String(form.fiscal_customer.name || '').trim() !== ''
+        && ['CUIT', 'DNI'].includes(form.fiscal_customer.document_type)
+        && String(form.fiscal_customer.iva_condition || '').trim() !== ''
+        && documentNumber !== ''
+        && (!fiscalCustomerRequiresCuit.value || (form.fiscal_customer.document_type === 'CUIT' && documentNumber.length === 11));
+});
 const isPendingSale = computed(() => form.payment_status === 'pending');
 const isPartialSale = computed(() => form.payment_status === 'partial');
 const requiresImmediatePayment = computed(() => form.payment_status !== 'pending');
@@ -450,6 +483,7 @@ const canSubmit = computed(() => (
     && (!isPendingSale.value || form.customer_id)
     && (!isPartialSale.value || (form.customer_id && paidAmount.value > 0 && pendingAmount.value > 0))
     && (!isCashPayment.value || remaining.value === 0)
+    && (!fiscalEnabled.value || fiscalCustomerReady.value)
 ));
 const itemErrorMessages = computed(() => Array.from(new Set(
     Object.entries(form.errors || {})
@@ -492,6 +526,10 @@ const summaryWarnings = computed(() => {
         warnings.push('Las ventas fiadas o parciales requieren cliente asociado.');
     }
 
+    if (fiscalEnabled.value && fiscalCustomerWithData.value && !fiscalCustomerReady.value) {
+        warnings.push('Completa los datos fiscales del receptor o desactiva la solicitud con datos.');
+    }
+
     if (isPartialSale.value && (paidAmount.value <= 0 || pendingAmount.value <= 0)) {
         warnings.push('El pago parcial debe dejar una parte cobrada y otra pendiente.');
     }
@@ -513,6 +551,7 @@ const receiptFileName = computed(() => form.receipt?.name || '');
 const buildDraftSnapshot = () => ({
     form: {
         customer_id: form.customer_id,
+        fiscal_customer: { ...form.fiscal_customer },
         payment_status: form.payment_status,
         payment_method: form.payment_method,
         sale_sector_id: form.sale_sector_id,
@@ -554,6 +593,9 @@ const restoreDraft = () => {
         const draft = JSON.parse(rawDraft);
 
         form.customer_id = draft?.form?.customer_id ?? form.customer_id;
+        form.fiscal_customer = draft?.form?.fiscal_customer
+            ? { ...form.fiscal_customer, ...draft.form.fiscal_customer }
+            : form.fiscal_customer;
         form.payment_status = draft?.form?.payment_status ?? form.payment_status;
         form.payment_method = draft?.form?.payment_method ?? form.payment_method;
         form.sale_sector_id = draft?.form?.sale_sector_id ?? form.sale_sector_id;
@@ -660,6 +702,12 @@ const submit = () => {
         .transform((data) => ({
             ...data,
             customer_id: data.customer_id,
+            fiscal_customer: fiscalEnabled.value && data.fiscal_customer?.with_data
+                ? {
+                    ...data.fiscal_customer,
+                    document_number: String(data.fiscal_customer.document_number || '').replace(/\D+/g, ''),
+                }
+                : null,
             payment_status: data.payment_status,
             payment_method: requiresImmediatePayment.value ? data.payment_method : null,
             sale_sector_id: advancedSaleSettingsEnabled.value ? data.sale_sector_id : null,
@@ -1049,6 +1097,53 @@ onBeforeUnmount(() => {
                                 <p class="mt-2 text-xs">Saldo actual: <strong class="text-slate-100">{{ money(selectedCustomer.current_balance) }}</strong></p>
                             </div>
                         </div>
+
+                        <div v-if="fiscalEnabled" class="mt-4 rounded-xl border border-cyan-100/15 bg-slate-900/45 p-4">
+                            <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                <input v-model="form.fiscal_customer.with_data" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
+                                Cliente solicita factura con datos
+                            </label>
+                            <p class="mt-2 text-xs text-slate-400">Sin datos fiscales, el receptor queda como consumidor final. La API fiscal define el comprobante automaticamente.</p>
+
+                            <div v-if="form.fiscal_customer.with_data" class="mt-4 grid gap-3 md:grid-cols-2">
+                                <div class="space-y-1 md:col-span-2">
+                                    <label class="text-sm font-medium text-slate-300">Nombre / razon social</label>
+                                    <input v-model="form.fiscal_customer.name" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Cliente o razon social" />
+                                    <p v-if="form.errors['fiscal_customer.name']" class="text-xs text-rose-300">{{ form.errors['fiscal_customer.name'] }}</p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Tipo de documento</label>
+                                    <select v-model="form.fiscal_customer.document_type" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                        <option value="CUIT">CUIT</option>
+                                        <option value="DNI">DNI</option>
+                                    </select>
+                                    <p v-if="form.errors['fiscal_customer.document_type']" class="text-xs text-rose-300">{{ form.errors['fiscal_customer.document_type'] }}</p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Numero</label>
+                                    <input v-model="form.fiscal_customer.document_number" type="text" inputmode="numeric" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Sin guiones" />
+                                    <p v-if="form.errors['fiscal_customer.document_number']" class="text-xs text-rose-300">{{ form.errors['fiscal_customer.document_number'] }}</p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Condicion frente al IVA</label>
+                                    <select v-model="form.fiscal_customer.iva_condition" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                        <option v-for="option in fiscalReceiverIvaOptions" :key="option.value" :value="option.value">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                    <p v-if="form.errors['fiscal_customer.iva_condition']" class="text-xs text-rose-300">{{ form.errors['fiscal_customer.iva_condition'] }}</p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label class="text-sm font-medium text-slate-300">Domicilio fiscal</label>
+                                    <input v-model="form.fiscal_customer.address" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Direccion" />
+                                    <p v-if="form.errors['fiscal_customer.address']" class="text-xs text-rose-300">{{ form.errors['fiscal_customer.address'] }}</p>
+                                </div>
+                            </div>
+                        </div>
                     </article>
 
                     <article class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
@@ -1233,6 +1328,10 @@ onBeforeUnmount(() => {
                         <div class="flex items-center justify-between gap-3">
                             <span>Cliente</span>
                             <span class="text-right font-semibold text-slate-100">{{ selectedCustomer?.name || 'Consumidor final' }}</span>
+                        </div>
+                        <div v-if="fiscalEnabled" class="flex items-center justify-between gap-3">
+                            <span>Factura</span>
+                            <span class="text-right font-semibold text-slate-100">{{ form.fiscal_customer.with_data ? 'Con datos fiscales' : 'Consumidor final' }}</span>
                         </div>
                         <div class="flex items-center justify-between gap-3">
                             <span>Cantidad cargada</span>

@@ -44,6 +44,7 @@ class BusinessSalesConfigurationService
                 'fiscal_external_business_id' => $payload['fiscal_external_business_id'] ?: null,
                 'fiscal_environment' => $payload['fiscal_environment'] ?: config('fiscal.environment', 'testing'),
                 'fiscal_cuit' => $payload['fiscal_cuit'] ?: null,
+                'fiscal_condition' => $payload['fiscal_condition'] ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
                 'fiscal_point_of_sale' => $payload['fiscal_point_of_sale'] ?: null,
                 'fiscal_document_type' => $payload['fiscal_document_type'] ?: null,
                 'fiscal_cbte_type' => $payload['fiscal_cbte_type'] ?: null,

@@ -47,8 +47,8 @@ class FiscalQrService
             'importe' => round((float) ($sale?->total ?? data_get($fiscalPayload, 'amounts.imp_total')), 2),
             'moneda' => (string) data_get($fiscalPayload, 'currency', config('fiscal.defaults.currency', 'PES')),
             'ctz' => (float) data_get($fiscalPayload, 'currency_rate', config('fiscal.defaults.currency_rate', 1)),
-            'tipoDocRec' => (int) data_get($customer, 'doc_type', 99),
-            'nroDocRec' => (int) preg_replace('/\D+/', '', (string) data_get($customer, 'doc_number', 0)),
+            'tipoDocRec' => $this->receiverDocumentType($customer),
+            'nroDocRec' => $this->receiverDocumentNumber($customer),
             'tipoCodAut' => $this->authorizationQrType($authorizationType),
             'codAut' => $this->digitsAsInt($authorizationCode, 'codigo de autorizacion'),
         ];
@@ -137,5 +137,33 @@ class FiscalQrService
         }
 
         return (int) $digits;
+    }
+
+    /**
+     * @param  array<string, mixed>  $customer
+     */
+    private function receiverDocumentType(array $customer): int
+    {
+        if (data_get($customer, 'doc_type') !== null) {
+            return (int) data_get($customer, 'doc_type', 99);
+        }
+
+        return match (strtoupper((string) data_get($customer, 'document_type', 'CONSUMIDOR_FINAL'))) {
+            'CUIT' => 80,
+            'DNI' => 96,
+            default => 99,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $customer
+     */
+    private function receiverDocumentNumber(array $customer): int
+    {
+        $number = data_get($customer, 'doc_number')
+            ?? data_get($customer, 'document_number')
+            ?? 0;
+
+        return (int) preg_replace('/\D+/', '', (string) $number);
     }
 }

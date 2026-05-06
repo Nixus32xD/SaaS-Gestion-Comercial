@@ -22,7 +22,7 @@ const props = defineProps({
     },
     fiscal_catalog: {
         type: Object,
-        default: () => ({ document_types: [], voucher_types: [], authorization_modes: [], environments: [] }),
+        default: () => ({ document_types: [], voucher_types: [], authorization_modes: [], environments: [], fiscal_conditions: [] }),
     },
 });
 
@@ -70,6 +70,7 @@ const salesSettingsForm = useForm({
     fiscal_external_business_id: props.sales_settings.fiscal_external_business_id || '',
     fiscal_environment: props.sales_settings.fiscal_environment || 'testing',
     fiscal_cuit: props.sales_settings.fiscal_cuit || '',
+    fiscal_condition: props.sales_settings.fiscal_condition || 'monotributo',
     fiscal_point_of_sale: props.sales_settings.fiscal_point_of_sale ?? 2,
     fiscal_document_type: props.sales_settings.fiscal_document_type || 'invoice_c',
     fiscal_cbte_type: props.sales_settings.fiscal_cbte_type ?? 11,
@@ -124,6 +125,7 @@ const fiscalDocumentTypeOptions = computed(() => props.fiscal_catalog?.document_
 const fiscalVoucherTypeOptions = computed(() => props.fiscal_catalog?.voucher_types || []);
 const fiscalAuthorizationModeOptions = computed(() => props.fiscal_catalog?.authorization_modes || []);
 const fiscalEnvironmentOptions = computed(() => props.fiscal_catalog?.environments || []);
+const fiscalConditionOptions = computed(() => props.fiscal_catalog?.fiscal_conditions || []);
 const fiscalPointOfSaleOptions = computed(() => props.sales_settings.fiscal_point_of_sale_options?.options || []);
 const fiscalPointOfSaleMessage = computed(() => props.sales_settings.fiscal_point_of_sale_options?.message || null);
 const hasFiscalPointOfSaleOptions = computed(() => fiscalPointOfSaleOptions.value.length > 0);
@@ -547,6 +549,7 @@ const planLabel = (plan) => {
                 <p v-if="salesSettingsForm.errors.payment_destinations" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.payment_destinations }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_external_business_id" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_external_business_id }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_cuit" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_cuit }}</p>
+                <p v-if="salesSettingsForm.errors.fiscal_condition" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_condition }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_point_of_sale" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_point_of_sale }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_document_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_document_type }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_cbte_type" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_cbte_type }}</p>
@@ -559,7 +562,7 @@ const planLabel = (plan) => {
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <h4 class="text-base font-semibold text-slate-100">Facturacion fiscal externa</h4>
-                            <p class="mt-1 text-xs text-slate-400">La emision sale por la API fiscal configurada en el entorno.</p>
+                            <p class="mt-1 text-xs text-slate-400">La API fiscal determina automaticamente Factura A/B/C segun el comercio y el receptor.</p>
                         </div>
                     </div>
 
@@ -581,6 +584,15 @@ const planLabel = (plan) => {
                         <div class="space-y-1">
                             <label class="text-sm font-medium text-slate-300">CUIT fiscal</label>
                             <input v-model="salesSettingsForm.fiscal_cuit" type="text" inputmode="numeric" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="20-12345678-6" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Condicion fiscal del comercio</label>
+                            <select v-model="salesSettingsForm.fiscal_condition" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalConditionOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </option>
+                            </select>
                         </div>
 
                         <div class="space-y-1">
@@ -610,7 +622,7 @@ const planLabel = (plan) => {
                         </div>
 
                         <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">Tipo interno</label>
+                            <label class="text-sm font-medium text-slate-300">Tipo interno legacy</label>
                             <select v-model="salesSettingsForm.fiscal_document_type" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
                                 <option v-for="option in fiscalDocumentTypeOptions" :key="option.value" :value="option.value">
                                     {{ option.label }} ({{ option.value }})
@@ -619,7 +631,7 @@ const planLabel = (plan) => {
                         </div>
 
                         <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">Tipo comprobante fiscal</label>
+                            <label class="text-sm font-medium text-slate-300">Cbte legacy/admin</label>
                             <select v-model.number="salesSettingsForm.fiscal_cbte_type" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
                                 <option v-for="option in fiscalVoucherTypeOptions" :key="option.value" :value="option.value">
                                     {{ option.label }} - codigo {{ option.value }}

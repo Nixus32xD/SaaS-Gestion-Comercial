@@ -28,6 +28,7 @@ class Sale extends Model
         'user_id',
         'sale_sector_id',
         'customer_id',
+        'fiscal_customer',
         'sale_number',
         'payment_method',
         'payment_status',
@@ -54,6 +55,7 @@ class Sale extends Model
         return [
             'payment_method' => 'string',
             'payment_status' => 'string',
+            'fiscal_customer' => 'array',
             'amount_received' => 'decimal:2',
             'change_amount' => 'decimal:2',
             'paid_amount' => 'decimal:2',

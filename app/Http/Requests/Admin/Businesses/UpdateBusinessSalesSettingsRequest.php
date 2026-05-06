@@ -40,6 +40,11 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             ->filter()
             ->values()
             ->all();
+        $fiscalConditions = collect((array) config('fiscal.fiscal_conditions', []))
+            ->pluck('value')
+            ->filter()
+            ->values()
+            ->all();
 
         return [
             'advanced_sale_settings_enabled' => ['required', 'boolean'],
@@ -48,6 +53,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_external_business_id' => ['nullable', 'string', 'max:120'],
             'fiscal_environment' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', Rule::in($fiscalEnvironments)],
             'fiscal_cuit' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
+            'fiscal_condition' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', Rule::in($fiscalConditions)],
             'fiscal_point_of_sale' => ['nullable', 'integer', 'min:1', 'max:99999'],
             'fiscal_document_type' => ['nullable', 'string', 'max:40', Rule::in($documentTypes)],
             'fiscal_cbte_type' => ['nullable', 'integer', 'min:1', 'max:999', Rule::in($voucherTypes)],
@@ -106,6 +112,10 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_external_business_id' => trim((string) $this->input('fiscal_external_business_id')),
             'fiscal_environment' => $fiscalEnvironment,
             'fiscal_cuit' => preg_replace('/\D+/', '', (string) $this->input('fiscal_cuit', '')) ?: null,
+            'fiscal_condition' => $this->normalizeFiscalCondition($this->input(
+                'fiscal_condition',
+                config('fiscal.defaults.fiscal_condition', 'monotributo')
+            )),
             'fiscal_point_of_sale' => $this->filled('fiscal_point_of_sale')
                 ? (int) $this->input('fiscal_point_of_sale')
                 : null,
@@ -198,6 +208,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_cuit.required' => 'El CUIT fiscal es obligatorio para habilitar facturacion electronica.',
             'fiscal_cuit.size' => 'El CUIT fiscal debe tener 11 digitos.',
             'fiscal_cuit.regex' => 'El CUIT fiscal debe contener solo numeros.',
+            'fiscal_condition.required' => 'La condicion fiscal del comercio es obligatoria para habilitar facturacion electronica.',
         ];
     }
 
@@ -232,5 +243,14 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
         if ($checkDigit !== (int) $cuit[10]) {
             $validator->errors()->add('fiscal_cuit', 'El CUIT fiscal no es valido.');
         }
+    }
+
+    private function normalizeFiscalCondition(mixed $value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        return in_array($value, ['monotributo', 'responsable_inscripto', 'exento'], true)
+            ? $value
+            : (string) config('fiscal.defaults.fiscal_condition', 'monotributo');
     }
 }

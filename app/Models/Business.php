@@ -35,6 +35,7 @@ class Business extends Model
         'fiscal_external_business_id',
         'fiscal_environment',
         'fiscal_cuit',
+        'fiscal_condition',
         'fiscal_point_of_sale',
         'fiscal_document_type',
         'fiscal_cbte_type',

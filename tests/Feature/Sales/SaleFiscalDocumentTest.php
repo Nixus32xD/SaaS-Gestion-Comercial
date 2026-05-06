@@ -189,10 +189,80 @@ test('sale creation auto issues fiscal document when fiscal api authorizes', fun
 
     Http::assertSent(function (Request $request) use ($sale): bool {
         return $request->url() === 'http://127.0.0.1:8000/api/fiscal/documents'
+            && $request->data()['invoice_mode'] === 'auto'
+            && ! array_key_exists('cbte_type', $request->data())
             && $request->data()['origin_type'] === 'sale'
             && $request->data()['origin_id'] === (string) $sale->id
             && $request->data()['sale_id'] === 'S-000001';
     });
+});
+
+test('sale creation sends fiscal receiver data to API in auto invoice mode', function () {
+    [$business, $admin, $product] = fiscalSaleStoreFixture([
+        'fiscal_condition' => 'responsable_inscripto',
+    ]);
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents' => Http::response([
+            'data' => [
+                'id' => 93,
+                'status' => 'authorized',
+                'cae' => '12345678901234',
+                'cae_expires_at' => '2026-05-01',
+                'number' => 1,
+                'point_of_sale' => 2,
+                'cbte_type' => 1,
+            ],
+        ], 201),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post('/sales', [
+            'payment_status' => 'paid',
+            'payment_method' => 'cash',
+            'amount_received' => 1000,
+            'fiscal_customer' => [
+                'with_data' => true,
+                'name' => 'Cliente Responsable SA',
+                'document_type' => 'CUIT',
+                'document_number' => '30-71234567-1',
+                'iva_condition' => 'responsable_inscripto',
+                'address' => 'Av. Fiscal 123',
+            ],
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 1000,
+            ]],
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Venta registrada y comprobante fiscal autorizado correctamente.');
+
+    $sale = Sale::query()->firstOrFail();
+
+    expect($sale->fiscal_customer)->toMatchArray([
+        'with_data' => true,
+        'name' => 'Cliente Responsable SA',
+        'document_type' => 'CUIT',
+        'document_number' => '30712345671',
+        'iva_condition' => 'responsable_inscripto',
+        'address' => 'Av. Fiscal 123',
+    ]);
+
+    Http::assertSent(function (Request $request): bool {
+        $payload = $request->data();
+
+        return $payload['invoice_mode'] === 'auto'
+            && ! array_key_exists('cbte_type', $payload)
+            && $payload['customer']['name'] === 'Cliente Responsable SA'
+            && $payload['customer']['document_type'] === 'CUIT'
+            && $payload['customer']['document_number'] === '30712345671'
+            && $payload['customer']['iva_condition'] === 'responsable_inscripto'
+            && $payload['customer']['address'] === 'Av. Fiscal 123';
+    });
+
+    expect(SaleFiscalDocument::query()->firstOrFail()->fiscal_cbte_type)->toBe(1);
 });
 
 test('sale creation keeps sale and exposes manual fiscal retry when auto issue fails', function () {
@@ -677,14 +747,16 @@ test('sale fiscal payload is generated from sale data', function () {
             && $payload['sale_id'] === 'S-000001'
             && $payload['origin_type'] === 'sale'
             && $payload['origin_id'] === (string) $sale->id
-            && $payload['document_type'] === 'invoice_c'
+            && $payload['origin']['type'] === 'sale'
+            && $payload['origin']['id'] === (string) $sale->id
+            && $payload['invoice_mode'] === 'auto'
             && $payload['voucher_date'] === '2026-04-21'
             && $payload['point_of_sale'] === 2
-            && $payload['cbte_type'] === 11
+            && ! array_key_exists('cbte_type', $payload)
             && $payload['concept'] === 2
-            && $payload['customer']['doc_type'] === 99
-            && $payload['customer']['doc_number'] === 0
-            && $payload['customer']['tax_condition_id'] === 5
+            && $payload['customer']['document_type'] === 'CONSUMIDOR_FINAL'
+            && $payload['customer']['document_number'] === '0'
+            && $payload['customer']['iva_condition'] === 'consumidor_final'
             && $payload['amounts']['imp_total'] === 54562.74
             && $payload['amounts']['imp_neto'] === 54562.74
             && $payload['amounts']['imp_iva'] === 0.0

@@ -65,7 +65,7 @@ class FiscalSaleDocumentService
             'attempt_number' => $attemptNumber,
             'fiscal_status' => SaleFiscalDocument::STATUS_PROCESSING,
             'fiscal_point_of_sale' => $payload['point_of_sale'],
-            'fiscal_cbte_type' => $payload['cbte_type'],
+            'fiscal_cbte_type' => $payload['cbte_type'] ?? null,
             'fiscal_idempotency_key' => $idempotencyKey,
             'fiscal_payload' => $payload,
             'attempted_at' => now(),

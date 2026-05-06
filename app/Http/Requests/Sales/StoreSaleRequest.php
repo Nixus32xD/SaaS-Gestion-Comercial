@@ -55,6 +55,18 @@ class StoreSaleRequest extends FormRequest
                     fn ($query) => $query->where('business_id', $businessId)
                 ),
             ],
+            'fiscal_customer' => ['nullable', 'array'],
+            'fiscal_customer.with_data' => ['nullable', 'boolean'],
+            'fiscal_customer.name' => ['required_if:fiscal_customer.with_data,true', 'nullable', 'string', 'max:255'],
+            'fiscal_customer.document_type' => ['required_if:fiscal_customer.with_data,true', 'nullable', 'string', Rule::in(['CUIT', 'DNI'])],
+            'fiscal_customer.document_number' => ['required_if:fiscal_customer.with_data,true', 'nullable', 'string', 'max:30'],
+            'fiscal_customer.iva_condition' => ['required_if:fiscal_customer.with_data,true', 'nullable', 'string', Rule::in([
+                'responsable_inscripto',
+                'monotributo',
+                'consumidor_final',
+                'exento',
+            ])],
+            'fiscal_customer.address' => ['nullable', 'string', 'max:255'],
             'payment_status' => ['required', Rule::in([
                 Sale::PAYMENT_STATUS_PAID,
                 Sale::PAYMENT_STATUS_PARTIAL,
@@ -126,6 +138,7 @@ class StoreSaleRequest extends FormRequest
             'customer_id' => $this->filled('customer_id')
                 ? (int) $this->input('customer_id')
                 : null,
+            'fiscal_customer' => $this->fiscalCustomerPayload(),
             'payment_status' => $this->filled('payment_status')
                 ? (string) $this->input('payment_status')
                 : Sale::PAYMENT_STATUS_PAID,
@@ -179,6 +192,8 @@ class StoreSaleRequest extends FormRequest
                     'Las ventas fiadas no deben registrar un monto abonado al momento.'
                 );
             }
+
+            $this->validateFiscalCustomer($validator);
         });
     }
 
@@ -202,5 +217,56 @@ class StoreSaleRequest extends FormRequest
             : 'cash';
 
         return $paymentMethod === 'transfer';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fiscalCustomerPayload(): ?array
+    {
+        $input = (array) $this->input('fiscal_customer', []);
+        $withData = filter_var($input['with_data'] ?? false, FILTER_VALIDATE_BOOL);
+
+        if (! $withData) {
+            return null;
+        }
+
+        return [
+            'with_data' => true,
+            'name' => trim((string) ($input['name'] ?? '')),
+            'document_type' => strtoupper(trim((string) ($input['document_type'] ?? ''))),
+            'document_number' => preg_replace('/\D+/', '', (string) ($input['document_number'] ?? '')) ?: null,
+            'iva_condition' => strtolower(trim((string) ($input['iva_condition'] ?? ''))),
+            'address' => trim((string) ($input['address'] ?? '')) ?: null,
+        ];
+    }
+
+    private function validateFiscalCustomer(Validator $validator): void
+    {
+        $customer = (array) $this->input('fiscal_customer', []);
+
+        if (! (bool) ($customer['with_data'] ?? false)) {
+            return;
+        }
+
+        $ivaCondition = (string) ($customer['iva_condition'] ?? '');
+        $documentType = (string) ($customer['document_type'] ?? '');
+        $documentNumber = (string) ($customer['document_number'] ?? '');
+
+        if (in_array($ivaCondition, ['responsable_inscripto', 'monotributo', 'exento'], true)
+            && $documentType !== 'CUIT') {
+            $validator->errors()->add(
+                'fiscal_customer.document_type',
+                'Para esa condicion frente al IVA se debe informar CUIT.'
+            );
+        }
+
+        if ($documentType === 'CUIT' && ! preg_match('/^\d{11}$/', $documentNumber)) {
+            $validator->errors()->add('fiscal_customer.document_number', 'El CUIT debe tener 11 digitos.');
+        }
+
+        if ($documentType === 'DNI' && ! preg_match('/^\d{7,8}$/', $documentNumber)) {
+            $validator->errors()->add('fiscal_customer.document_number', 'El DNI debe tener 7 u 8 digitos.');
+        }
     }
 }

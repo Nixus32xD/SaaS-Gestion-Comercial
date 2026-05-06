@@ -25,16 +25,19 @@ class FiscalSalePayloadBuilder
         $payload = [
             'business_id' => $this->externalBusinessId($business),
             'sale_id' => $sale->sale_number ?: (string) $sale->id,
+            'origin' => [
+                'type' => 'sale',
+                'id' => (string) $sale->id,
+            ],
             'origin_type' => 'sale',
             'origin_id' => (string) $sale->id,
-            'document_type' => $business->fiscal_document_type ?: (string) config('fiscal.defaults.document_type', 'invoice_c'),
+            'invoice_mode' => 'auto',
             'voucher_date' => $voucherDate,
             'point_of_sale' => $this->pointOfSale($business),
-            'cbte_type' => $this->cbteType($business),
             'concept' => $concept,
             'authorization_mode' => $authorizationMode,
             'authorization_type' => $authorizationMode === 'caea' ? 'CAEA' : 'CAE',
-            'customer' => $this->defaultCustomer(),
+            'customer' => $this->customer($sale),
             'amounts' => $this->amounts($sale),
             'currency' => (string) config('fiscal.defaults.currency', 'PES'),
             'currency_rate' => (float) config('fiscal.defaults.currency_rate', 1),
@@ -77,11 +80,6 @@ class FiscalSalePayloadBuilder
         return (int) ($business->fiscal_point_of_sale ?: config('fiscal.defaults.point_of_sale', 2));
     }
 
-    private function cbteType(Business $business): int
-    {
-        return (int) ($business->fiscal_cbte_type ?: config('fiscal.defaults.cbte_type', 11));
-    }
-
     private function concept(Business $business): int
     {
         return (int) ($business->fiscal_concept ?: config('fiscal.defaults.concept', 1));
@@ -117,13 +115,33 @@ class FiscalSalePayloadBuilder
     /**
      * @return array<string, int|string>
      */
+    private function customer(Sale $sale): array
+    {
+        $customer = is_array($sale->fiscal_customer) ? $sale->fiscal_customer : [];
+
+        if (($customer['with_data'] ?? false) !== true) {
+            return $this->defaultCustomer();
+        }
+
+        return array_filter([
+            'name' => $customer['name'] ?? null,
+            'document_type' => $customer['document_type'] ?? null,
+            'document_number' => $customer['document_number'] ?? null,
+            'iva_condition' => $customer['iva_condition'] ?? null,
+            'address' => $customer['address'] ?? null,
+        ], fn (mixed $value): bool => $value !== null && $value !== '');
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
     private function defaultCustomer(): array
     {
         return [
-            'doc_type' => 99,
-            'doc_number' => 0,
+            'document_type' => 'CONSUMIDOR_FINAL',
+            'document_number' => '0',
             'name' => 'Consumidor Final',
-            'tax_condition_id' => 5,
+            'iva_condition' => 'consumidor_final',
         ];
     }
 

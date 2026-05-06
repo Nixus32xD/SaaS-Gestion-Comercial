@@ -15,6 +15,7 @@ FISCAL_API_TOKEN=un-token-largo-seguro
 FISCAL_API_TIMEOUT=60
 FISCAL_API_CONNECT_TIMEOUT=3
 FISCAL_DEFAULT_POINT_OF_SALE=2
+FISCAL_DEFAULT_CONDITION=monotributo
 FISCAL_DEFAULT_DOCUMENT_TYPE=invoice_c
 FISCAL_DEFAULT_CBTE_TYPE=11
 FISCAL_DEFAULT_CONCEPT=1
@@ -31,9 +32,10 @@ Desde el panel de superadmin, cada comercio puede definir:
 - facturacion electronica habilitada;
 - ID externo del comercio usado por la API fiscal;
 - CUIT fiscal del contribuyente emisor;
+- condicion fiscal del comercio: `monotributo`, `responsable_inscripto` o `exento`;
 - punto de venta;
-- tipo interno de documento;
-- tipo de comprobante ARCA;
+- tipo interno de documento legacy/admin;
+- tipo de comprobante ARCA legacy/admin;
 - concepto;
 - modo de autorizacion fiscal: `cae`, `caea` o `auto`;
 - actividades fiscales.
@@ -89,6 +91,10 @@ Desde el cierre de venta o desde el detalle de venta, el backend arma el payload
 y llama a:
 
 - `POST /api/fiscal/documents`
+
+El payload normal de venta incluye `invoice_mode=auto`. El SaaS no calcula ni
+fuerza Factura A/B/C; la API fiscal resuelve el `cbte_type` con la condicion
+fiscal del comercio y la condicion IVA del receptor.
 
 Para estados inciertos o en proceso, no se reintenta ciegamente. Se usa conciliacion:
 
@@ -157,14 +163,18 @@ Mensajes base:
 
 ## Payload
 
-Para Factura C monotributo se envia:
+Para ventas comunes se envia:
 
-- `document_type`: `invoice_c`;
-- `cbte_type`: `11`;
+- `invoice_mode`: `auto`;
+- `origin.type`: `sale`;
+- `origin.id`: ID interno de venta;
 - `amounts.imp_total`: total de venta;
 - `amounts.imp_neto`: total de venta;
 - IVA, tributos, exento y no gravado en cero;
-- cliente por defecto consumidor final sin identificar;
+- receptor por defecto consumidor final sin identificar;
+- si el cliente pide factura con datos: nombre/razon social, CUIT/DNI, condicion IVA y domicilio;
 - `items` como trazabilidad interna, aunque WSFEv1 no use detalle de items.
 
 Para concepto servicios o productos+servicios, el SaaS envia `service_dates` usando la fecha de venta.
+
+TODO: cuando productos/precios manejen alicuotas, agregar `iva_items` reales para emisores Responsable Inscripto. Hoy la API decide A/B/C, pero el SaaS todavia envia importes sin discriminacion de IVA.

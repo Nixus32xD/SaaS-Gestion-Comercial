@@ -187,6 +187,7 @@ class BusinessController extends Controller
                     ? $business->fiscal_environment
                     : 'testing',
                 'fiscal_cuit' => $business->fiscal_cuit,
+                'fiscal_condition' => $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
                 'fiscal_point_of_sale' => $business->fiscal_point_of_sale ?? config('fiscal.defaults.point_of_sale'),
                 'fiscal_document_type' => $business->fiscal_document_type ?: config('fiscal.defaults.document_type'),
                 'fiscal_cbte_type' => $business->fiscal_cbte_type ?? config('fiscal.defaults.cbte_type'),
@@ -222,6 +223,7 @@ class BusinessController extends Controller
                 'voucher_types' => config('fiscal.voucher_types', []),
                 'authorization_modes' => config('fiscal.authorization_modes', []),
                 'environments' => config('fiscal.environments', []),
+                'fiscal_conditions' => config('fiscal.fiscal_conditions', []),
             ],
             'commercial_catalog' => [
                 'implementation_plans' => array_map(
