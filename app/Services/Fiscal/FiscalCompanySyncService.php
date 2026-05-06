@@ -84,6 +84,8 @@ class FiscalCompanySyncService
             !== $this->normalizedFiscalValue($this->apiEnvironment($payload))
             || $this->normalizedFiscalValue($business->fiscal_cuit)
             !== $this->normalizedFiscalValue($payload['fiscal_cuit'] ?? null)
+            || $this->normalizedFiscalValue($business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'))
+            !== $this->normalizedFiscalValue($payload['fiscal_condition'] ?? config('fiscal.defaults.fiscal_condition', 'monotributo'))
             || (int) ($business->fiscal_point_of_sale ?? 0)
             !== (int) ($payload['fiscal_point_of_sale'] ?? 0)
             || $this->normalizedFiscalValue($business->fiscal_document_type)
@@ -133,6 +135,7 @@ class FiscalCompanySyncService
             'external_business_id' => $externalBusinessId,
             'cuit' => $cuit,
             'legal_name' => trim($business->name) !== '' ? $business->name : 'Comercio '.$business->id,
+            'fiscal_condition' => $this->fiscalCondition($payload['fiscal_condition'] ?? null),
             'environment' => $this->apiEnvironment($payload),
             'default_point_of_sale' => $this->intOrDefault(
                 $payload['fiscal_point_of_sale'] ?? null,
@@ -200,6 +203,15 @@ class FiscalCompanySyncService
         return in_array($mode, ['cae', 'caea', 'auto'], true)
             ? $mode
             : (string) config('fiscal.defaults.authorization_mode', 'cae');
+    }
+
+    private function fiscalCondition(mixed $value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        return in_array($value, ['monotributo', 'responsable_inscripto', 'exento'], true)
+            ? $value
+            : (string) config('fiscal.defaults.fiscal_condition', 'monotributo');
     }
 
     private function apiError(array $response): ?object

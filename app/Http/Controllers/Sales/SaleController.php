@@ -136,6 +136,11 @@ class SaleController extends Controller
                 ->values()
                 ->all(),
             'advanced_sale_settings' => $this->advancedSaleSettingsPayload($business),
+            'fiscal' => [
+                'enabled' => (bool) config('fiscal.enabled') && $business->hasElectronicBilling(),
+                'issuer_condition' => $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+                'receiver_iva_conditions' => config('fiscal.receiver_iva_conditions', []),
+            ],
             'receipt_feature_available' => $this->saleReceiptsAvailable(),
         ]);
     }
@@ -244,6 +249,7 @@ class SaleController extends Controller
                 'sale_sector' => $sale->saleSector?->name,
                 'payment_destination' => $sale->paymentDestination?->name,
                 'customer' => $sale->customer?->name,
+                'fiscal_customer' => $sale->fiscal_customer,
                 'amount_received' => (float) ($sale->amount_received ?? 0),
                 'change_amount' => (float) ($sale->change_amount ?? 0),
                 'paid_amount' => (float) $sale->paid_amount,

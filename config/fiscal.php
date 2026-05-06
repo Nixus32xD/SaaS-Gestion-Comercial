@@ -18,6 +18,7 @@ return [
 
     'defaults' => [
         'point_of_sale' => (int) env('FISCAL_DEFAULT_POINT_OF_SALE', 2),
+        'fiscal_condition' => env('FISCAL_DEFAULT_CONDITION', 'monotributo'),
         'document_type' => env('FISCAL_DEFAULT_DOCUMENT_TYPE', 'invoice_c'),
         'cbte_type' => (int) env('FISCAL_DEFAULT_CBTE_TYPE', 11),
         'concept' => (int) env('FISCAL_DEFAULT_CONCEPT', 1),
@@ -36,6 +37,19 @@ return [
     'environments' => [
         ['value' => 'testing', 'label' => 'Testing'],
         ['value' => 'production', 'label' => 'Produccion'],
+    ],
+
+    'fiscal_conditions' => [
+        ['value' => 'monotributo', 'label' => 'Monotributista'],
+        ['value' => 'responsable_inscripto', 'label' => 'Responsable Inscripto'],
+        ['value' => 'exento', 'label' => 'IVA Exento'],
+    ],
+
+    'receiver_iva_conditions' => [
+        ['value' => 'consumidor_final', 'label' => 'Consumidor Final'],
+        ['value' => 'responsable_inscripto', 'label' => 'Responsable Inscripto'],
+        ['value' => 'monotributo', 'label' => 'Monotributista'],
+        ['value' => 'exento', 'label' => 'IVA Exento'],
     ],
 
     'document_types' => [

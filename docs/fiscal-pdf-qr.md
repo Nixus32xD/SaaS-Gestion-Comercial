@@ -17,7 +17,7 @@ Campos usados:
 - `nroCmp`: `sale_fiscal_documents.fiscal_number`.
 - `importe`: `sales.total`.
 - `moneda` y `ctz`: payload fiscal o defaults de `config/fiscal.php`.
-- `tipoDocRec` y `nroDocRec`: `fiscal_payload.customer`, con Consumidor Final `99/0` por defecto.
+- `tipoDocRec` y `nroDocRec`: `fiscal_payload.customer`, soportando el formato nuevo (`document_type`/`document_number`) y el legacy (`doc_type`/`doc_number`), con Consumidor Final `99/0` por defecto.
 - `tipoCodAut`: `CAE => E`, `CAEA => A`.
 - `codAut`: `authorization_code` o `fiscal_cae`.
 

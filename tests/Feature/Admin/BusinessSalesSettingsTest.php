@@ -59,6 +59,7 @@ test('superadmin can configure fiscal cuit for a business', function () {
             'fiscal_external_business_id' => 'empresa-demo-prod',
             'fiscal_environment' => 'production',
             'fiscal_cuit' => '30-71234567-1',
+            'fiscal_condition' => 'responsable_inscripto',
             'fiscal_point_of_sale' => 2,
             'fiscal_document_type' => 'invoice_c',
             'fiscal_cbte_type' => 11,
@@ -74,6 +75,7 @@ test('superadmin can configure fiscal cuit for a business', function () {
     expect($business->fiscal_external_business_id)->toBe('empresa-demo-prod');
     expect($business->fiscal_environment)->toBe('production');
     expect($business->fiscal_cuit)->toBe('30712345671');
+    expect($business->fiscal_condition)->toBe('responsable_inscripto');
     expect($business->fiscal_authorization_mode)->toBe('caea');
     expect($business->fiscal_activities)->toBe([492140]);
 });
@@ -104,6 +106,7 @@ test('enabling fiscal billing syncs the external fiscal company', function () {
             'fiscal_external_business_id' => 'empresa-demo-prod',
             'fiscal_environment' => 'production',
             'fiscal_cuit' => '30-71234567-1',
+            'fiscal_condition' => 'responsable_inscripto',
             'fiscal_point_of_sale' => 2,
             'fiscal_document_type' => 'invoice_c',
             'fiscal_cbte_type' => 11,
@@ -123,6 +126,7 @@ test('enabling fiscal billing syncs the external fiscal company', function () {
             && $payload['external_business_id'] === 'empresa-demo-prod'
             && $payload['cuit'] === '30712345671'
             && $payload['legal_name'] === 'Empresa Demo SA'
+            && $payload['fiscal_condition'] === 'responsable_inscripto'
             && $payload['environment'] === 'production'
             && $payload['default_point_of_sale'] === 2
             && $payload['default_voucher_type'] === 11
@@ -207,6 +211,7 @@ test('business edit exposes fiscal selects and point of sale options from fiscal
             ->where('fiscal_catalog.voucher_types.6.value', 11)
             ->where('fiscal_catalog.voucher_types.6.label', 'Factura C')
             ->where('fiscal_catalog.environments.0.value', 'testing')
+            ->where('fiscal_catalog.fiscal_conditions.0.value', 'monotributo')
             ->where('sales_settings.fiscal_environment', 'testing')
             ->where('sales_settings.fiscal_point_of_sale_options.status', 'ok')
             ->where('sales_settings.fiscal_point_of_sale_options.options.0.value', 2)

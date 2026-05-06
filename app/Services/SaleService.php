@@ -138,6 +138,7 @@ class SaleService
                 'user_id' => $user->id,
                 'sale_sector_id' => $saleSectorId,
                 'customer_id' => $customer?->id,
+                'fiscal_customer' => $payload['fiscal_customer'] ?? null,
                 'sale_number' => $this->documentNumberService->nextSaleNumber($business->id),
                 'payment_method' => $paymentMethod,
                 'payment_status' => $paymentStatus,
@@ -383,8 +384,7 @@ class SaleService
         array $payload,
         ?string $paymentMethod,
         float $paidAmount
-    ): array
-    {
+    ): array {
         if (! $business->hasAdvancedSaleSettings()) {
             return [null, null];
         }
