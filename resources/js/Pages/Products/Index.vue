@@ -421,6 +421,7 @@ onMounted(() => {
                     <div class="mt-3 grid gap-2 text-xs text-slate-400">
                         <p>Codigo: <span class="text-slate-200">{{ product.barcode || product.sku || '-' }}</span></p>
                         <p>Tipo: <span class="text-slate-200">{{ product.type_label }}</span></p>
+                        <p>IVA: <span class="text-slate-200">{{ product.vat_label || '-' }}</span></p>
                         <p>Stock: <span class="text-slate-200">{{ product.stock }} {{ product.quantity_label }}</span></p>
                         <p>Venta: <span class="text-slate-200">{{ money(product.sale_price) }} {{ product.price_label }}</span></p>
                     </div>
@@ -444,6 +445,7 @@ onMounted(() => {
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Codigo</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Tipo</th>
+                            <th class="px-3 py-2 text-left font-medium text-slate-300/80">IVA</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Stock</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Revision</th>
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80">Venta</th>
@@ -468,6 +470,7 @@ onMounted(() => {
                             </td>
                             <td class="px-3 py-2 text-slate-300">{{ product.barcode || product.sku || '-' }}</td>
                             <td class="px-3 py-2">{{ product.type_label }}</td>
+                            <td class="px-3 py-2 text-slate-300">{{ product.vat_label || '-' }}</td>
                             <td class="px-3 py-2">
                                 {{ product.stock }} {{ product.quantity_label }}
                                 <span v-if="Number(product.stock) <= 0" class="ml-1 rounded border border-rose-300/40 bg-rose-400/15 px-1.5 py-0.5 text-xs font-semibold text-rose-100">Sin stock</span>
@@ -500,7 +503,7 @@ onMounted(() => {
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="7" class="px-3 py-6 text-center text-slate-400">
+                            <td colspan="8" class="px-3 py-6 text-center text-slate-400">
                                 {{ hasAppliedFilters ? 'No hay productos que coincidan con los filtros actuales.' : 'No hay productos cargados.' }}
                             </td>
                         </tr>

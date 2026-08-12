@@ -142,6 +142,14 @@ class Business extends Model
     }
 
     /**
+     * @return HasMany<BusinessQuickSaleOption, $this>
+     */
+    public function quickSaleOptions(): HasMany
+    {
+        return $this->hasMany(BusinessQuickSaleOption::class);
+    }
+
+    /**
      * @return HasMany<Sale, $this>
      */
     public function sales(): HasMany

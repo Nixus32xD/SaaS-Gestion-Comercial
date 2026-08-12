@@ -9,6 +9,8 @@ const props = defineProps({
     setup: { type: Object, required: true },
     activities: { type: Array, default: () => [] },
     points_of_sale: { type: Array, default: () => [] },
+    diagnostics: { type: Object, default: () => ({}) },
+    iva_sales_book: { type: Object, default: () => ({}) },
     summary: { type: Object, required: true },
     documents: { type: Array, default: () => [] },
     can_manage_credentials: { type: Boolean, default: false },
@@ -102,24 +104,92 @@ const statusClass = (status) => {
     return toneClass('slate');
 };
 
+const diagnosticClass = (check) => {
+    if (check.ok) return toneClass('emerald');
+    if (check.skipped) return toneClass('amber');
+
+    return toneClass('rose');
+};
+
 const connectionTone = computed(() => (
     props.connection.ok ? 'emerald' : (props.connection.status === 'uncertain' ? 'amber' : 'rose')
 ));
 
 const setupTone = computed(() => (props.setup.ready ? 'emerald' : 'amber'));
+const diagnosticsTone = computed(() => {
+    if (!props.diagnostics.requested) return 'cyan';
+    if (props.diagnostics.ok) return 'emerald';
+    if (props.diagnostics.status === 'offline' || props.diagnostics.status === 'error') return 'rose';
+
+    return 'amber';
+});
+const diagnosticsLabel = computed(() => {
+    if (!props.diagnostics.requested) return 'No ejecutado';
+    if (props.diagnostics.ok) return 'Sin errores';
+    if (props.diagnostics.status === 'offline') return 'API no disponible';
+    if (props.diagnostics.status === 'error') return 'Error';
+
+    return 'Revisar';
+});
+const diagnosticRows = computed(() => (
+    Array.isArray(props.diagnostics.checks) ? props.diagnostics.checks : []
+));
+const ivaSalesBook = computed(() => props.iva_sales_book || {});
+const ivaMonth = ref(props.iva_sales_book?.period?.month || new Date().toISOString().slice(0, 7));
+const ivaBookTone = computed(() => {
+    if (!ivaSalesBook.value.requested) return 'cyan';
+    if (ivaSalesBook.value.ok) return 'emerald';
+    if (ivaSalesBook.value.status === 'offline' || ivaSalesBook.value.status === 'error') return 'rose';
+
+    return 'amber';
+});
+const ivaBookLabel = computed(() => {
+    if (!ivaSalesBook.value.requested) return 'Sin cargar';
+    if (ivaSalesBook.value.ok) return 'Cargado';
+    if (ivaSalesBook.value.status === 'offline') return 'API no disponible';
+    if (ivaSalesBook.value.status === 'error') return 'Error';
+
+    return 'Revisar';
+});
+const ivaRecords = computed(() => (
+    Array.isArray(ivaSalesBook.value.records) ? ivaSalesBook.value.records : []
+));
+const ivaAliquots = computed(() => (
+    Array.isArray(ivaSalesBook.value.totals?.iva_by_aliquot)
+        ? ivaSalesBook.value.totals.iva_by_aliquot
+        : []
+));
 const fiscalCuitLabel = computed(() => formatCuit(props.configuration.fiscal_cuit));
+
+const voucherTypeName = (type) => {
+    const labels = {
+        1: 'Factura A',
+        2: 'Nota debito A',
+        3: 'Nota credito A',
+        6: 'Factura B',
+        7: 'Nota debito B',
+        8: 'Nota credito B',
+        11: 'Factura C',
+        12: 'Nota debito C',
+        13: 'Nota credito C',
+    };
+
+    return labels[Number(type)] || `Comprobante ${type || '-'}`;
+};
 
 const voucherLabel = (document) => {
     if (!document.point_of_sale || !document.number) {
         return '-';
     }
 
-    const typeLabel = Number(document.cbte_type) === 11 ? 'Factura C' : `Comprobante ${document.cbte_type}`;
+    const typeLabel = voucherTypeName(document.cbte_type);
     const pointOfSale = String(document.point_of_sale).padStart(5, '0');
     const number = String(document.number).padStart(8, '0');
 
     return `${typeLabel} ${pointOfSale}-${number}`;
 };
+
+const ivaRateLabel = (rate) => `${Number(rate || 0).toLocaleString('es-AR')}%`;
 
 const authorizationTypeLabel = (document) => (
     document.authorization_type || (document.cae ? 'CAE' : '-')
@@ -291,6 +361,25 @@ const downloadCsr = () => {
     URL.revokeObjectURL(url);
 };
 
+const loadIvaSalesBook = () => {
+    router.get(route('electronic-billing.index'), {
+        iva_month: ivaMonth.value,
+        load_iva_sales: 1,
+    }, {
+        preserveScroll: true,
+        preserveState: false,
+    });
+};
+
+const hideIvaSalesBook = () => {
+    router.get(route('electronic-billing.index'), {
+        iva_month: ivaMonth.value,
+    }, {
+        preserveScroll: true,
+        preserveState: false,
+    });
+};
+
 const retryDocument = (document) => {
     if (!window.confirm('Reintentar emision fiscal para esta venta?')) return;
 
@@ -424,6 +513,54 @@ const reconcileDocument = (document) => {
                             <dd class="mt-1 font-semibold text-slate-100">{{ setup.message }}</dd>
                         </div>
                     </dl>
+
+                    <div class="mt-5 rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h4 class="text-sm font-semibold text-slate-100">Diagnostico API</h4>
+                                <p class="mt-1 text-sm text-slate-300/80">{{ diagnostics.message || 'Validacion profunda de credencial, WSAA y WSFEv1.' }}</p>
+                            </div>
+                            <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(diagnosticsTone)">
+                                {{ diagnosticsLabel }}
+                            </span>
+                        </div>
+
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <Link
+                                :href="route('electronic-billing.index', { run_diagnostics: 1 })"
+                                class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                                preserve-scroll
+                            >
+                                Ejecutar diagnostico
+                            </Link>
+                            <Link
+                                v-if="diagnostics.requested"
+                                :href="route('electronic-billing.index')"
+                                class="rounded-lg border border-cyan-100/20 px-4 py-2 text-sm font-semibold text-slate-400 hover:bg-slate-800/60"
+                                preserve-scroll
+                            >
+                                Ocultar
+                            </Link>
+                        </div>
+
+                        <div v-if="diagnosticRows.length" class="mt-4 grid gap-2">
+                            <article
+                                v-for="check in diagnosticRows"
+                                :key="check.key"
+                                class="rounded-lg border px-3 py-2 text-sm"
+                                :class="diagnosticClass(check)"
+                            >
+                                <div class="flex flex-wrap items-start justify-between gap-2">
+                                    <p class="font-semibold">{{ check.label }}</p>
+                                    <span class="text-xs font-semibold">
+                                        {{ check.ok ? 'OK' : (check.skipped ? 'Omitido' : 'Revisar') }}
+                                    </span>
+                                </div>
+                                <p v-if="check.message" class="mt-1 text-xs opacity-90">{{ check.message }}</p>
+                                <p v-if="check.error_code" class="mt-1 text-xs opacity-80">Codigo: {{ check.error_code }}</p>
+                            </article>
+                        </div>
+                    </div>
                 </article>
             </section>
 
@@ -647,6 +784,121 @@ const reconcileDocument = (document) => {
                         <dd class="mt-1 font-semibold text-slate-100">{{ compactList(configuration.activities || []) }}</dd>
                     </div>
                 </dl>
+            </section>
+
+            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-100">Libro IVA Ventas</h3>
+                        <p class="mt-1 text-sm text-slate-300/80">{{ ivaSalesBook.message || 'Consulta fiscal mensual desde la API.' }}</p>
+                    </div>
+                    <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(ivaBookTone)">
+                        {{ ivaBookLabel }}
+                    </span>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-end gap-3">
+                    <label class="grid gap-1 text-sm text-slate-300">
+                        <span class="text-xs uppercase tracking-[0.18em] text-slate-400">Periodo</span>
+                        <input
+                            v-model="ivaMonth"
+                            type="month"
+                            class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-200/60"
+                        >
+                    </label>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                        @click="loadIvaSalesBook"
+                    >
+                        Cargar libro
+                    </button>
+                    <button
+                        v-if="ivaSalesBook.requested"
+                        type="button"
+                        class="rounded-lg border border-cyan-100/20 px-4 py-2 text-sm font-semibold text-slate-400 hover:bg-slate-800/60"
+                        @click="hideIvaSalesBook"
+                    >
+                        Ocultar
+                    </button>
+                </div>
+
+                <div v-if="ivaSalesBook.requested" class="mt-5">
+                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <div class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Total</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ money(ivaSalesBook.totals?.imp_total) }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Neto</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ money(ivaSalesBook.totals?.imp_neto) }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-slate-400">IVA debito</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ money(ivaSalesBook.totals?.imp_iva) }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-slate-400">Exento</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ money(ivaSalesBook.totals?.imp_op_ex) }}</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4">
+                            <p class="text-xs uppercase tracking-[0.18em] text-slate-400">No gravado</p>
+                            <p class="mt-2 text-lg font-semibold text-slate-100">{{ money(ivaSalesBook.totals?.imp_tot_conc) }}</p>
+                        </div>
+                    </div>
+
+                    <div v-if="ivaAliquots.length" class="mt-4 flex flex-wrap gap-2">
+                        <span
+                            v-for="item in ivaAliquots"
+                            :key="item.id"
+                            class="rounded-lg border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-xs font-semibold text-slate-200"
+                        >
+                            IVA {{ ivaRateLabel(item.rate) }}: {{ money(item.importe) }} sobre {{ money(item.base_imp) }}
+                        </span>
+                    </div>
+
+                    <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-950/35">
+                                <tr>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">Fecha</th>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">Comprobante</th>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cliente</th>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">Total</th>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">Neto</th>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">IVA</th>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">Alicuotas</th>
+                                </tr>
+                            </thead>
+                            <tbody v-if="ivaRecords.length" class="divide-y divide-slate-100">
+                                <tr v-for="record in ivaRecords" :key="record.id || `${record.cbte_type}-${record.point_of_sale}-${record.number}`">
+                                    <td class="px-3 py-2 text-slate-300">{{ record.voucher_date || '-' }}</td>
+                                    <td class="px-3 py-2 text-slate-200">{{ voucherLabel(record) }}</td>
+                                    <td class="px-3 py-2 text-slate-300">
+                                        <span>{{ record.counterparty_name || 'Consumidor final' }}</span>
+                                        <p v-if="record.counterparty_cuit" class="mt-1 text-xs text-slate-400">{{ formatCuit(record.counterparty_cuit) }}</p>
+                                    </td>
+                                    <td class="px-3 py-2 text-slate-200">{{ money(record.amounts?.imp_total) }}</td>
+                                    <td class="px-3 py-2 text-slate-200">{{ money(record.amounts?.imp_neto) }}</td>
+                                    <td class="px-3 py-2 text-slate-200">{{ money(record.amounts?.imp_iva) }}</td>
+                                    <td class="px-3 py-2 text-slate-300">
+                                        <template v-if="record.iva_items?.length">
+                                            <span v-for="item in record.iva_items" :key="item.id" class="block text-xs">
+                                                {{ ivaRateLabel(item.rate) }}: {{ money(item.importe) }}
+                                            </span>
+                                        </template>
+                                        <span v-else>-</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tbody v-else>
+                                <tr>
+                                    <td colspan="7" class="px-3 py-6 text-center text-slate-400">Sin comprobantes autorizados para el periodo.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">

@@ -50,7 +50,62 @@ test('sale decrements stock and stores business on items', function () {
     expect($sale->payment_method)->toBe('cash');
     expect((float) $sale->amount_received)->toBe(7000.0);
     expect((float) $sale->change_amount)->toBe(1000.0);
+    expect((float) $sale->fiscal_net_amount)->toBe(6000.0);
+    expect((float) $sale->fiscal_vat_amount)->toBe(0.0);
     expect($item->business_id)->toBe($business->id);
+    expect((float) $item->gross_amount)->toBe(6000.0);
+    expect((float) $item->vat_amount)->toBe(0.0);
+});
+
+test('responsable inscripto sale stores fiscal vat breakdown', function () {
+    $business = Business::factory()->create([
+        'fiscal_condition' => 'responsable_inscripto',
+    ]);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Producto gravado',
+        'slug' => 'producto-gravado',
+        'unit_type' => 'unit',
+        'sale_price' => 1210,
+        'cost_price' => 700,
+        'vat_treatment' => 'gravado',
+        'vat_rate' => 21,
+        'stock' => 10,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->post('/sales', [
+            'payment_method' => 'cash',
+            'amount_received' => 1210,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 1210,
+                ],
+            ],
+        ]);
+
+    $response->assertSessionHasNoErrors();
+    $response->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+    $item = SaleItem::query()->firstOrFail();
+
+    expect((float) $sale->total)->toBe(1210.0);
+    expect((float) $sale->fiscal_net_amount)->toBe(1000.0);
+    expect((float) $sale->fiscal_vat_amount)->toBe(210.0);
+    expect((float) $sale->fiscal_exempt_amount)->toBe(0.0);
+    expect((float) $sale->fiscal_non_taxed_amount)->toBe(0.0);
+    expect($item->vat_treatment)->toBe('gravado');
+    expect((float) $item->vat_rate)->toBe(21.0);
+    expect((float) $item->net_amount)->toBe(1000.0);
+    expect((float) $item->vat_amount)->toBe(210.0);
+    expect((float) $item->gross_amount)->toBe(1210.0);
 });
 
 test('sale fails when stock is insufficient', function () {
@@ -223,9 +278,11 @@ test('sale can include manual items without affecting stock', function () {
                 ],
                 [
                     'product_id' => null,
-                    'product_name' => 'Verdura suelta',
+                    'product_name' => 'Material fraccionado',
                     'quantity' => 1,
                     'unit_price' => 3200,
+                    'vat_treatment' => 'gravado',
+                    'vat_rate' => 10.5,
                 ],
             ],
         ])
@@ -239,8 +296,10 @@ test('sale can include manual items without affecting stock', function () {
     expect((float) $sale->change_amount)->toBe(800.0);
     expect($product->fresh()->stock)->toBe('8.000');
     expect($manualItem->business_id)->toBe($business->id);
-    expect($manualItem->product_name)->toBe('Verdura suelta');
+    expect($manualItem->product_name)->toBe('Material fraccionado');
     expect((float) $manualItem->subtotal)->toBe(3200.0);
+    expect($manualItem->vat_treatment)->toBe('gravado');
+    expect((float) $manualItem->vat_rate)->toBe(10.5);
     expect(StockMovement::query()->count())->toBe(1);
 });
 

@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Supplier;
+use App\Services\Fiscal\FiscalVatCalculator;
 use App\Services\PurchaseService;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
@@ -18,7 +19,10 @@ use Inertia\Response;
 
 class PurchaseController extends Controller
 {
-    public function __construct(private readonly PurchaseService $purchaseService) {}
+    public function __construct(
+        private readonly PurchaseService $purchaseService,
+        private readonly FiscalVatCalculator $vatCalculator,
+    ) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
     {
@@ -101,6 +105,8 @@ class PurchaseController extends Controller
                     'stock',
                     'cost_price',
                     'sale_price',
+                    'vat_treatment',
+                    'vat_rate',
                     'shelf_life_days',
                     'expiry_alert_days',
                 ])
@@ -121,11 +127,22 @@ class PurchaseController extends Controller
                     'stock' => (float) $product->stock,
                     'cost_price' => (float) $product->cost_price,
                     'sale_price' => (float) $product->sale_price,
+                    'vat_treatment' => $product->vat_treatment,
+                    'vat_rate' => (float) $product->vat_rate,
+                    'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
                     'shelf_life_days' => $product->shelf_life_days,
                     'expiry_alert_days' => $product->expiry_alert_days,
                 ]),
             'global_catalog' => [
                 'enabled' => $business->hasGlobalProductCatalog(),
+            ],
+            'vat_options' => [
+                'treatments' => config('fiscal.vat_treatments', []),
+                'rates' => config('fiscal.vat_rates', []),
+                'defaults' => [
+                    'treatment' => config('fiscal.defaults.vat_treatment', 'gravado'),
+                    'rate' => (float) config('fiscal.defaults.vat_rate', 21),
+                ],
             ],
         ]);
     }

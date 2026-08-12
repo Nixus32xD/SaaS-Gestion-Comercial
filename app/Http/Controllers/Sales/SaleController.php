@@ -7,12 +7,14 @@ use App\Http\Requests\Sales\StoreSaleReceiptRequest;
 use App\Http\Requests\Sales\StoreSaleRequest;
 use App\Models\Business;
 use App\Models\BusinessFeature;
+use App\Models\BusinessQuickSaleOption;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalSaleDocumentService;
+use App\Services\Fiscal\FiscalVatCalculator;
 use App\Services\SaleReceiptService;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
@@ -36,6 +38,7 @@ class SaleController extends Controller
         private readonly FiscalSaleDocumentService $fiscalSaleDocumentService,
         private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
         private readonly SaleReceiptService $saleReceiptService,
+        private readonly FiscalVatCalculator $vatCalculator,
     ) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
@@ -136,6 +139,9 @@ class SaleController extends Controller
                 ->values()
                 ->all(),
             'advanced_sale_settings' => $this->advancedSaleSettingsPayload($business),
+            'quick_sale_options' => $this->quickSaleOptionsPayload($business),
+            'can_manage_quick_sale_options' => request()->user()?->isBusinessAdmin() ?? false,
+            'vat_options' => $this->vatOptions(),
             'fiscal' => [
                 'enabled' => (bool) config('fiscal.enabled') && $business->hasElectronicBilling(),
                 'issuer_condition' => $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
@@ -257,6 +263,10 @@ class SaleController extends Controller
                 'subtotal' => (float) $sale->subtotal,
                 'discount' => (float) $sale->discount,
                 'total' => (float) $sale->total,
+                'fiscal_net_amount' => (float) $sale->fiscal_net_amount,
+                'fiscal_vat_amount' => (float) $sale->fiscal_vat_amount,
+                'fiscal_exempt_amount' => (float) $sale->fiscal_exempt_amount,
+                'fiscal_non_taxed_amount' => (float) $sale->fiscal_non_taxed_amount,
                 'notes' => $sale->notes,
                 'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
                 'user' => $sale->user?->name,
@@ -273,6 +283,12 @@ class SaleController extends Controller
                     'quantity' => (float) $item->quantity,
                     'unit_price' => (float) $item->unit_price,
                     'subtotal' => (float) $item->subtotal,
+                    'vat_treatment' => $item->vat_treatment,
+                    'vat_rate' => (float) $item->vat_rate,
+                    'vat_label' => $this->vatCalculator->treatmentLabel($item->vat_treatment, (float) $item->vat_rate),
+                    'net_amount' => (float) $item->net_amount,
+                    'vat_amount' => (float) $item->vat_amount,
+                    'gross_amount' => (float) $item->gross_amount,
                     'quantity_label' => $item->product_id === null
                         ? 'sin stock'
                         : ProductMeasurement::quantityLabel($item->product?->unit_type, $item->product?->weight_unit),
@@ -378,6 +394,10 @@ class SaleController extends Controller
                 'subtotal' => (float) $sale->subtotal,
                 'discount' => (float) $sale->discount,
                 'total' => (float) $sale->total,
+                'fiscal_net_amount' => (float) $sale->fiscal_net_amount,
+                'fiscal_vat_amount' => (float) $sale->fiscal_vat_amount,
+                'fiscal_exempt_amount' => (float) $sale->fiscal_exempt_amount,
+                'fiscal_non_taxed_amount' => (float) $sale->fiscal_non_taxed_amount,
                 'notes' => $sale->notes,
                 'sold_at' => $sale->sold_at?->format('Y-m-d H:i'),
                 'user' => $sale->user?->name,
@@ -389,6 +409,10 @@ class SaleController extends Controller
                     'quantity' => (float) $item->quantity,
                     'unit_price' => (float) $item->unit_price,
                     'subtotal' => (float) $item->subtotal,
+                    'vat_label' => $this->vatCalculator->treatmentLabel($item->vat_treatment, (float) $item->vat_rate),
+                    'net_amount' => (float) $item->net_amount,
+                    'vat_amount' => (float) $item->vat_amount,
+                    'gross_amount' => (float) $item->gross_amount,
                     'quantity_label' => $item->product_id === null
                         ? 'sin stock'
                         : ProductMeasurement::quantityLabel($item->product?->unit_type, $item->product?->weight_unit),
@@ -534,6 +558,110 @@ class SaleController extends Controller
                 'reference' => $destination->reference,
                 'account_number' => $destination->account_number,
             ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function quickSaleOptionsPayload(Business $business): array
+    {
+        $business->load([
+            'quickSaleOptions' => fn ($query) => $query
+                ->select([
+                    'id',
+                    'business_id',
+                    'name',
+                    'description',
+                    'default_amount',
+                    'vat_treatment',
+                    'vat_rate',
+                    'position',
+                    'is_active',
+                ])
+                ->active()
+                ->ordered(),
+        ]);
+
+        $customOptions = $business->quickSaleOptions
+            ->map(fn (BusinessQuickSaleOption $option): array => $this->mapQuickSaleOption($option))
+            ->values()
+            ->all();
+
+        return [
+            ...$this->defaultQuickSaleOptionsPayload(),
+            ...$customOptions,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function defaultQuickSaleOptionsPayload(): array
+    {
+        $defaultTreatment = (string) config('fiscal.defaults.vat_treatment', 'gravado');
+        $defaultRate = (float) config('fiscal.defaults.vat_rate', 21);
+
+        return collect([
+            [
+                'name' => 'Producto sin stock',
+                'description' => 'Producto suelto o de mostrador no cargado en catalogo.',
+            ],
+            [
+                'name' => 'Servicio / mano de obra',
+                'description' => 'Trabajo, instalacion o servicio puntual.',
+            ],
+            [
+                'name' => 'Material fraccionado',
+                'description' => 'Metro, litro, tornilleria, aceite u otro insumo a granel.',
+            ],
+            [
+                'name' => 'Otro concepto',
+                'description' => 'Recargo, diferencia o concepto operativo puntual.',
+            ],
+        ])->map(fn (array $option, int $index): array => [
+            'id' => null,
+            'key' => 'default-'.$index,
+            'name' => $option['name'],
+            'description' => $option['description'],
+            'default_amount' => null,
+            'vat_treatment' => $this->vatCalculator->normalizeTreatment($defaultTreatment),
+            'vat_rate' => $this->vatCalculator->normalizeRate($defaultRate),
+            'vat_label' => $this->vatCalculator->treatmentLabel($defaultTreatment, $defaultRate),
+            'is_default' => true,
+        ])->values()->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapQuickSaleOption(BusinessQuickSaleOption $option): array
+    {
+        return [
+            'id' => $option->id,
+            'key' => 'option-'.$option->id,
+            'name' => $option->name,
+            'description' => $option->description,
+            'default_amount' => $option->default_amount !== null ? (float) $option->default_amount : null,
+            'vat_treatment' => $option->vat_treatment,
+            'vat_rate' => (float) $option->vat_rate,
+            'vat_label' => $this->vatCalculator->treatmentLabel($option->vat_treatment, (float) $option->vat_rate),
+            'is_default' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function vatOptions(): array
+    {
+        return [
+            'treatments' => config('fiscal.vat_treatments', []),
+            'rates' => config('fiscal.vat_rates', []),
+            'defaults' => [
+                'treatment' => config('fiscal.defaults.vat_treatment', 'gravado'),
+                'rate' => (float) config('fiscal.defaults.vat_rate', 21),
+            ],
         ];
     }
 
@@ -762,6 +890,8 @@ class SaleController extends Controller
                 'unit_type',
                 'weight_unit',
                 'sale_price',
+                'vat_treatment',
+                'vat_rate',
                 'stock',
             ])
             ->limit($limit)
@@ -819,6 +949,9 @@ class SaleController extends Controller
             'quantity_step' => ProductMeasurement::quantityStep($product->unit_type, $product->weight_unit),
             'quantity_min' => ProductMeasurement::quantityMin($product->unit_type, $product->weight_unit),
             'sale_price' => (float) $product->sale_price,
+            'vat_treatment' => $product->vat_treatment,
+            'vat_rate' => (float) $product->vat_rate,
+            'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
             'stock' => (float) $product->stock,
         ];
     }

@@ -121,6 +121,8 @@ test('electronic billing module shows fiscal api status and recent documents whe
             ->where('setup.credential.id', 17)
             ->where('setup.credential.csr_generated', true)
             ->where('setup.credential.certificate_loaded', true)
+            ->where('diagnostics.requested', false)
+            ->where('iva_sales_book.requested', false)
             ->where('can_manage_credentials', true)
             ->where('summary.authorized', 1)
             ->where('documents.0.status', SaleFiscalDocument::STATUS_AUTHORIZED)
@@ -129,6 +131,162 @@ test('electronic billing module shows fiscal api status and recent documents whe
 
     Http::assertSentCount(3);
     Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer testing-fiscal-token'));
+});
+
+test('electronic billing module runs fiscal api diagnostics only when requested', function () {
+    $this->withoutVite();
+
+    [, $admin] = electronicBillingBusinessFixture();
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/status' => Http::response([
+            'data' => [
+                'ready' => true,
+                'status_label' => 'Listo',
+                'environment' => 'testing',
+                'message' => 'Empresa fiscal operativa.',
+                'credential' => [
+                    'configured' => true,
+                    'active' => true,
+                    'csr_generated' => true,
+                    'certificate_loaded' => true,
+                ],
+            ],
+        ]),
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/activities' => Http::response([
+            'data' => ['activities' => []],
+        ]),
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/points-of-sale' => Http::response([
+            'data' => ['points_of_sale' => []],
+        ]),
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/diagnostics' => Http::response([
+            'data' => [
+                'ok' => false,
+                'environment' => 'testing',
+                'checks' => [
+                    'company' => [
+                        'ok' => true,
+                        'message' => 'Empresa fiscal habilitada.',
+                    ],
+                    'credential' => [
+                        'ok' => false,
+                        'message' => 'Falta credencial activa.',
+                        'error_code' => 'credentials_missing',
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->get(route('electronic-billing.index', ['run_diagnostics' => 1]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Fiscal/Index')
+            ->where('diagnostics.requested', true)
+            ->where('diagnostics.ok', false)
+            ->where('diagnostics.status', 'warning')
+            ->where('diagnostics.checks.0.key', 'company')
+            ->where('diagnostics.checks.0.ok', true)
+            ->where('diagnostics.checks.1.key', 'credential')
+            ->where('diagnostics.checks.1.error_code', 'credentials_missing')
+        );
+
+    Http::assertSentCount(4);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/diagnostics'
+        && $request->method() === 'GET');
+});
+
+test('electronic billing module loads iva sales book when requested', function () {
+    $this->withoutVite();
+
+    [, $admin] = electronicBillingBusinessFixture();
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/status' => Http::response([
+            'data' => [
+                'ready' => true,
+                'status_label' => 'Listo',
+                'environment' => 'testing',
+                'message' => 'Empresa fiscal operativa.',
+                'credential' => [
+                    'configured' => true,
+                    'active' => true,
+                    'csr_generated' => true,
+                    'certificate_loaded' => true,
+                ],
+            ],
+        ]),
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/activities' => Http::response([
+            'data' => ['activities' => []],
+        ]),
+        'http://127.0.0.1:8000/api/fiscal/companies/empresa-demo-prod/points-of-sale' => Http::response([
+            'data' => ['points_of_sale' => []],
+        ]),
+        'http://127.0.0.1:8000/api/fiscal/documents/iva-sales*' => Http::response([
+            'data' => [
+                'period' => [
+                    'date_from' => '2026-04-01',
+                    'date_to' => '2026-04-30',
+                ],
+                'records' => [
+                    [
+                        'id' => 10,
+                        'voucher_date' => '2026-04-21',
+                        'cbte_type' => 1,
+                        'point_of_sale' => 2,
+                        'number' => 7,
+                        'counterparty_name' => 'Cliente SA',
+                        'counterparty_cuit' => '30712345671',
+                        'amounts' => [
+                            'imp_total' => '121.00',
+                            'imp_neto' => '100.00',
+                            'imp_iva' => '21.00',
+                        ],
+                        'iva_items' => [
+                            ['id' => 5, 'rate' => '21.00', 'base_imp' => '100.00', 'importe' => '21.00'],
+                        ],
+                    ],
+                ],
+                'totals' => [
+                    'imp_total' => '121.00',
+                    'imp_neto' => '100.00',
+                    'imp_iva' => '21.00',
+                    'iva_by_aliquot' => [
+                        ['id' => 5, 'rate' => '21.00', 'base_imp' => '100.00', 'importe' => '21.00'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->get(route('electronic-billing.index', [
+            'load_iva_sales' => 1,
+            'iva_month' => '2026-04',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Fiscal/Index')
+            ->where('iva_sales_book.requested', true)
+            ->where('iva_sales_book.ok', true)
+            ->where('iva_sales_book.period.month', '2026-04')
+            ->where('iva_sales_book.period.date_from', '2026-04-01')
+            ->where('iva_sales_book.period.date_to', '2026-04-30')
+            ->where('iva_sales_book.records.0.counterparty_name', 'Cliente SA')
+            ->where('iva_sales_book.records.0.amounts.imp_iva', 21)
+            ->where('iva_sales_book.totals.imp_total', 121)
+            ->where('iva_sales_book.totals.iva_by_aliquot.0.id', 5)
+        );
+
+    Http::assertSentCount(4);
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'http://127.0.0.1:8000/api/fiscal/documents/iva-sales')
+        && str_contains($request->url(), 'business_id=empresa-demo-prod')
+        && str_contains($request->url(), 'date_from=2026-04-01')
+        && str_contains($request->url(), 'date_to=2026-04-30')
+        && $request->method() === 'GET');
 });
 
 test('business admin generates fiscal credential csr through fiscal api proxy', function () {
@@ -171,6 +329,26 @@ test('business admin generates fiscal credential csr through fiscal api proxy', 
         && $request->hasHeader('Authorization', 'Bearer testing-fiscal-token')
         && $request->data()['key_name'] === 'empresa-demo.key'
         && ! array_key_exists('private_key', $request->data()));
+});
+
+test('business admin csr key name validation matches fiscal api contract', function () {
+    $this->withoutVite();
+
+    [, $admin] = electronicBillingBusinessFixture();
+
+    Http::fake();
+
+    $this
+        ->actingAs($admin)
+        ->post(route('electronic-billing.credentials.csr'), [
+            'key_name' => '.empresa-demo.key',
+            'common_name' => str_repeat('a', 65),
+            'organization_name' => 'Empresa Demo SA',
+            'country_name' => 'AR',
+        ])
+        ->assertSessionHasErrors(['key_name', 'common_name']);
+
+    Http::assertNothingSent();
 });
 
 test('business admin uploads fiscal certificate through fiscal api proxy without local storage', function () {

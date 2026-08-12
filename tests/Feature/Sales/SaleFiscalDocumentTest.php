@@ -249,6 +249,8 @@ test('sale creation sends fiscal receiver data to API in auto invoice mode', fun
         'iva_condition' => 'responsable_inscripto',
         'address' => 'Av. Fiscal 123',
     ]);
+    expect((float) $sale->fiscal_net_amount)->toBe(826.45);
+    expect((float) $sale->fiscal_vat_amount)->toBe(173.55);
 
     Http::assertSent(function (Request $request): bool {
         $payload = $request->data();
@@ -259,7 +261,14 @@ test('sale creation sends fiscal receiver data to API in auto invoice mode', fun
             && $payload['customer']['document_type'] === 'CUIT'
             && $payload['customer']['document_number'] === '30712345671'
             && $payload['customer']['iva_condition'] === 'responsable_inscripto'
-            && $payload['customer']['address'] === 'Av. Fiscal 123';
+            && $payload['customer']['address'] === 'Av. Fiscal 123'
+            && $payload['amounts']['imp_total'] === 1000.0
+            && abs((float) $payload['amounts']['imp_neto'] - 826.45) < 0.001
+            && abs((float) $payload['amounts']['imp_iva'] - 173.55) < 0.001
+            && data_get($payload, 'amounts.iva_items.0.id') === 5
+            && data_get($payload, 'amounts.iva_items.0.rate') === 21.0
+            && abs((float) data_get($payload, 'amounts.iva_items.0.base_imp') - 826.45) < 0.001
+            && abs((float) data_get($payload, 'amounts.iva_items.0.importe') - 173.55) < 0.001;
     });
 
     expect(SaleFiscalDocument::query()->firstOrFail()->fiscal_cbte_type)->toBe(1);
@@ -760,6 +769,7 @@ test('sale fiscal payload is generated from sale data', function () {
             && $payload['amounts']['imp_total'] === 54562.74
             && $payload['amounts']['imp_neto'] === 54562.74
             && $payload['amounts']['imp_iva'] === 0.0
+            && $payload['amounts']['iva_items'] === []
             && $payload['currency'] === 'PES'
             && $payload['currency_rate'] === 1.0
             && $payload['service_dates']['from'] === '2026-04-21'

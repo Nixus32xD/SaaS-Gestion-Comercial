@@ -9,6 +9,8 @@ use App\Support\ProductMeasurement;
 
 class FiscalSalePayloadBuilder
 {
+    public function __construct(private readonly FiscalVatCalculator $vatCalculator) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -38,7 +40,7 @@ class FiscalSalePayloadBuilder
             'authorization_mode' => $authorizationMode,
             'authorization_type' => $authorizationMode === 'caea' ? 'CAEA' : 'CAE',
             'customer' => $this->customer($sale),
-            'amounts' => $this->amounts($sale),
+            'amounts' => $this->amounts($sale, $business),
             'currency' => (string) config('fiscal.defaults.currency', 'PES'),
             'currency_rate' => (float) config('fiscal.defaults.currency_rate', 1),
             'items' => $sale->items
@@ -148,18 +150,19 @@ class FiscalSalePayloadBuilder
     /**
      * @return array<string, float>
      */
-    private function amounts(Sale $sale): array
+    private function amounts(Sale $sale, Business $business): array
     {
-        $total = round((float) $sale->total, 2);
+        $breakdown = $this->vatCalculator->saleBreakdown(
+            $sale->items->map(fn (SaleItem $item): array => [
+                'gross_amount' => $item->subtotal,
+                'vat_treatment' => $item->vat_treatment ?: $item->product?->vat_treatment,
+                'vat_rate' => $item->vat_rate ?: $item->product?->vat_rate,
+            ]),
+            (float) $sale->discount,
+            $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+        );
 
-        return [
-            'imp_total' => $total,
-            'imp_neto' => $total,
-            'imp_iva' => 0.0,
-            'imp_trib' => 0.0,
-            'imp_op_ex' => 0.0,
-            'imp_tot_conc' => 0.0,
-        ];
+        return $breakdown['totals'];
     }
 
     /**
@@ -177,6 +180,11 @@ class FiscalSalePayloadBuilder
                 : $this->unitLabel($product->unit_type, $product->weight_unit),
             'unit_price' => round((float) $item->unit_price, 2),
             'subtotal' => round((float) $item->subtotal, 2),
+            'fiscal_subtotal' => round((float) ($item->gross_amount ?: $item->subtotal), 2),
+            'vat_treatment' => $item->vat_treatment,
+            'vat_rate' => round((float) $item->vat_rate, 2),
+            'net_amount' => round((float) $item->net_amount, 2),
+            'vat_amount' => round((float) $item->vat_amount, 2),
         ];
     }
 

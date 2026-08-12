@@ -15,6 +15,7 @@ use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchases\PurchaseController;
+use App\Http\Controllers\Sales\QuickSaleOptionController;
 use App\Http\Controllers\Sales\SaleController;
 use App\Http\Controllers\Sales\SaleFiscalDocumentController;
 use App\Http\Controllers\Suppliers\SupplierController;
@@ -102,6 +103,8 @@ Route::middleware(['auth', 'business'])->group(function (): void {
 Route::middleware(['auth', 'business', 'business.admin'])->group(function (): void {
     Route::post('/electronic-billing/credentials/csr', [FiscalCredentialProxyController::class, 'generateCsr'])->name('electronic-billing.credentials.csr');
     Route::post('/electronic-billing/credentials/certificate', [FiscalCredentialProxyController::class, 'storeCertificate'])->name('electronic-billing.credentials.certificate.store');
+    Route::post('/sales/quick-options', [QuickSaleOptionController::class, 'store'])->name('sales.quick-options.store');
+    Route::delete('/sales/quick-options/{quickSaleOption}', [QuickSaleOptionController::class, 'destroy'])->name('sales.quick-options.destroy');
 
     Route::get('/users', [BusinessUserController::class, 'index'])->name('users.index');
     Route::post('/users', [BusinessUserController::class, 'store'])->name('users.store');

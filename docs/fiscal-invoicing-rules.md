@@ -48,6 +48,12 @@ El medio de pago no define el tipo de factura.
 - Sin datos fiscales del cliente: receptor `consumidor_final`.
 - Si el cliente solicita factura con datos: cargar nombre/razon social, CUIT/DNI, condicion IVA y domicilio.
 - El empleado no elige Factura A/B/C en venta comun.
+- El producto mantiene tratamiento IVA y alicuota para que la venta pueda discriminar correctamente cuando el emisor es Responsable Inscripto.
 - Los campos legacy de `document_type` y `cbte_type` quedan solo para configuracion tecnica/admin y compatibilidad.
 
-TODO: cuando el catalogo maneje alicuotas IVA, ajustar el armado de `amounts.iva_items` para emisores Responsable Inscripto.
+## IVA en el payload
+
+- Emisor monotributista o exento: se emite Factura C, no se discrimina IVA y el total viaja como importe neto del comprobante C.
+- Emisor Responsable Inscripto: el SaaS separa el precio final en neto e IVA segun la alicuota del producto y envia `amounts.iva_items`.
+- Si el producto es exento o no gravado, el importe se informa en `imp_op_ex` o `imp_tot_conc` para comprobantes A/B.
+- El Libro IVA Ventas se consulta desde la API fiscal por mes, usando solo comprobantes autorizados.

@@ -20,6 +20,8 @@ FISCAL_DEFAULT_DOCUMENT_TYPE=invoice_c
 FISCAL_DEFAULT_CBTE_TYPE=11
 FISCAL_DEFAULT_CONCEPT=1
 FISCAL_DEFAULT_AUTHORIZATION_MODE=cae
+FISCAL_DEFAULT_VAT_TREATMENT=gravado
+FISCAL_DEFAULT_VAT_RATE=21
 FISCAL_ACTIVITIES=
 ```
 
@@ -42,6 +44,8 @@ Desde el panel de superadmin, cada comercio puede definir:
 
 Si el ID externo queda vacio, el SaaS envia el `business_id` interno como fallback.
 El CUIT fiscal se guarda normalizado con 11 digitos y se usa como referencia visual del setup fiscal. No reemplaza al ID externo que identifica al comercio dentro de la API fiscal.
+
+Cada producto define su tratamiento IVA (`gravado`, `exento` o `no_gravado`) y, cuando corresponde, su alicuota.
 
 Cuando `FISCAL_ENABLED=true` y se habilita facturacion electronica para un comercio, el guardado de funciones sincroniza la empresa fiscal en la API externa con `POST /api/fiscal/companies`. Si se cambia el ID externo de una empresa fiscal ya habilitada, primero intenta actualizar la company anterior con `PUT /api/fiscal/companies/{company}` y, si no existe, crea la nueva. Para la API externa, cualquier ambiente distinto de `production` se envia como `testing`.
 
@@ -74,6 +78,7 @@ La pantalla interna del modulo es `/electronic-billing` y expone:
 - estado de conexion con la API fiscal;
 - estado de certificado/setup informado por la API fiscal;
 - actividades y puntos de venta devueltos por la API;
+- Libro IVA Ventas mensual, cargado bajo demanda desde la API;
 - ultimos comprobantes emitidos;
 - acciones de conciliacion o reintento cuando el estado local lo permite.
 
@@ -168,13 +173,21 @@ Para ventas comunes se envia:
 - `invoice_mode`: `auto`;
 - `origin.type`: `sale`;
 - `origin.id`: ID interno de venta;
-- `amounts.imp_total`: total de venta;
-- `amounts.imp_neto`: total de venta;
-- IVA, tributos, exento y no gravado en cero;
+- `amounts.imp_total`: total bruto de venta;
+- para emisores monotributistas o exentos: total completo en `imp_neto`, IVA/exento/no gravado en cero y sin discriminacion fiscal;
+- para emisores Responsable Inscripto: neto gravado, IVA, exento/no gravado y `amounts.iva_items` por alicuota ARCA;
 - receptor por defecto consumidor final sin identificar;
 - si el cliente pide factura con datos: nombre/razon social, CUIT/DNI, condicion IVA y domicilio;
 - `items` como trazabilidad interna, aunque WSFEv1 no use detalle de items.
 
 Para concepto servicios o productos+servicios, el SaaS envia `service_dates` usando la fecha de venta.
 
-TODO: cuando productos/precios manejen alicuotas, agregar `iva_items` reales para emisores Responsable Inscripto. Hoy la API decide A/B/C, pero el SaaS todavia envia importes sin discriminacion de IVA.
+El catalogo de productos guarda `vat_treatment` y `vat_rate`. La venta persiste una foto fiscal por item (`net_amount`, `vat_amount`, `gross_amount`) para que el comprobante emitido y el detalle local no cambien si luego se edita el producto.
+
+## Libro IVA Ventas
+
+Desde `/electronic-billing` el usuario puede consultar un mes especifico. El SaaS llama a:
+
+- `GET /api/fiscal/documents/iva-sales?business_id=...&date_from=YYYY-MM-01&date_to=YYYY-MM-DD`
+
+La consulta se ejecuta bajo demanda para no hacer depender la carga normal del panel fiscal de un endpoint externo adicional.

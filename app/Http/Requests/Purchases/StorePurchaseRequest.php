@@ -60,6 +60,8 @@ class StorePurchaseRequest extends FormRequest
             'items.*.product.unit_type' => ['nullable', 'in:unit,weight'],
             'items.*.product.weight_unit' => ['nullable', 'in:kg,g'],
             'items.*.product.sale_price' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.product.vat_treatment' => ['nullable', 'in:gravado,exento,no_gravado'],
+            'items.*.product.vat_rate' => ['nullable', 'numeric', 'in:0,2.5,5,10.5,21,27'],
             'items.*.product.min_stock' => ['nullable', 'numeric', 'gte:0'],
             'items.*.product.shelf_life_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],
             'items.*.product.expiry_alert_days' => ['nullable', 'integer', 'gte:1', 'lte:3650'],

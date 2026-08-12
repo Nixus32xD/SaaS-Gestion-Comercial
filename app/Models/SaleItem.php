@@ -23,6 +23,13 @@ class SaleItem extends Model
         'quantity',
         'unit_price',
         'subtotal',
+        'vat_treatment',
+        'vat_rate',
+        'net_amount',
+        'vat_amount',
+        'exempt_amount',
+        'non_taxed_amount',
+        'gross_amount',
     ];
 
     /**
@@ -34,6 +41,13 @@ class SaleItem extends Model
             'quantity' => 'decimal:3',
             'unit_price' => 'decimal:2',
             'subtotal' => 'decimal:2',
+            'vat_treatment' => 'string',
+            'vat_rate' => 'decimal:2',
+            'net_amount' => 'decimal:2',
+            'vat_amount' => 'decimal:2',
+            'exempt_amount' => 'decimal:2',
+            'non_taxed_amount' => 'decimal:2',
+            'gross_amount' => 'decimal:2',
         ];
     }
 
