@@ -11,6 +11,7 @@ use App\Models\PurchaseItem;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Fiscal\FiscalVatCalculator;
 use App\Services\Products\GlobalProductCatalogService;
 use App\Support\ProductMeasurement;
 use Illuminate\Support\Carbon;
@@ -24,7 +25,8 @@ class PurchaseService
     public function __construct(
         private readonly DocumentNumberService $documentNumberService,
         private readonly GlobalProductCatalogService $catalogService,
-        private readonly ProductBatchService $productBatchService
+        private readonly ProductBatchService $productBatchService,
+        private readonly FiscalVatCalculator $vatCalculator
     ) {}
 
     /**
@@ -149,6 +151,8 @@ class PurchaseService
                         ),
                         'sale_price' => round((float) data_get($item, 'product.sale_price', $unitCost), 2),
                         'cost_price' => $unitCost,
+                        'vat_treatment' => $this->vatCalculator->normalizeTreatment(data_get($item, 'product.vat_treatment')),
+                        'vat_rate' => $this->productVatRate($item),
                         'stock' => 0,
                         'min_stock' => round((float) data_get($item, 'product.min_stock', 0), 3),
                         'shelf_life_days' => data_get($item, 'product.shelf_life_days'),
@@ -406,5 +410,15 @@ class PurchaseService
         throw ValidationException::withMessages([
             "items.{$index}.product.global_product_id" => 'El catalogo global no esta habilitado para este comercio.',
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function productVatRate(array $item): float
+    {
+        return $this->vatCalculator->normalizeTreatment(data_get($item, 'product.vat_treatment')) === FiscalVatCalculator::TREATMENT_TAXED
+            ? $this->vatCalculator->normalizeRate(data_get($item, 'product.vat_rate', config('fiscal.defaults.vat_rate', 21)))
+            : 0.0;
     }
 }

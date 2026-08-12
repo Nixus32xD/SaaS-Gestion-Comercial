@@ -17,6 +17,10 @@ class StoreProductRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $vatTreatment = $this->filled('vat_treatment')
+            ? trim((string) $this->input('vat_treatment'))
+            : (string) config('fiscal.defaults.vat_treatment', 'gravado');
+
         $this->merge([
             'name' => trim((string) $this->input('name')),
             'slug' => trim((string) $this->input('slug')) ?: null,
@@ -27,6 +31,10 @@ class StoreProductRequest extends FormRequest
             'weight_unit' => $this->filled('weight_unit')
                 ? trim((string) $this->input('weight_unit'))
                 : null,
+            'vat_treatment' => $vatTreatment,
+            'vat_rate' => $vatTreatment === 'gravado'
+                ? $this->input('vat_rate', config('fiscal.defaults.vat_rate', 21))
+                : 0,
         ]);
     }
 
@@ -71,6 +79,12 @@ class StoreProductRequest extends FormRequest
             ],
             'sale_price' => ['required', 'numeric', 'gte:0'],
             'cost_price' => ['required', 'numeric', 'gte:0'],
+            'vat_treatment' => ['required', Rule::in(['gravado', 'exento', 'no_gravado'])],
+            'vat_rate' => [
+                Rule::requiredIf(fn () => $this->input('vat_treatment') === 'gravado'),
+                'numeric',
+                'in:0,2.5,5,10.5,21,27',
+            ],
             'stock' => ['nullable', 'numeric', 'gte:0'],
             'batch_code' => ['nullable', 'string', 'max:80'],
             'batch_expires_at' => ['nullable', 'date'],

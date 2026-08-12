@@ -23,6 +23,8 @@ return [
         'cbte_type' => (int) env('FISCAL_DEFAULT_CBTE_TYPE', 11),
         'concept' => (int) env('FISCAL_DEFAULT_CONCEPT', 1),
         'authorization_mode' => env('FISCAL_DEFAULT_AUTHORIZATION_MODE', 'cae'),
+        'vat_treatment' => env('FISCAL_DEFAULT_VAT_TREATMENT', 'gravado'),
+        'vat_rate' => (float) env('FISCAL_DEFAULT_VAT_RATE', 21),
         'currency' => env('FISCAL_DEFAULT_CURRENCY', 'PES'),
         'currency_rate' => (float) env('FISCAL_DEFAULT_CURRENCY_RATE', 1),
         'activities' => $activities,
@@ -50,6 +52,21 @@ return [
         ['value' => 'responsable_inscripto', 'label' => 'Responsable Inscripto'],
         ['value' => 'monotributo', 'label' => 'Monotributista'],
         ['value' => 'exento', 'label' => 'IVA Exento'],
+    ],
+
+    'vat_treatments' => [
+        ['value' => 'gravado', 'label' => 'Gravado'],
+        ['value' => 'exento', 'label' => 'Exento'],
+        ['value' => 'no_gravado', 'label' => 'No gravado'],
+    ],
+
+    'vat_rates' => [
+        ['id' => 5, 'value' => 21, 'label' => '21%'],
+        ['id' => 4, 'value' => 10.5, 'label' => '10.5%'],
+        ['id' => 6, 'value' => 27, 'label' => '27%'],
+        ['id' => 8, 'value' => 5, 'label' => '5%'],
+        ['id' => 9, 'value' => 2.5, 'label' => '2.5%'],
+        ['id' => 3, 'value' => 0, 'label' => '0%'],
     ],
 
     'document_types' => [

@@ -33,6 +33,12 @@ const paymentStatusTone = () => {
     return 'success';
 };
 
+const hasFiscalBreakdown = () => (
+    Number(props.sale.fiscal_vat_amount || 0) > 0
+    || Number(props.sale.fiscal_exempt_amount || 0) > 0
+    || Number(props.sale.fiscal_non_taxed_amount || 0) > 0
+);
+
 const printPage = () => window.print();
 const closePage = () => window.close();
 </script>
@@ -87,6 +93,10 @@ const closePage = () => window.close();
                             <p>Subtotal: <strong class="text-slate-900">{{ money(sale.subtotal) }}</strong></p>
                             <p>Descuento: <strong class="text-slate-900">{{ money(sale.discount) }}</strong></p>
                             <p>Total: <strong class="text-slate-900">{{ money(sale.total) }}</strong></p>
+                            <template v-if="hasFiscalBreakdown()">
+                                <p>Neto gravado: <strong class="text-slate-900">{{ money(sale.fiscal_net_amount) }}</strong></p>
+                                <p>IVA: <strong class="text-slate-900">{{ money(sale.fiscal_vat_amount) }}</strong></p>
+                            </template>
                             <p>Cobrado: <strong class="text-slate-900">{{ money(sale.paid_amount) }}</strong></p>
                             <p>Pendiente: <strong class="text-slate-900">{{ money(sale.pending_amount) }}</strong></p>
                             <p v-if="sale.payment_method === 'cash' && sale.amount_received > 0">Recibido: <strong class="text-slate-900">{{ money(sale.amount_received) }}</strong></p>
@@ -102,6 +112,7 @@ const closePage = () => window.close();
                                 <th class="px-4 py-3 text-left font-semibold text-slate-500">Producto</th>
                                 <th class="px-4 py-3 text-left font-semibold text-slate-500">Cantidad</th>
                                 <th class="px-4 py-3 text-left font-semibold text-slate-500">Precio</th>
+                                <th class="px-4 py-3 text-left font-semibold text-slate-500">IVA</th>
                                 <th class="px-4 py-3 text-left font-semibold text-slate-500">Subtotal</th>
                             </tr>
                         </thead>
@@ -123,6 +134,7 @@ const closePage = () => window.close();
                                     {{ money(item.unit_price) }}
                                     <span v-if="item.price_label" class="text-xs text-slate-500">{{ item.price_label }}</span>
                                 </td>
+                                <td class="px-4 py-3 align-top text-slate-600">{{ item.vat_label || '-' }}</td>
                                 <td class="px-4 py-3 align-top font-semibold">{{ money(item.subtotal) }}</td>
                             </tr>
                         </tbody>

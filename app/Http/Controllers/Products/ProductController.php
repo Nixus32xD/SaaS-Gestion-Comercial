@@ -13,6 +13,7 @@ use App\Models\ProductBatch;
 use App\Models\ProductBatchCorrection;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Services\Fiscal\FiscalVatCalculator;
 use App\Services\ProductBatchService;
 use App\Services\Products\GlobalProductCatalogService;
 use App\Support\CurrentBusiness;
@@ -28,6 +29,8 @@ use Inertia\Response;
 
 class ProductController extends Controller
 {
+    public function __construct(private readonly FiscalVatCalculator $vatCalculator) {}
+
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
     {
         $business = $currentBusiness->get();
@@ -69,6 +72,8 @@ class ProductController extends Controller
                 'weight_unit',
                 'sale_price',
                 'cost_price',
+                'vat_treatment',
+                'vat_rate',
                 'stock',
                 'min_stock',
                 'shelf_life_days',
@@ -96,6 +101,9 @@ class ProductController extends Controller
                 'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
                 'sale_price' => (float) $product->sale_price,
                 'cost_price' => (float) $product->cost_price,
+                'vat_treatment' => $product->vat_treatment,
+                'vat_rate' => (float) $product->vat_rate,
+                'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
                 'stock' => (float) $product->stock,
                 'min_stock' => (float) $product->min_stock,
                 'shelf_life_days' => $product->shelf_life_days,
@@ -139,6 +147,7 @@ class ProductController extends Controller
             'global_catalog' => [
                 'enabled' => $business->hasGlobalProductCatalog(),
             ],
+            'vat_options' => $this->vatOptions(),
         ]);
     }
 
@@ -204,6 +213,8 @@ class ProductController extends Controller
                 'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
                 'sale_price' => $data['sale_price'],
                 'cost_price' => $data['cost_price'],
+                'vat_treatment' => $this->vatCalculator->normalizeTreatment($data['vat_treatment'] ?? null),
+                'vat_rate' => $this->resolvedVatRate($data),
                 'stock' => $initialStock,
                 'min_stock' => $data['min_stock'] ?? 0,
                 'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
@@ -272,6 +283,9 @@ class ProductController extends Controller
                 'weight_unit' => $product->weight_unit,
                 'sale_price' => (float) $product->sale_price,
                 'cost_price' => (float) $product->cost_price,
+                'vat_treatment' => $product->vat_treatment,
+                'vat_rate' => (float) $product->vat_rate,
+                'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
                 'stock' => (float) $product->stock,
                 'batch_summary' => $batchSummary,
                 'batch_corrections_count' => $product->batch_corrections_count,
@@ -293,6 +307,7 @@ class ProductController extends Controller
                 ->forBusiness($business->id)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'vat_options' => $this->vatOptions(),
         ]);
     }
 
@@ -336,6 +351,8 @@ class ProductController extends Controller
                 'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
                 'sale_price' => $data['sale_price'],
                 'cost_price' => $data['cost_price'],
+                'vat_treatment' => $this->vatCalculator->normalizeTreatment($data['vat_treatment'] ?? null),
+                'vat_rate' => $this->resolvedVatRate($data),
                 'stock' => $newStock,
                 'min_stock' => $data['min_stock'] ?? 0,
                 'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
@@ -600,5 +617,30 @@ class ProductController extends Controller
             'has_batches' => $product->batches->isNotEmpty(),
             'batches_count' => $product->batches->count(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function vatOptions(): array
+    {
+        return [
+            'treatments' => config('fiscal.vat_treatments', []),
+            'rates' => config('fiscal.vat_rates', []),
+            'defaults' => [
+                'treatment' => config('fiscal.defaults.vat_treatment', 'gravado'),
+                'rate' => (float) config('fiscal.defaults.vat_rate', 21),
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resolvedVatRate(array $data): float
+    {
+        return $this->vatCalculator->normalizeTreatment($data['vat_treatment'] ?? null) === FiscalVatCalculator::TREATMENT_TAXED
+            ? $this->vatCalculator->normalizeRate($data['vat_rate'] ?? config('fiscal.defaults.vat_rate', 21))
+            : 0.0;
     }
 }

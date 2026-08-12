@@ -10,6 +10,7 @@ const props = defineProps({
     categories: { type: Array, default: () => [] },
     products: { type: Array, default: () => [] },
     global_catalog: { type: Object, default: () => ({ enabled: false }) },
+    vat_options: { type: Object, default: () => ({ treatments: [], rates: [], defaults: { treatment: 'gravado', rate: 21 } }) },
 });
 
 const buildNewProductState = () => ({
@@ -21,6 +22,8 @@ const buildNewProductState = () => ({
     unit_type: 'unit',
     weight_unit: 'kg',
     sale_price: 0,
+    vat_treatment: props.vat_options?.defaults?.treatment || 'gravado',
+    vat_rate: Number(props.vat_options?.defaults?.rate || 21),
     min_stock: 0,
     expiry_alert_days: 15,
 });
@@ -125,6 +128,8 @@ const activeMeasurement = computed(() => {
 
     return measurementMeta(activeProduct.value);
 });
+const vatTreatmentOptions = computed(() => props.vat_options?.treatments || []);
+const vatRateOptions = computed(() => props.vat_options?.rates || []);
 
 const itemMeta = (item) => {
     if (item.product_id) {
@@ -412,6 +417,10 @@ const addNewProductItem = () => {
             sku: String(state.new_product.sku || '').trim() || null,
             unit_type: state.new_product.unit_type,
             sale_price: Number(Number(state.new_product.sale_price || 0).toFixed(2)),
+            vat_treatment: state.new_product.vat_treatment || 'gravado',
+            vat_rate: state.new_product.vat_treatment === 'gravado'
+                ? Number(state.new_product.vat_rate ?? 21)
+                : 0,
             min_stock: Number(Number(state.new_product.min_stock || 0).toFixed(3)),
             weight_unit: state.new_product.unit_type === 'weight' ? state.new_product.weight_unit : null,
             shelf_life_days: shelfLifeDays,
@@ -814,6 +823,18 @@ onBeforeUnmount(() => {
                                 {{ state.new_product.unit_type === 'weight' ? (state.new_product.weight_unit === 'g' ? 'Precio de venta sugerido por 100 g' : 'Precio de venta sugerido por kg') : 'Precio de venta sugerido' }}
                             </label>
                             <input id="new_product_sale_price" v-model.number="state.new_product.sale_price" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="0.00" />
+                        </div>
+                        <div>
+                            <label for="new_product_vat_treatment" class="mb-1 block text-sm font-medium text-slate-300">Tratamiento IVA</label>
+                            <select id="new_product_vat_treatment" v-model="state.new_product.vat_treatment" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                                <option v-for="option in vatTreatmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                        <div v-if="state.new_product.vat_treatment === 'gravado'">
+                            <label for="new_product_vat_rate" class="mb-1 block text-sm font-medium text-slate-300">Alicuota IVA</label>
+                            <select id="new_product_vat_rate" v-model.number="state.new_product.vat_rate" class="w-full rounded-xl border-cyan-100/25 text-sm">
+                                <option v-for="option in vatRateOptions" :key="option.id" :value="Number(option.value)">{{ option.label }}</option>
+                            </select>
                         </div>
                         <div>
                             <label for="new_product_min_stock" class="mb-1 block text-sm font-medium text-slate-300">

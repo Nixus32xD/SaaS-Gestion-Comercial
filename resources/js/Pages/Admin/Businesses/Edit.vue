@@ -702,7 +702,7 @@ const planLabel = (plan) => {
                         <div class="flex items-center justify-between gap-3">
                             <div>
                                 <h4 class="text-base font-semibold text-slate-100">Sectores / puntos de venta</h4>
-                                <p class="mt-1 text-xs text-slate-400">Ejemplo: Almacen, Viviendas.</p>
+                                <p class="mt-1 text-xs text-slate-400">Ejemplo: Mostrador, Taller, Deposito.</p>
                             </div>
                             <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="addSector">
                                 Agregar sector
@@ -772,7 +772,7 @@ const planLabel = (plan) => {
 
                                     <div class="space-y-1">
                                         <label class="text-sm font-medium text-slate-300">Nombre identificatorio</label>
-                                        <input v-model="destination.name" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Ej. Mercado Pago Almacen" />
+                                        <input v-model="destination.name" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Ej. Mercado Pago Mostrador" />
                                     </div>
 
                                     <div class="grid gap-3 md:grid-cols-2">

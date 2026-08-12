@@ -11,6 +11,8 @@ use App\Services\Fiscal\FiscalApiException;
 use App\Services\Fiscal\FiscalApiTimeoutException;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Support\CurrentBusiness;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,7 +24,7 @@ class ElectronicBillingController extends Controller
         private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
     ) {}
 
-    public function index(CurrentBusiness $currentBusiness): Response
+    public function index(Request $request, CurrentBusiness $currentBusiness): Response
     {
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
@@ -30,6 +32,13 @@ class ElectronicBillingController extends Controller
 
         $externalBusinessId = $this->payloadBuilder->externalBusinessId($business);
         $apiOverview = $this->apiOverview($externalBusinessId);
+        $diagnostics = $request->boolean('run_diagnostics')
+            ? $this->diagnostics($externalBusinessId)
+            : $this->diagnosticsNotRequested();
+        $ivaPeriod = $this->ivaPeriod($request);
+        $ivaSalesBook = $request->boolean('load_iva_sales')
+            ? $this->ivaSalesBook($externalBusinessId, $ivaPeriod)
+            : $this->ivaSalesBookNotRequested($ivaPeriod);
 
         return Inertia::render('Fiscal/Index', [
             'configuration' => $this->configuration($business, $externalBusinessId),
@@ -37,6 +46,8 @@ class ElectronicBillingController extends Controller
             'setup' => $apiOverview['setup'],
             'activities' => $apiOverview['activities'],
             'points_of_sale' => $apiOverview['points_of_sale'],
+            'diagnostics' => $diagnostics,
+            'iva_sales_book' => $ivaSalesBook,
             'summary' => $this->summary($business),
             'documents' => $this->documents($business),
             'can_manage_credentials' => request()->user()?->isBusinessAdmin() ?? false,
@@ -81,6 +92,298 @@ class ElectronicBillingController extends Controller
             ],
             'activities' => $business->fiscal_activities ?: config('fiscal.defaults.activities', []),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function diagnosticsNotRequested(): array
+    {
+        return [
+            'requested' => false,
+            'ok' => null,
+            'status' => 'idle',
+            'message' => 'Ejecuta el diagnostico cuando necesites validar credencial, WSAA y WSFEv1.',
+            'checks' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function diagnostics(string $externalBusinessId): array
+    {
+        try {
+            $response = $this->client->companyDiagnostics($externalBusinessId);
+        } catch (FiscalApiTimeoutException $exception) {
+            $error = $this->fiscalApiErrorMapper->fromException($exception);
+
+            return $this->unavailableDiagnostics('offline', $error['message']);
+        } catch (FiscalApiException $exception) {
+            $error = $this->fiscalApiErrorMapper->fromException($exception);
+
+            return $this->unavailableDiagnostics('error', $error['message']);
+        }
+
+        $apiError = $this->apiError($response);
+        if ($apiError !== null) {
+            $mappedError = $this->fiscalApiErrorMapper->fromResponse($response);
+
+            return $this->unavailableDiagnostics(
+                'error',
+                $mappedError['message'] ?? $this->friendlyApiErrorMessage(
+                    $apiError['code'],
+                    $apiError['message'],
+                    $externalBusinessId
+                )
+            );
+        }
+
+        $payload = $this->payloadData($response);
+        $checks = data_get($payload, 'checks');
+
+        return [
+            'requested' => true,
+            'ok' => (bool) data_get($payload, 'ok', false),
+            'status' => (bool) data_get($payload, 'ok', false) ? 'ok' : 'warning',
+            'message' => data_get($payload, 'message'),
+            'environment' => data_get($payload, 'environment'),
+            'checks' => $this->diagnosticChecks(is_array($checks) ? $checks : []),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function unavailableDiagnostics(string $status, string $message): array
+    {
+        return [
+            'requested' => true,
+            'ok' => false,
+            'status' => $status,
+            'message' => $message,
+            'checks' => [],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $checks
+     * @return list<array<string, mixed>>
+     */
+    private function diagnosticChecks(array $checks): array
+    {
+        return collect($checks)
+            ->map(function (mixed $check, string $key): array {
+                $check = is_array($check) ? $check : [];
+
+                return [
+                    'key' => $key,
+                    'label' => $this->diagnosticCheckLabel($key),
+                    'ok' => (bool) data_get($check, 'ok', false),
+                    'skipped' => (bool) data_get($check, 'skipped', false),
+                    'message' => data_get($check, 'message'),
+                    'error_code' => data_get($check, 'error_code'),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function diagnosticCheckLabel(string $key): string
+    {
+        return match ($key) {
+            'company' => 'Empresa fiscal',
+            'credential' => 'Credencial',
+            'certificate' => 'Certificado',
+            'wsaa' => 'WSAA',
+            'fedummy' => 'FEDummy',
+            'wsfev1' => 'WSFEv1',
+            default => str($key)->headline()->toString(),
+        };
+    }
+
+    /**
+     * @return array{month: string, date_from: string, date_to: string}
+     */
+    private function ivaPeriod(Request $request): array
+    {
+        $input = (string) $request->query('iva_month', now()->format('Y-m'));
+        $month = preg_match('/^\d{4}-\d{2}$/', $input) === 1
+            ? $input
+            : now()->format('Y-m');
+        $year = (int) substr($month, 0, 4);
+        $monthNumber = (int) substr($month, 5, 2);
+
+        if ($year < 2000 || $monthNumber < 1 || $monthNumber > 12) {
+            $year = (int) now()->format('Y');
+            $monthNumber = (int) now()->format('m');
+        }
+
+        $start = CarbonImmutable::create($year, $monthNumber, 1)->startOfMonth();
+
+        return [
+            'month' => $start->format('Y-m'),
+            'date_from' => $start->toDateString(),
+            'date_to' => $start->endOfMonth()->toDateString(),
+        ];
+    }
+
+    /**
+     * @param  array{month: string, date_from: string, date_to: string}  $period
+     * @return array<string, mixed>
+     */
+    private function ivaSalesBookNotRequested(array $period): array
+    {
+        return [
+            'requested' => false,
+            'ok' => null,
+            'status' => 'idle',
+            'message' => 'Carga el Libro IVA Ventas cuando necesites revisar el periodo.',
+            'period' => $period,
+            'records' => [],
+            'totals' => $this->emptyIvaBookTotals(),
+        ];
+    }
+
+    /**
+     * @param  array{month: string, date_from: string, date_to: string}  $period
+     * @return array<string, mixed>
+     */
+    private function ivaSalesBook(string $externalBusinessId, array $period): array
+    {
+        try {
+            $response = $this->client->ivaSalesBook(
+                $externalBusinessId,
+                $period['date_from'],
+                $period['date_to'],
+            );
+        } catch (FiscalApiTimeoutException $exception) {
+            $error = $this->fiscalApiErrorMapper->fromException($exception);
+
+            return $this->unavailableIvaSalesBook('offline', $error['message'], $period);
+        } catch (FiscalApiException $exception) {
+            $error = $this->fiscalApiErrorMapper->fromException($exception);
+
+            return $this->unavailableIvaSalesBook('error', $error['message'], $period);
+        }
+
+        $apiError = $this->apiError($response);
+        if ($apiError !== null) {
+            $mappedError = $this->fiscalApiErrorMapper->fromResponse($response);
+
+            return $this->unavailableIvaSalesBook(
+                'error',
+                $mappedError['message'] ?? $this->friendlyApiErrorMessage(
+                    $apiError['code'],
+                    $apiError['message'],
+                    $externalBusinessId
+                ),
+                $period,
+            );
+        }
+
+        $payload = $this->payloadData($response);
+
+        return [
+            'requested' => true,
+            'ok' => true,
+            'status' => 'ok',
+            'message' => 'Libro IVA Ventas cargado desde la API fiscal.',
+            'period' => [
+                'month' => $period['month'],
+                'date_from' => data_get($payload, 'period.date_from', $period['date_from']),
+                'date_to' => data_get($payload, 'period.date_to', $period['date_to']),
+            ],
+            'records' => $this->ivaBookRecords(data_get($payload, 'records', [])),
+            'totals' => $this->ivaBookTotals(data_get($payload, 'totals', [])),
+        ];
+    }
+
+    /**
+     * @param  array{month: string, date_from: string, date_to: string}  $period
+     * @return array<string, mixed>
+     */
+    private function unavailableIvaSalesBook(string $status, string $message, array $period): array
+    {
+        return [
+            'requested' => true,
+            'ok' => false,
+            'status' => $status,
+            'message' => $message,
+            'period' => $period,
+            'records' => [],
+            'totals' => $this->emptyIvaBookTotals(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function ivaBookRecords(mixed $records): array
+    {
+        return collect(is_array($records) ? $records : [])
+            ->filter(fn (mixed $record): bool => is_array($record))
+            ->map(fn (array $record): array => [
+                'id' => data_get($record, 'id'),
+                'voucher_date' => data_get($record, 'voucher_date'),
+                'document_type' => data_get($record, 'document_type'),
+                'document_kind' => data_get($record, 'document_kind'),
+                'cbte_type' => data_get($record, 'cbte_type'),
+                'point_of_sale' => data_get($record, 'point_of_sale'),
+                'number' => data_get($record, 'number'),
+                'counterparty_cuit' => data_get($record, 'counterparty_cuit'),
+                'counterparty_name' => data_get($record, 'counterparty_name'),
+                'counterparty_iva_condition' => data_get($record, 'counterparty_iva_condition'),
+                'authorization_type' => data_get($record, 'authorization_type'),
+                'authorization_code' => data_get($record, 'authorization_code'),
+                'amounts' => $this->ivaBookTotals(data_get($record, 'amounts', [])),
+                'iva_items' => $this->ivaItems(data_get($record, 'iva_items', [])),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function ivaBookTotals(mixed $totals): array
+    {
+        $totals = is_array($totals) ? $totals : [];
+
+        return [
+            'imp_total' => (float) data_get($totals, 'imp_total', 0),
+            'imp_neto' => (float) data_get($totals, 'imp_neto', 0),
+            'imp_iva' => (float) data_get($totals, 'imp_iva', 0),
+            'imp_trib' => (float) data_get($totals, 'imp_trib', 0),
+            'imp_op_ex' => (float) data_get($totals, 'imp_op_ex', 0),
+            'imp_tot_conc' => (float) data_get($totals, 'imp_tot_conc', 0),
+            'iva_by_aliquot' => $this->ivaItems(data_get($totals, 'iva_by_aliquot', [])),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyIvaBookTotals(): array
+    {
+        return $this->ivaBookTotals([]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function ivaItems(mixed $items): array
+    {
+        return collect(is_array($items) ? $items : [])
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->map(fn (array $item): array => [
+                'id' => data_get($item, 'id'),
+                'rate' => (float) data_get($item, 'rate', 0),
+                'base_imp' => (float) data_get($item, 'base_imp', 0),
+                'importe' => (float) data_get($item, 'importe', 0),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

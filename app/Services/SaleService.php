@@ -11,6 +11,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Services\Fiscal\FiscalVatCalculator;
 use App\Support\ProductMeasurement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,7 @@ class SaleService
         private readonly DocumentNumberService $documentNumberService,
         private readonly ProductBatchService $productBatchService,
         private readonly CustomerAccountService $customerAccountService,
+        private readonly FiscalVatCalculator $vatCalculator,
     ) {}
 
     /**
@@ -66,6 +68,8 @@ class SaleService
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'subtotal' => ProductMeasurement::calculateSubtotal($quantity, $unitPrice, null, null),
+                        'vat_treatment' => $this->vatCalculator->normalizeTreatment($item['vat_treatment'] ?? null),
+                        'vat_rate' => $this->manualVatRate($item),
                         'affects_stock' => false,
                     ];
                 }
@@ -95,9 +99,11 @@ class SaleService
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'subtotal' => $subtotal,
+                    'vat_treatment' => $this->vatCalculator->normalizeTreatment($product->vat_treatment),
+                    'vat_rate' => $this->productVatRate($product),
                     'affects_stock' => true,
                 ];
-            });
+            })->values();
 
             $requestedByProduct = $lineItems
                 ->filter(fn (array $lineItem): bool => $lineItem['affects_stock'] === true)
@@ -120,6 +126,15 @@ class SaleService
             $subtotal = round((float) $lineItems->sum('subtotal'), 2);
             $discount = min(round((float) ($payload['discount'] ?? 0), 2), $subtotal);
             $total = round($subtotal - $discount, 2);
+            $fiscalBreakdown = $this->vatCalculator->saleBreakdown(
+                $lineItems->map(fn (array $lineItem): array => [
+                    'gross_amount' => $lineItem['subtotal'],
+                    'vat_treatment' => $lineItem['vat_treatment'],
+                    'vat_rate' => $lineItem['vat_rate'],
+                ]),
+                $discount,
+                $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+            );
             $customer = $this->resolveCustomer($business, $payload['customer_id'] ?? null);
             [$paymentStatus, $paymentMethod, $paidAmount, $pendingAmount, $amountReceived, $changeAmount] = $this->resolvePaymentData(
                 $payload,
@@ -150,6 +165,10 @@ class SaleService
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'total' => $total,
+                'fiscal_net_amount' => $fiscalBreakdown['totals']['imp_neto'],
+                'fiscal_vat_amount' => $fiscalBreakdown['totals']['imp_iva'],
+                'fiscal_exempt_amount' => $fiscalBreakdown['totals']['imp_op_ex'],
+                'fiscal_non_taxed_amount' => $fiscalBreakdown['totals']['imp_tot_conc'],
                 'notes' => $payload['notes'] ?? null,
                 'sold_at' => $this->resolveDateTimeValue($payload['sold_at'] ?? null),
             ]);
@@ -158,7 +177,9 @@ class SaleService
                 fn (Product $product): array => [$product->id => round((float) $product->stock, 3)]
             );
 
-            foreach ($lineItems as $lineItem) {
+            foreach ($lineItems as $index => $lineItem) {
+                $lineFiscal = $fiscalBreakdown['lines'][$index] ?? [];
+
                 /** @var SaleItem $saleItem */
                 $saleItem = $sale->items()->create([
                     'business_id' => $business->id,
@@ -167,6 +188,13 @@ class SaleService
                     'quantity' => $lineItem['quantity'],
                     'unit_price' => $lineItem['unit_price'],
                     'subtotal' => $lineItem['subtotal'],
+                    'vat_treatment' => $lineFiscal['vat_treatment'] ?? $lineItem['vat_treatment'],
+                    'vat_rate' => $lineFiscal['vat_rate'] ?? $lineItem['vat_rate'],
+                    'net_amount' => $lineFiscal['net_amount'] ?? 0,
+                    'vat_amount' => $lineFiscal['vat_amount'] ?? 0,
+                    'exempt_amount' => $lineFiscal['exempt_amount'] ?? 0,
+                    'non_taxed_amount' => $lineFiscal['non_taxed_amount'] ?? 0,
+                    'gross_amount' => $lineFiscal['gross_amount'] ?? $lineItem['subtotal'],
                 ]);
 
                 if ($lineItem['affects_stock'] !== true) {
@@ -441,5 +469,22 @@ class SaleService
         }
 
         return $customer;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function manualVatRate(array $item): float
+    {
+        return $this->vatCalculator->normalizeTreatment($item['vat_treatment'] ?? null) === FiscalVatCalculator::TREATMENT_TAXED
+            ? $this->vatCalculator->normalizeRate($item['vat_rate'] ?? config('fiscal.defaults.vat_rate', 21))
+            : 0.0;
+    }
+
+    private function productVatRate(Product $product): float
+    {
+        return $this->vatCalculator->normalizeTreatment($product->vat_treatment) === FiscalVatCalculator::TREATMENT_TAXED
+            ? $this->vatCalculator->normalizeRate($product->vat_rate)
+            : 0.0;
     }
 }

@@ -9,6 +9,7 @@ const props = defineProps({
     categories: { type: Array, default: () => [] },
     suppliers: { type: Array, default: () => [] },
     global_catalog: { type: Object, default: () => ({ enabled: false }) },
+    vat_options: { type: Object, default: () => ({ treatments: [], rates: [], defaults: { treatment: 'gravado', rate: 21 } }) },
 });
 
 const form = useForm({
@@ -24,6 +25,8 @@ const form = useForm({
     weight_unit: 'kg',
     sale_price: 0,
     cost_price: 0,
+    vat_treatment: props.vat_options?.defaults?.treatment || 'gravado',
+    vat_rate: Number(props.vat_options?.defaults?.rate || 21),
     stock: 0,
     batch_code: '',
     batch_expires_at: '',
@@ -45,6 +48,8 @@ const shelfLifeDate = ref('');
 const isLookingUpCatalog = ref(false);
 
 const isWeightProduct = computed(() => form.unit_type === 'weight');
+const vatTreatmentOptions = computed(() => props.vat_options?.treatments || []);
+const vatRateOptions = computed(() => props.vat_options?.rates || []);
 const measurementUnitLabel = computed(() => (form.weight_unit === 'g' ? 'g' : 'kg'));
 const priceLabel = computed(() => {
     if (!isWeightProduct.value) return 'Precio de venta';
@@ -70,6 +75,12 @@ const marginPercent = computed(() => {
     if (costPrice.value <= 0) return null;
 
     return Number((((salePrice.value - costPrice.value) / costPrice.value) * 100).toFixed(1));
+});
+const vatSummaryLabel = computed(() => {
+    if (form.vat_treatment === 'exento') return 'IVA exento';
+    if (form.vat_treatment === 'no_gravado') return 'No gravado';
+
+    return `IVA ${Number(form.vat_rate || 0).toLocaleString('es-AR')}%`;
 });
 const stockStatusTone = computed(() => {
     if (stockValue.value <= 0) return 'danger';
@@ -392,6 +403,20 @@ const submit = () => {
                                 <input v-model.number="form.cost_price" type="number" min="0" step="0.01" class="w-full rounded-xl text-sm" />
                                 <p v-if="form.errors.cost_price" class="text-xs text-rose-300">{{ form.errors.cost_price }}</p>
                             </div>
+                            <div class="app-field">
+                                <label class="app-field-label">Tratamiento IVA</label>
+                                <select v-model="form.vat_treatment" class="w-full rounded-xl text-sm">
+                                    <option v-for="option in vatTreatmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                </select>
+                                <p v-if="form.errors.vat_treatment" class="text-xs text-rose-300">{{ form.errors.vat_treatment }}</p>
+                            </div>
+                            <div v-if="form.vat_treatment === 'gravado'" class="app-field">
+                                <label class="app-field-label">Alicuota IVA</label>
+                                <select v-model.number="form.vat_rate" class="w-full rounded-xl text-sm">
+                                    <option v-for="option in vatRateOptions" :key="option.id" :value="Number(option.value)">{{ option.label }}</option>
+                                </select>
+                                <p v-if="form.errors.vat_rate" class="text-xs text-rose-300">{{ form.errors.vat_rate }}</p>
+                            </div>
                         </div>
 
                         <div class="app-subsection">
@@ -464,6 +489,7 @@ const submit = () => {
                         <StatusBadge :tone="globalCatalogApplied ? 'info' : 'neutral'" :label="globalCatalogApplied ? 'Catalogo aplicado' : 'Carga manual'" />
                         <StatusBadge :tone="salePrice > 0 ? 'success' : 'warning'" :label="salePrice > 0 ? 'Con precio' : 'Sin precio'" />
                         <StatusBadge :tone="costPrice > 0 ? 'success' : 'warning'" :label="costPrice > 0 ? 'Con costo' : 'Sin costo'" />
+                        <StatusBadge tone="info" :label="vatSummaryLabel" />
                         <StatusBadge :tone="stockStatusTone" :label="stockValue > 0 ? `Stock ${stockValue}` : 'Sin stock'" />
                         <StatusBadge :tone="form.is_active ? 'success' : 'neutral'" :label="form.is_active ? 'Activo' : 'Inactivo'" />
                     </div>

@@ -108,6 +108,8 @@ class StoreSaleRequest extends FormRequest
             'items.*.product_name' => ['nullable', 'string', 'max:255'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_price' => ['nullable', 'numeric', 'gte:0'],
+            'items.*.vat_treatment' => ['nullable', Rule::in(['gravado', 'exento', 'no_gravado'])],
+            'items.*.vat_rate' => ['nullable', 'numeric', 'in:0,2.5,5,10.5,21,27'],
         ];
     }
 
@@ -128,6 +130,12 @@ class StoreSaleRequest extends FormRequest
                     'quantity' => $row['quantity'] ?? 1,
                     'unit_price' => filled($row['unit_price'] ?? null)
                         ? $row['unit_price']
+                        : null,
+                    'vat_treatment' => filled($row['vat_treatment'] ?? null)
+                        ? (string) $row['vat_treatment']
+                        : null,
+                    'vat_rate' => filled($row['vat_rate'] ?? null)
+                        ? $row['vat_rate']
                         : null,
                 ];
             })

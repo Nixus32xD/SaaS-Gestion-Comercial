@@ -68,6 +68,14 @@ class FiscalApiClient
     /**
      * @return array<string, mixed>
      */
+    public function companyDiagnostics(string $company): array
+    {
+        return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/diagnostics');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function requestCaea(string $company, string $period, int $order): array
     {
         return $this->post('/fiscal/companies/'.$this->pathSegment($company).'/caea/request', [
@@ -143,6 +151,30 @@ class FiscalApiClient
             'origin_type' => $originType,
             'origin_id' => $originId,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function ivaSalesBook(string $businessId, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        return $this->get('/fiscal/documents/iva-sales', array_filter([
+            'business_id' => $businessId,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ], fn (mixed $value): bool => $value !== null && $value !== ''));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function ivaPurchasesBook(string $businessId, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        return $this->get('/fiscal/purchases/iva-book', array_filter([
+            'business_id' => $businessId,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ], fn (mixed $value): bool => $value !== null && $value !== ''));
     }
 
     /**

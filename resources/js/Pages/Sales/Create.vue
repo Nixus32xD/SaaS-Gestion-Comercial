@@ -3,21 +3,29 @@ import AppPanel from '@/Components/AppPanel.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
     products: { type: Array, default: () => [] },
     customers: { type: Array, default: () => [] },
     advanced_sale_settings: { type: Object, default: () => ({ enabled: false, sale_sectors: [], payment_destinations: [] }) },
     fiscal: { type: Object, default: () => ({ enabled: false, issuer_condition: 'monotributo', receiver_iva_conditions: [] }) },
+    quick_sale_options: { type: Array, default: () => [] },
+    can_manage_quick_sale_options: { type: Boolean, default: false },
+    vat_options: { type: Object, default: () => ({ treatments: [], rates: [], defaults: { treatment: 'gravado', rate: 21 } }) },
     receipt_feature_available: { type: Boolean, default: false },
 });
+
+const defaultVatTreatment = props.vat_options?.defaults?.treatment || 'gravado';
+const defaultVatRate = Number(props.vat_options?.defaults?.rate || 21);
 
 const state = reactive({
     search: '',
     quantity: 1,
     manualItemName: '',
     manualItemAmount: '',
+    manualItemVatTreatment: defaultVatTreatment,
+    manualItemVatRate: defaultVatRate,
     highlightedIndex: 0,
     activeProductId: null,
     helperMessage: 'Busca por nombre, codigo de barras o SKU. Presiona Enter para agregar.',
@@ -66,9 +74,22 @@ const form = useForm({
     items: [],
 });
 
+const quickOptionForm = useForm({
+    name: '',
+    description: '',
+    default_amount: '',
+    vat_treatment: defaultVatTreatment,
+    vat_rate: defaultVatRate,
+    is_active: true,
+});
+
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
 const filteredProducts = computed(() => searchResults.value);
+const quickSaleOptions = computed(() => props.quick_sale_options || []);
+const customQuickSaleOptions = computed(() => quickSaleOptions.value.filter((option) => !option.is_default && option.id));
+const vatTreatmentOptions = computed(() => props.vat_options?.treatments || []);
+const vatRateOptions = computed(() => props.vat_options?.rates || []);
 
 const activeProduct = computed(() => {
     if (state.activeProductId !== null) {
@@ -86,6 +107,58 @@ const findExactCodeMatch = (term, products = searchResults.value) => {
     return products.find((product) => (
         normalize(product.barcode) === normalized || normalize(product.sku) === normalized
     )) || null;
+};
+
+const vatLabel = (treatment, rate) => {
+    if (treatment === 'exento') return 'IVA exento';
+    if (treatment === 'no_gravado') return 'No gravado';
+
+    return `IVA ${Number(rate || defaultVatRate).toLocaleString('es-AR')}%`;
+};
+
+const normalizeVatRate = (treatment, rate) => (
+    treatment === 'gravado'
+        ? Number(rate || defaultVatRate)
+        : 0
+);
+
+const resetManualVat = () => {
+    state.manualItemVatTreatment = defaultVatTreatment;
+    state.manualItemVatRate = defaultVatRate;
+};
+
+const resetQuickOptionForm = () => {
+    quickOptionForm.reset();
+    quickOptionForm.name = '';
+    quickOptionForm.description = '';
+    quickOptionForm.default_amount = '';
+    quickOptionForm.vat_treatment = defaultVatTreatment;
+    quickOptionForm.vat_rate = defaultVatRate;
+    quickOptionForm.is_active = true;
+};
+
+const storeQuickOption = () => {
+    quickOptionForm
+        .transform((data) => ({
+            ...data,
+            description: String(data.description || '').trim() || null,
+            default_amount: data.default_amount === '' ? null : data.default_amount,
+            vat_rate: data.vat_treatment === 'gravado' ? data.vat_rate : 0,
+        }))
+        .post(route('sales.quick-options.store'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                resetQuickOptionForm();
+            },
+        });
+};
+
+const deleteQuickOption = (option) => {
+    if (!option?.id) return;
+
+    router.delete(route('sales.quick-options.destroy', option.id), {
+        preserveScroll: true,
+    });
 };
 
 const fetchProducts = async (term = state.search) => {
@@ -190,6 +263,28 @@ watch(() => form.fiscal_customer.iva_condition, (value) => {
     }
 });
 
+watch(() => state.manualItemVatTreatment, (value) => {
+    if (value !== 'gravado') {
+        state.manualItemVatRate = 0;
+        return;
+    }
+
+    if (Number(state.manualItemVatRate || 0) <= 0) {
+        state.manualItemVatRate = defaultVatRate;
+    }
+});
+
+watch(() => quickOptionForm.vat_treatment, (value) => {
+    if (value !== 'gravado') {
+        quickOptionForm.vat_rate = 0;
+        return;
+    }
+
+    if (Number(quickOptionForm.vat_rate || 0) <= 0) {
+        quickOptionForm.vat_rate = defaultVatRate;
+    }
+});
+
 const addProductToCart = (product, source = 'manual') => {
     if (!product) {
         state.helperMessage = 'No hay productos disponibles para agregar con esa busqueda.';
@@ -217,6 +312,9 @@ const addProductToCart = (product, source = 'manual') => {
             unit_price: Number(product.sale_price),
             unit_type: product.unit_type,
             weight_unit: product.weight_unit,
+            vat_treatment: product.vat_treatment || 'gravado',
+            vat_rate: Number(product.vat_rate ?? 21),
+            vat_label: product.vat_label || `IVA ${Number(product.vat_rate ?? 21).toLocaleString('es-AR')}%`,
             quantity_label: meta.quantityLabel,
             price_label: meta.priceLabel,
         });
@@ -235,8 +333,16 @@ const addProductToCart = (product, source = 'manual') => {
     });
 };
 
-const applyManualPreset = (label) => {
-    state.manualItemName = label;
+const applyManualPreset = (option) => {
+    const label = typeof option === 'string' ? option : option?.name;
+
+    state.manualItemName = label || '';
+    state.manualItemAmount = Number(option?.default_amount || 0) > 0
+        ? Number(option.default_amount).toFixed(2)
+        : '';
+    state.manualItemVatTreatment = option?.vat_treatment || defaultVatTreatment;
+    state.manualItemVatRate = normalizeVatRate(state.manualItemVatTreatment, option?.vat_rate ?? defaultVatRate);
+    state.helperMessage = option?.description || `Concepto rapido seleccionado: ${label}`;
 
     nextTick(() => {
         manualAmountInput.value?.focus();
@@ -257,18 +363,25 @@ const addManualItem = () => {
         return;
     }
 
+    const vatTreatment = state.manualItemVatTreatment || defaultVatTreatment;
+    const vatRate = normalizeVatRate(vatTreatment, state.manualItemVatRate);
+
     form.items.push({
         product_id: null,
         product_name: detail,
         is_manual: true,
         quantity: 1,
         unit_price: Number(amount.toFixed(2)),
+        vat_treatment: vatTreatment,
+        vat_rate: vatRate,
+        vat_label: vatLabel(vatTreatment, vatRate),
         quantity_label: 'sin stock',
         price_label: '',
     });
 
     state.manualItemName = '';
     state.manualItemAmount = '';
+    resetManualVat();
     state.helperMessage = `Item manual agregado: ${detail}`;
 
     nextTick(() => {
@@ -568,6 +681,8 @@ const buildDraftSnapshot = () => ({
         quantity: state.quantity,
         manualItemName: state.manualItemName,
         manualItemAmount: state.manualItemAmount,
+        manualItemVatTreatment: state.manualItemVatTreatment,
+        manualItemVatRate: state.manualItemVatRate,
     },
 });
 
@@ -611,6 +726,8 @@ const restoreDraft = () => {
         state.quantity = draft?.state?.quantity ?? state.quantity;
         state.manualItemName = draft?.state?.manualItemName ?? state.manualItemName;
         state.manualItemAmount = draft?.state?.manualItemAmount ?? state.manualItemAmount;
+        state.manualItemVatTreatment = draft?.state?.manualItemVatTreatment ?? state.manualItemVatTreatment;
+        state.manualItemVatRate = draft?.state?.manualItemVatRate ?? state.manualItemVatRate;
 
         state.helperMessage = form.items.length
             ? 'Se restauro el borrador de la venta en curso.'
@@ -720,6 +837,8 @@ const submit = () => {
                 product_name: item.product_id === null ? item.product_name : null,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
+                vat_treatment: item.vat_treatment || null,
+                vat_rate: item.vat_rate ?? null,
             })),
         }))
         .post(route('sales.store'), {
@@ -883,16 +1002,24 @@ onBeforeUnmount(() => {
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h3 class="text-sm font-semibold text-amber-100">Venta rapida sin stock</h3>
-                            <p class="mt-1 text-xs text-amber-50/80">Para verdura, fiambre suelto u otros importes que queres registrar sin manejar stock en la app.</p>
+                            <p class="mt-1 text-xs text-amber-50/80">Para productos sueltos, servicios, materiales, lubricantes o importes puntuales que no quieras manejar con stock.</p>
                         </div>
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button" class="rounded-full border border-amber-100/25 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-200/10" @click="applyManualPreset('Verdura suelta')">Verdura</button>
-                            <button type="button" class="rounded-full border border-amber-100/25 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-200/10" @click="applyManualPreset('Fiambre suelto')">Fiambre</button>
-                            <button type="button" class="rounded-full border border-amber-100/25 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-200/10" @click="applyManualPreset('Otro manual')">Otro</button>
+                        <div class="flex flex-wrap gap-2 sm:justify-end">
+                            <button
+                                v-for="option in quickSaleOptions"
+                                :key="option.key || option.id || option.name"
+                                type="button"
+                                class="inline-flex items-center gap-2 rounded-lg border border-amber-100/25 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-200/10"
+                                :title="option.description || option.name"
+                                @click="applyManualPreset(option)"
+                            >
+                                <span>{{ option.name }}</span>
+                                <span v-if="Number(option.default_amount || 0) > 0" class="text-amber-50/70">{{ money(option.default_amount) }}</span>
+                            </button>
                         </div>
                     </div>
 
-                    <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto]">
+                    <div class="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_11rem_15rem_auto]">
                         <div>
                             <label for="manual-item-name" class="mb-1 block text-sm font-medium text-amber-50/90">Detalle</label>
                             <input
@@ -900,7 +1027,7 @@ onBeforeUnmount(() => {
                                 v-model="state.manualItemName"
                                 type="text"
                                 class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
-                                placeholder="Ej. Verdura suelta"
+                                placeholder="Ej. Material fraccionado"
                                 @keydown.enter.prevent="addManualItem"
                             >
                         </div>
@@ -918,6 +1045,26 @@ onBeforeUnmount(() => {
                                 @keydown.enter.prevent="addManualItem"
                             >
                         </div>
+                        <div>
+                            <label for="manual-item-vat-treatment" class="mb-1 block text-sm font-medium text-amber-50/90">IVA</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <select
+                                    id="manual-item-vat-treatment"
+                                    v-model="state.manualItemVatTreatment"
+                                    class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                >
+                                    <option v-for="option in vatTreatmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                </select>
+                                <select
+                                    v-if="state.manualItemVatTreatment === 'gravado'"
+                                    v-model.number="state.manualItemVatRate"
+                                    class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                >
+                                    <option v-for="option in vatRateOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                </select>
+                                <span v-else class="rounded-xl border border-amber-100/25 px-3 py-2 text-xs font-semibold text-amber-50/80">{{ vatLabel(state.manualItemVatTreatment, state.manualItemVatRate) }}</span>
+                            </div>
+                        </div>
                         <div class="flex items-end">
                             <button
                                 type="button"
@@ -926,6 +1073,93 @@ onBeforeUnmount(() => {
                             >
                                 Agregar monto
                             </button>
+                        </div>
+                    </div>
+
+                    <div v-if="can_manage_quick_sale_options" class="mt-4 border-t border-amber-100/20 pt-4">
+                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h4 class="text-sm font-semibold text-amber-100">Opciones rapidas del comercio</h4>
+                                <p class="text-xs text-amber-50/70">Agrega accesos propios para ferreteria, lubricentro, servicios o venta suelta.</p>
+                            </div>
+                            <StatusBadge v-if="customQuickSaleOptions.length" tone="warning" size="sm" :label="`${customQuickSaleOptions.length} propias`" />
+                        </div>
+
+                        <form class="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_10rem_15rem_auto]" @submit.prevent="storeQuickOption">
+                            <div>
+                                <label for="quick-option-name" class="mb-1 block text-xs font-medium text-amber-50/90">Nombre</label>
+                                <input
+                                    id="quick-option-name"
+                                    v-model="quickOptionForm.name"
+                                    type="text"
+                                    class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                    placeholder="Ej. Tornilleria suelta"
+                                >
+                                <p v-if="quickOptionForm.errors.name" class="mt-1 text-xs text-rose-300">{{ quickOptionForm.errors.name }}</p>
+                            </div>
+                            <div>
+                                <label for="quick-option-amount" class="mb-1 block text-xs font-medium text-amber-50/90">Monto sugerido</label>
+                                <input
+                                    id="quick-option-amount"
+                                    v-model="quickOptionForm.default_amount"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                    placeholder="Opcional"
+                                >
+                                <p v-if="quickOptionForm.errors.default_amount" class="mt-1 text-xs text-rose-300">{{ quickOptionForm.errors.default_amount }}</p>
+                            </div>
+                            <div>
+                                <label for="quick-option-vat-treatment" class="mb-1 block text-xs font-medium text-amber-50/90">IVA</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <select
+                                        id="quick-option-vat-treatment"
+                                        v-model="quickOptionForm.vat_treatment"
+                                        class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                    >
+                                        <option v-for="option in vatTreatmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                    <select
+                                        v-if="quickOptionForm.vat_treatment === 'gravado'"
+                                        v-model.number="quickOptionForm.vat_rate"
+                                        class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                    >
+                                        <option v-for="option in vatRateOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                    <span v-else class="rounded-xl border border-amber-100/25 px-3 py-2 text-xs font-semibold text-amber-50/80">{{ vatLabel(quickOptionForm.vat_treatment, quickOptionForm.vat_rate) }}</span>
+                                </div>
+                                <p v-if="quickOptionForm.errors.vat_treatment" class="mt-1 text-xs text-rose-300">{{ quickOptionForm.errors.vat_treatment }}</p>
+                                <p v-if="quickOptionForm.errors.vat_rate" class="mt-1 text-xs text-rose-300">{{ quickOptionForm.errors.vat_rate }}</p>
+                            </div>
+                            <div class="flex items-end">
+                                <button
+                                    type="submit"
+                                    class="w-full rounded-xl bg-amber-200 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-100 disabled:opacity-60"
+                                    :disabled="quickOptionForm.processing"
+                                >
+                                    Guardar
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="mt-3">
+                            <label for="quick-option-description" class="mb-1 block text-xs font-medium text-amber-50/90">Descripcion opcional</label>
+                            <input
+                                id="quick-option-description"
+                                v-model="quickOptionForm.description"
+                                type="text"
+                                class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                placeholder="Ej. Para ventas por metro, litro, unidad suelta o mano de obra."
+                            >
+                            <p v-if="quickOptionForm.errors.description" class="mt-1 text-xs text-rose-300">{{ quickOptionForm.errors.description }}</p>
+                        </div>
+
+                        <div v-if="customQuickSaleOptions.length" class="mt-3 flex flex-wrap gap-2">
+                            <span v-for="option in customQuickSaleOptions" :key="`manage-${option.id}`" class="inline-flex items-center gap-2 rounded-lg border border-amber-100/20 px-3 py-1.5 text-xs font-semibold text-amber-50/90">
+                                {{ option.name }}
+                                <button type="button" class="text-rose-200 hover:text-rose-100" @click="deleteQuickOption(option)">Quitar</button>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -951,6 +1185,7 @@ onBeforeUnmount(() => {
                                         {{ item.quantity }} {{ item.quantity_label }} - {{ money(item.unit_price) }} {{ item.price_label }}
                                     </template>
                                 </p>
+                                <p class="mt-1 text-xs text-slate-400">IVA: {{ item.vat_label || 'IVA 21%' }}</p>
                             </div>
                             <button type="button" class="shrink-0 rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
                         </div>
@@ -965,6 +1200,7 @@ onBeforeUnmount(() => {
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Precio</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">IVA</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80">Subtotal</th>
                                 <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                             </tr>
@@ -990,6 +1226,7 @@ onBeforeUnmount(() => {
                                     {{ money(item.unit_price) }}
                                     <span v-if="item.price_label" class="text-xs text-slate-400">{{ item.price_label }}</span>
                                 </td>
+                                <td class="px-3 py-2 text-slate-300">{{ item.vat_label || 'IVA 21%' }}</td>
                                 <td class="px-3 py-2">{{ money(getLineSubtotal(item)) }}</td>
                                 <td class="px-3 py-2 text-right">
                                     <button type="button" class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
@@ -998,7 +1235,7 @@ onBeforeUnmount(() => {
                         </tbody>
                         <tbody v-else>
                             <tr>
-                                <td colspan="5" class="px-3 py-5 text-center text-slate-400">Agrega productos para continuar.</td>
+                                <td colspan="6" class="px-3 py-5 text-center text-slate-400">Agrega productos para continuar.</td>
                             </tr>
                         </tbody>
                     </table>

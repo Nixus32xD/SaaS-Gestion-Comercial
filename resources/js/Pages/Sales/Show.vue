@@ -149,6 +149,11 @@ const paymentStatusTone = computed(() => {
 const itemsCount = computed(() => props.sale.items?.length || 0);
 const manualItemsCount = computed(() => (props.sale.items || []).filter((item) => item.is_manual).length);
 const pendingTone = computed(() => (Number(props.sale.pending_amount) > 0 ? 'warning' : 'success'));
+const hasFiscalBreakdown = computed(() => (
+    Number(props.sale.fiscal_vat_amount || 0) > 0
+    || Number(props.sale.fiscal_exempt_amount || 0) > 0
+    || Number(props.sale.fiscal_non_taxed_amount || 0) > 0
+));
 const redirectSeconds = ref(5);
 const showAutoBackMessage = computed(() => props.auto_back === true);
 const receiptInput = ref(null);
@@ -240,6 +245,13 @@ onBeforeUnmount(() => {
                                 <p class="mt-2">Subtotal: <strong class="text-slate-100">{{ money(sale.subtotal) }}</strong></p>
                                 <p class="mt-1">Descuento: <strong class="text-slate-100">{{ money(sale.discount) }}</strong></p>
                                 <p class="mt-1">Total: <strong class="text-slate-100">{{ money(sale.total) }}</strong></p>
+                            </div>
+                            <div v-if="hasFiscalBreakdown" class="app-subsection">
+                                <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">IVA fiscal</p>
+                                <p class="mt-2">Neto gravado: <strong class="text-slate-100">{{ money(sale.fiscal_net_amount) }}</strong></p>
+                                <p class="mt-1">IVA: <strong class="text-slate-100">{{ money(sale.fiscal_vat_amount) }}</strong></p>
+                                <p v-if="Number(sale.fiscal_exempt_amount) > 0" class="mt-1">Exento: <strong class="text-slate-100">{{ money(sale.fiscal_exempt_amount) }}</strong></p>
+                                <p v-if="Number(sale.fiscal_non_taxed_amount) > 0" class="mt-1">No gravado: <strong class="text-slate-100">{{ money(sale.fiscal_non_taxed_amount) }}</strong></p>
                             </div>
                             <div class="app-subsection">
                                 <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Cobro</p>
@@ -351,6 +363,7 @@ onBeforeUnmount(() => {
                                     {{ money(item.unit_price) }}
                                     <span v-if="item.price_label">{{ item.price_label }}</span>
                                 </p>
+                                <p class="mt-1 text-xs text-slate-400">IVA: {{ item.vat_label || '-' }}</p>
                                 <p class="mt-3 text-sm">Subtotal: <strong class="text-slate-100">{{ money(item.subtotal) }}</strong></p>
                             </article>
                         </div>
@@ -362,6 +375,7 @@ onBeforeUnmount(() => {
                                         <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
                                         <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
                                         <th class="px-3 py-2 text-left font-medium text-slate-300/80">Precio</th>
+                                        <th class="px-3 py-2 text-left font-medium text-slate-300/80">IVA</th>
                                         <th class="px-3 py-2 text-left font-medium text-slate-300/80">Subtotal</th>
                                     </tr>
                                 </thead>
@@ -385,6 +399,7 @@ onBeforeUnmount(() => {
                                             {{ money(item.unit_price) }}
                                             <span v-if="item.price_label" class="text-xs text-slate-400">{{ item.price_label }}</span>
                                         </td>
+                                        <td class="px-3 py-2 text-slate-300">{{ item.vat_label || '-' }}</td>
                                         <td class="px-3 py-2">{{ money(item.subtotal) }}</td>
                                     </tr>
                                 </tbody>

@@ -43,6 +43,8 @@ class Product extends Model
         'weight_unit',
         'sale_price',
         'cost_price',
+        'vat_treatment',
+        'vat_rate',
         'stock',
         'min_stock',
         'shelf_life_days',
@@ -58,6 +60,8 @@ class Product extends Model
         return [
             'sale_price' => 'decimal:2',
             'cost_price' => 'decimal:2',
+            'vat_treatment' => 'string',
+            'vat_rate' => 'decimal:2',
             'weight_unit' => 'string',
             'stock' => 'decimal:3',
             'min_stock' => 'decimal:3',
