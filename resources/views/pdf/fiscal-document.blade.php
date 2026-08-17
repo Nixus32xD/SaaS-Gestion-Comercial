@@ -18,6 +18,10 @@
         .total { font-size: 16px; font-weight: bold; }
         .qr { width: 145px; height: 145px; }
         .footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid #d1d5db; font-size: 11px; }
+        .qr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .qr-cell { width: 160px; vertical-align: top; }
+        .qr-url-cell { vertical-align: top; padding-left: 12px; }
+        .qr-url { font-size: 9px; line-height: 1.35; color: #4b5563; word-wrap: break-word; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -102,14 +106,14 @@
     </table>
 
     <div class="footer">
-        <table class="grid">
+        <table class="qr-table">
             <tr>
-                <td>
+                <td class="qr-cell">
                     <img class="qr" src="{{ $qrImage }}" alt="QR ARCA">
                 </td>
-                <td>
+                <td class="qr-url-cell">
                     <div class="box-title">QR ARCA</div>
-                    <div class="muted">{{ $qrUrl }}</div>
+                    <div class="qr-url">{!! nl2br(e(wordwrap((string) $qrUrl, 56, "\n", true))) !!}</div>
                 </td>
             </tr>
         </table>
