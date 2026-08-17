@@ -84,6 +84,18 @@ const salesSettingsForm = useForm({
     fiscal_caea_due_date: props.sales_settings.fiscal_caea_due_date || '',
     fiscal_caea_report_deadline: props.sales_settings.fiscal_caea_report_deadline || '',
     fiscal_activities: props.sales_settings.fiscal_activities || '',
+    mercadopago_enabled: Boolean(props.sales_settings.mercadopago?.is_enabled),
+    mercadopago_environment: props.sales_settings.mercadopago?.environment || 'testing',
+    mercadopago_public_key: '',
+    mercadopago_access_token: '',
+    mercadopago_webhook_secret: '',
+    mercadopago_point_terminal_id: props.sales_settings.mercadopago?.point_terminal_id || '',
+    mercadopago_point_store_id: props.sales_settings.mercadopago?.point_store_id || '',
+    mercadopago_point_pos_id: props.sales_settings.mercadopago?.point_pos_id || '',
+    mercadopago_point_external_store_id: props.sales_settings.mercadopago?.point_external_store_id || '',
+    mercadopago_point_external_pos_id: props.sales_settings.mercadopago?.point_external_pos_id || '',
+    mercadopago_point_expiration_time: props.sales_settings.mercadopago?.point_expiration_time || 'PT15M',
+    mercadopago_point_print_on_terminal: props.sales_settings.mercadopago?.point_print_on_terminal || 'no_ticket',
     sale_sectors: (props.sales_settings.sale_sectors || []).map((sector) => ({
         id: sector.id,
         name: sector.name || '',
@@ -129,6 +141,7 @@ const fiscalConditionOptions = computed(() => props.fiscal_catalog?.fiscal_condi
 const fiscalPointOfSaleOptions = computed(() => props.sales_settings.fiscal_point_of_sale_options?.options || []);
 const fiscalPointOfSaleMessage = computed(() => props.sales_settings.fiscal_point_of_sale_options?.message || null);
 const hasFiscalPointOfSaleOptions = computed(() => fiscalPointOfSaleOptions.value.length > 0);
+const mercadoPagoSettings = computed(() => props.sales_settings.mercadopago || {});
 
 watch(() => salesSettingsForm.fiscal_document_type, (documentType) => {
     const option = fiscalDocumentTypeOptions.value.find((item) => item.value === documentType);
@@ -542,6 +555,10 @@ const planLabel = (plan) => {
                             <input v-model="salesSettingsForm.fiscal_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
                             Habilitar facturacion electronica
                         </label>
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
+                            <input v-model="salesSettingsForm.mercadopago_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
+                            Habilitar Mercado Pago Point
+                        </label>
                     </div>
                 </div>
 
@@ -557,6 +574,86 @@ const planLabel = (plan) => {
                 <p v-if="salesSettingsForm.errors.fiscal_caea_code" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_caea_code }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_caea_period" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_caea_period }}</p>
                 <p v-if="salesSettingsForm.errors.fiscal_activities" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.fiscal_activities }}</p>
+                <p v-if="salesSettingsForm.errors.mercadopago_access_token" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.mercadopago_access_token }}</p>
+                <p v-if="salesSettingsForm.errors.mercadopago_point_terminal_id" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.mercadopago_point_terminal_id }}</p>
+                <p v-if="salesSettingsForm.errors.mercadopago_point_expiration_time" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.mercadopago_point_expiration_time }}</p>
+
+                <section class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h4 class="text-base font-semibold text-slate-100">Mercado Pago Point</h4>
+                            <p class="mt-1 text-xs text-slate-400">Credenciales y terminal para cobros integrados del comercio.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Ambiente</label>
+                            <select v-model="salesSettingsForm.mercadopago_environment" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option value="testing">Prueba</option>
+                                <option value="production">Produccion</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Terminal ID</label>
+                            <input v-model="salesSettingsForm.mercadopago_point_terminal_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="NEWLAND_N950__..." />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Access Token</label>
+                            <input v-model="salesSettingsForm.mercadopago_access_token" type="password" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" :placeholder="mercadoPagoSettings.access_token_configured ? 'Ya configurado' : 'APP_USR-...'" autocomplete="new-password" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Public Key</label>
+                            <input v-model="salesSettingsForm.mercadopago_public_key" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" :placeholder="mercadoPagoSettings.public_key_configured ? 'Ya configurada' : 'APP_USR-...'" autocomplete="off" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Clave secreta webhook</label>
+                            <input v-model="salesSettingsForm.mercadopago_webhook_secret" type="password" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" :placeholder="mercadoPagoSettings.webhook_secret_configured ? 'Ya configurada' : 'Clave de Mercado Pago'" autocomplete="new-password" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Expiracion</label>
+                            <input v-model="salesSettingsForm.mercadopago_point_expiration_time" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="PT15M" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Impresion</label>
+                            <select v-model="salesSettingsForm.mercadopago_point_print_on_terminal" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option value="no_ticket">Sin ticket</option>
+                                <option value="seller_ticket">Ticket vendedor</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Store ID</label>
+                            <input v-model="salesSettingsForm.mercadopago_point_store_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="86244114" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">POS ID</label>
+                            <input v-model="salesSettingsForm.mercadopago_point_pos_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="136820601" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">External Store ID</label>
+                            <input v-model="salesSettingsForm.mercadopago_point_external_store_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="SUC001" />
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">External POS ID</label>
+                            <input v-model="salesSettingsForm.mercadopago_point_external_pos_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="CAJA001" />
+                        </div>
+
+                        <div class="space-y-1 md:col-span-2">
+                            <label class="text-sm font-medium text-slate-300">Webhook</label>
+                            <input :value="mercadoPagoSettings.webhook_url" type="text" readonly class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        </div>
+                    </div>
+                </section>
 
                 <section class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
                     <div class="flex flex-wrap items-start justify-between gap-3">

@@ -206,6 +206,14 @@ class Business extends Model
     }
 
     /**
+     * @return HasOne<BusinessMercadoPagoCredential, $this>
+     */
+    public function mercadoPagoCredential(): HasOne
+    {
+        return $this->hasOne(BusinessMercadoPagoCredential::class);
+    }
+
+    /**
      * @return HasMany<BusinessNotificationDispatch, $this>
      */
     public function notificationDispatches(): HasMany

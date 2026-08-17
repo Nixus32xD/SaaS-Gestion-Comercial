@@ -134,7 +134,12 @@ const reconcileFiscalDocument = () => {
     });
 };
 
+const hasPendingMercadoPagoPointPayment = () => (props.sale.payments || []).some((payment) => (
+    payment.provider === 'mercadopago' && payment.status === 'pending'
+));
+
 const paymentStatusLabel = computed(() => {
+    if (props.sale.payment_status === 'pending' && hasPendingMercadoPagoPointPayment()) return 'Pendiente Point';
     if (props.sale.payment_status === 'partial') return 'Pago parcial';
     if (props.sale.payment_status === 'pending') return 'Fiada';
     return 'Pagada';
@@ -187,6 +192,7 @@ const mercadoPagoPointSyncError = ref('');
 
 let redirectTimeout = null;
 let countdownInterval = null;
+let paymentPollInterval = null;
 
 const setReceipt = (event) => {
     const [receipt] = event.target?.files || [];
@@ -217,11 +223,13 @@ const createMercadoPagoPointOrder = (paymentMethod) => {
     });
 };
 
-const syncMercadoPagoPointPayment = async (payment) => {
+const syncMercadoPagoPointPayment = async (payment, options = {}) => {
     if (!payment?.can_sync || syncingPaymentId.value !== null) return;
 
     syncingPaymentId.value = payment.id;
-    mercadoPagoPointSyncError.value = '';
+    if (!options.silent) {
+        mercadoPagoPointSyncError.value = '';
+    }
 
     try {
         const response = await fetch(route('sales.payments.mercadopago-point.show', {
@@ -245,7 +253,9 @@ const syncMercadoPagoPointPayment = async (payment) => {
             preserveScroll: true,
         });
     } catch (error) {
-        mercadoPagoPointSyncError.value = error.message || 'No se pudo actualizar el estado del pago.';
+        if (!options.silent) {
+            mercadoPagoPointSyncError.value = error.message || 'No se pudo actualizar el estado del pago.';
+        }
     } finally {
         syncingPaymentId.value = null;
     }
@@ -289,6 +299,12 @@ const salePaymentDate = (payment) => (
 );
 
 onMounted(() => {
+    paymentPollInterval = window.setInterval(() => {
+        if (pendingMercadoPagoPayment.value) {
+            void syncMercadoPagoPointPayment(pendingMercadoPagoPayment.value, { silent: true });
+        }
+    }, 5000);
+
     if (!showAutoBackMessage.value) return;
 
     countdownInterval = window.setInterval(() => {
@@ -309,6 +325,10 @@ onBeforeUnmount(() => {
 
     if (countdownInterval !== null) {
         window.clearInterval(countdownInterval);
+    }
+
+    if (paymentPollInterval !== null) {
+        window.clearInterval(paymentPollInterval);
     }
 });
 </script>
@@ -550,7 +570,7 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div v-else class="space-y-3">
-                                <div class="grid gap-2 sm:grid-cols-2">
+                                <div class="grid gap-2 sm:grid-cols-3">
                                     <button
                                         type="button"
                                         class="inline-flex items-center justify-center rounded-xl bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
@@ -566,6 +586,14 @@ onBeforeUnmount(() => {
                                         @click="createMercadoPagoPointOrder('credit_card')"
                                     >
                                         Credito
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center justify-center rounded-xl border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="!canCreateMercadoPagoPointOrder || mercadoPagoPointForm.processing"
+                                        @click="createMercadoPagoPointOrder('qr')"
+                                    >
+                                        QR
                                     </button>
                                 </div>
 

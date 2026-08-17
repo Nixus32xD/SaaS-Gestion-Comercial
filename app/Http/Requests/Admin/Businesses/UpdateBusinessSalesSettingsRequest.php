@@ -68,6 +68,18 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_caea_report_deadline' => ['nullable', 'date'],
             'fiscal_activities' => ['nullable', 'array'],
             'fiscal_activities.*' => ['integer', 'min:1'],
+            'mercadopago_enabled' => ['required', 'boolean'],
+            'mercadopago_environment' => ['required', Rule::in(['testing', 'production'])],
+            'mercadopago_public_key' => ['nullable', 'string', 'max:2000'],
+            'mercadopago_access_token' => ['nullable', 'string', 'max:2000'],
+            'mercadopago_webhook_secret' => ['nullable', 'string', 'max:2000'],
+            'mercadopago_point_terminal_id' => ['nullable', 'string', 'max:160'],
+            'mercadopago_point_store_id' => ['nullable', 'string', 'max:80'],
+            'mercadopago_point_pos_id' => ['nullable', 'string', 'max:80'],
+            'mercadopago_point_external_store_id' => ['nullable', 'string', 'max:80'],
+            'mercadopago_point_external_pos_id' => ['nullable', 'string', 'max:80'],
+            'mercadopago_point_expiration_time' => ['nullable', 'string', 'max:20', 'regex:/^PT(?=\\d)(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?$/'],
+            'mercadopago_point_print_on_terminal' => ['required', Rule::in(['no_ticket', 'seller_ticket'])],
             'sale_sectors' => ['nullable', 'array'],
             'sale_sectors.*.id' => [
                 'nullable',
@@ -103,6 +115,10 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
         )));
         $fiscalEnvironment = in_array($fiscalEnvironment, ['testing', 'production'], true)
             ? $fiscalEnvironment
+            : 'testing';
+        $mercadoPagoEnvironment = strtolower(trim((string) $this->input('mercadopago_environment', 'testing')));
+        $mercadoPagoEnvironment = in_array($mercadoPagoEnvironment, ['testing', 'production'], true)
+            ? $mercadoPagoEnvironment
             : 'testing';
 
         $this->merge([
@@ -143,6 +159,20 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
                 ->map(fn (string $activity): int => (int) $activity)
                 ->values()
                 ->all(),
+            'mercadopago_enabled' => $this->boolean('mercadopago_enabled'),
+            'mercadopago_environment' => $mercadoPagoEnvironment,
+            'mercadopago_public_key' => trim((string) $this->input('mercadopago_public_key', '')),
+            'mercadopago_access_token' => trim((string) $this->input('mercadopago_access_token', '')),
+            'mercadopago_webhook_secret' => trim((string) $this->input('mercadopago_webhook_secret', '')),
+            'mercadopago_point_terminal_id' => trim((string) $this->input('mercadopago_point_terminal_id', '')),
+            'mercadopago_point_store_id' => trim((string) $this->input('mercadopago_point_store_id', '')),
+            'mercadopago_point_pos_id' => trim((string) $this->input('mercadopago_point_pos_id', '')),
+            'mercadopago_point_external_store_id' => trim((string) $this->input('mercadopago_point_external_store_id', '')),
+            'mercadopago_point_external_pos_id' => trim((string) $this->input('mercadopago_point_external_pos_id', '')),
+            'mercadopago_point_expiration_time' => trim((string) $this->input('mercadopago_point_expiration_time', 'PT15M')) ?: 'PT15M',
+            'mercadopago_point_print_on_terminal' => $this->input('mercadopago_point_print_on_terminal') === 'seller_ticket'
+                ? 'seller_ticket'
+                : 'no_ticket',
             'sale_sectors' => collect((array) $this->input('sale_sectors', []))
                 ->map(fn (array $sector): array => [
                     'id' => $sector['id'] ?? null,
@@ -177,6 +207,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
         $validator->after(function (Validator $validator): void {
             if (! $this->boolean('advanced_sale_settings_enabled')) {
                 $this->validateFiscalCuit($validator);
+                $this->validateMercadoPagoPoint($validator);
 
                 return;
             }
@@ -196,6 +227,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             }
 
             $this->validateFiscalCuit($validator);
+            $this->validateMercadoPagoPoint($validator);
         });
     }
 
@@ -242,6 +274,23 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
 
         if ($checkDigit !== (int) $cuit[10]) {
             $validator->errors()->add('fiscal_cuit', 'El CUIT fiscal no es valido.');
+        }
+    }
+
+    private function validateMercadoPagoPoint(Validator $validator): void
+    {
+        if (! $this->boolean('mercadopago_enabled')) {
+            return;
+        }
+
+        $credential = $this->route('business')?->mercadoPagoCredential()->first();
+
+        if (! $this->filled('mercadopago_access_token') && blank($credential?->access_token)) {
+            $validator->errors()->add('mercadopago_access_token', 'El access token es obligatorio para habilitar Point.');
+        }
+
+        if (! $this->filled('mercadopago_point_terminal_id') && blank($credential?->point_terminal_id)) {
+            $validator->errors()->add('mercadopago_point_terminal_id', 'La terminal Point es obligatoria para habilitar Point.');
         }
     }
 

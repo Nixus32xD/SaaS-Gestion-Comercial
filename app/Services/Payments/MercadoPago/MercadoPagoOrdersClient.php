@@ -12,18 +12,18 @@ class MercadoPagoOrdersClient
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
-    public function createOrder(array $payload, string $idempotencyKey): array
+    public function createOrder(array $payload, string $idempotencyKey, ?string $accessToken = null): array
     {
-        return $this->post('/v1/orders', $payload, $idempotencyKey, 201);
+        return $this->post('/v1/orders', $payload, $idempotencyKey, 201, $accessToken);
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function getOrder(string $orderId): array
+    public function getOrder(string $orderId, ?string $accessToken = null): array
     {
         try {
-            $response = $this->request()->get('/v1/orders/'.$this->pathSegment($orderId));
+            $response = $this->request($accessToken)->get('/v1/orders/'.$this->pathSegment($orderId));
         } catch (ConnectionException $exception) {
             throw new MercadoPagoApiTimeoutException($this->connectionUnavailableMessage(), previous: $exception);
         }
@@ -34,21 +34,26 @@ class MercadoPagoOrdersClient
     /**
      * @return array<string, mixed>
      */
-    public function simulateOrder(string $orderId, string $status): array
+    public function simulateOrder(string $orderId, string $status, ?string $accessToken = null): array
     {
         return $this->post('/v1/orders/'.$this->pathSegment($orderId).'/events', [
             'status' => $status,
-        ], 'simulate-'.$orderId.'-'.$status, 200);
+        ], 'simulate-'.$orderId.'-'.$status, 200, $accessToken);
     }
 
     /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
-    private function post(string $uri, array $payload, string $idempotencyKey, int $expectedStatus): array
-    {
+    private function post(
+        string $uri,
+        array $payload,
+        string $idempotencyKey,
+        int $expectedStatus,
+        ?string $accessToken = null
+    ): array {
         try {
-            $response = $this->request()
+            $response = $this->request($accessToken)
                 ->withHeaders(['X-Idempotency-Key' => $idempotencyKey])
                 ->post($uri, $payload);
         } catch (ConnectionException $exception) {
@@ -64,14 +69,14 @@ class MercadoPagoOrdersClient
         return $data;
     }
 
-    private function request(): PendingRequest
+    private function request(?string $accessToken = null): PendingRequest
     {
         return Http::baseUrl($this->baseUrl())
             ->acceptJson()
             ->asJson()
             ->connectTimeout($this->connectTimeout())
             ->timeout($this->timeout())
-            ->withToken($this->token());
+            ->withToken($this->token($accessToken));
     }
 
     /**
@@ -112,9 +117,9 @@ class MercadoPagoOrdersClient
         return rtrim((string) config('services.mercadopago.base_url', 'https://api.mercadopago.com'), '/');
     }
 
-    private function token(): string
+    private function token(?string $accessToken = null): string
     {
-        $token = trim((string) config('services.mercadopago.access_token'));
+        $token = trim((string) ($accessToken ?: config('services.mercadopago.access_token')));
 
         if ($token === '') {
             throw new MercadoPagoApiException('El access token de Mercado Pago no esta configurado.');

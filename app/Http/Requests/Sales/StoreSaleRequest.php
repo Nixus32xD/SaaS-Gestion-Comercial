@@ -13,6 +13,10 @@ class StoreSaleRequest extends FormRequest
 {
     use HasSaleReceiptRules;
 
+    private const PAYMENT_PROVIDER_MANUAL = 'manual';
+
+    private const PAYMENT_PROVIDER_MERCADOPAGO_POINT = 'mercadopago_point';
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -36,13 +40,15 @@ class StoreSaleRequest extends FormRequest
                 ->where('is_enabled', true)
                 ->exists();
         $paymentStatus = $this->resolvePaymentStatus();
+        $paymentProvider = $this->resolvePaymentProvider();
+        $usesMercadoPagoPoint = $paymentProvider === self::PAYMENT_PROVIDER_MERCADOPAGO_POINT;
         $requiresInitialPayment = in_array($paymentStatus, [
             Sale::PAYMENT_STATUS_PAID,
             Sale::PAYMENT_STATUS_PARTIAL,
-        ], true);
+        ], true) || $usesMercadoPagoPoint;
         $requiresPaymentDestination = $advancedSaleSettingsEnabled
-            && $this->shouldUsePaymentDestination($paymentStatus);
-        $requiresCustomer = in_array($paymentStatus, [
+            && $this->shouldUsePaymentDestination($paymentStatus, $paymentProvider);
+        $requiresCustomer = ! $usesMercadoPagoPoint && in_array($paymentStatus, [
             Sale::PAYMENT_STATUS_PARTIAL,
             Sale::PAYMENT_STATUS_PENDING,
         ], true);
@@ -71,6 +77,10 @@ class StoreSaleRequest extends FormRequest
                 Sale::PAYMENT_STATUS_PAID,
                 Sale::PAYMENT_STATUS_PARTIAL,
                 Sale::PAYMENT_STATUS_PENDING,
+            ])],
+            'payment_provider' => ['required', Rule::in([
+                self::PAYMENT_PROVIDER_MANUAL,
+                self::PAYMENT_PROVIDER_MERCADOPAGO_POINT,
             ])],
             'payment_method' => [$requiresInitialPayment ? 'required' : 'nullable', Rule::in(Sale::PAYMENT_METHODS)],
             'sale_sector_id' => [
@@ -116,7 +126,8 @@ class StoreSaleRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $paymentStatus = $this->resolvePaymentStatus();
-        $shouldUsePaymentDestination = $this->shouldUsePaymentDestination($paymentStatus);
+        $paymentProvider = $this->resolvePaymentProvider();
+        $shouldUsePaymentDestination = $this->shouldUsePaymentDestination($paymentStatus, $paymentProvider);
         $items = collect((array) $this->input('items', []))
             ->map(function (mixed $item): array {
                 $row = is_array($item) ? $item : [];
@@ -150,9 +161,14 @@ class StoreSaleRequest extends FormRequest
             'payment_status' => $this->filled('payment_status')
                 ? (string) $this->input('payment_status')
                 : Sale::PAYMENT_STATUS_PAID,
+            'payment_provider' => $paymentProvider,
             'payment_method' => $this->filled('payment_method')
                 ? (string) $this->input('payment_method')
-                : ($paymentStatus === Sale::PAYMENT_STATUS_PENDING ? null : Sale::PAYMENT_METHOD_CASH),
+                : ($paymentStatus === Sale::PAYMENT_STATUS_PENDING && $paymentProvider !== self::PAYMENT_PROVIDER_MERCADOPAGO_POINT
+                    ? null
+                    : ($paymentProvider === self::PAYMENT_PROVIDER_MERCADOPAGO_POINT
+                        ? Sale::PAYMENT_METHOD_DEBIT_CARD
+                        : Sale::PAYMENT_METHOD_CASH)),
             'sale_sector_id' => $this->filled('sale_sector_id')
                 ? (int) $this->input('sale_sector_id')
                 : null,
@@ -193,12 +209,33 @@ class StoreSaleRequest extends FormRequest
             }
 
             $paymentStatus = $this->resolvePaymentStatus();
+            $paymentProvider = $this->resolvePaymentProvider();
 
             if ($paymentStatus === Sale::PAYMENT_STATUS_PENDING && $this->filled('paid_amount')) {
                 $validator->errors()->add(
                     'paid_amount',
                     'Las ventas fiadas no deben registrar un monto abonado al momento.'
                 );
+            }
+
+            if ($paymentProvider === self::PAYMENT_PROVIDER_MERCADOPAGO_POINT) {
+                if ($paymentStatus !== Sale::PAYMENT_STATUS_PAID) {
+                    $validator->errors()->add(
+                        'payment_status',
+                        'Mercado Pago Point solo se usa para cobrar el total de la venta.'
+                    );
+                }
+
+                if (! in_array($this->input('payment_method'), [
+                    Sale::PAYMENT_METHOD_DEBIT_CARD,
+                    Sale::PAYMENT_METHOD_CREDIT_CARD,
+                    Sale::PAYMENT_METHOD_QR,
+                ], true)) {
+                    $validator->errors()->add(
+                        'payment_method',
+                        'Point integrado solo admite debito, credito o QR.'
+                    );
+                }
             }
 
             $this->validateFiscalCustomer($validator);
@@ -214,9 +251,17 @@ class StoreSaleRequest extends FormRequest
         };
     }
 
-    private function shouldUsePaymentDestination(string $paymentStatus): bool
+    private function resolvePaymentProvider(): string
     {
-        if ($paymentStatus === Sale::PAYMENT_STATUS_PENDING) {
+        return $this->input('payment_provider') === self::PAYMENT_PROVIDER_MERCADOPAGO_POINT
+            ? self::PAYMENT_PROVIDER_MERCADOPAGO_POINT
+            : self::PAYMENT_PROVIDER_MANUAL;
+    }
+
+    private function shouldUsePaymentDestination(string $paymentStatus, string $paymentProvider): bool
+    {
+        if ($paymentStatus === Sale::PAYMENT_STATUS_PENDING
+            && $paymentProvider !== self::PAYMENT_PROVIDER_MERCADOPAGO_POINT) {
             return false;
         }
 

@@ -7,6 +7,7 @@ use App\Http\Requests\Payments\StoreMercadoPagoPointOrderRequest;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Services\Payments\MercadoPago\MercadoPagoApiException;
+use App\Services\Payments\MercadoPago\MercadoPagoPaymentCompletionService;
 use App\Services\Payments\MercadoPago\MercadoPagoPointProvider;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ class MercadoPagoPointController extends Controller
 {
     public function __construct(
         private readonly MercadoPagoPointProvider $provider,
+        private readonly MercadoPagoPaymentCompletionService $completionService,
     ) {}
 
     public function store(
@@ -60,6 +62,7 @@ class MercadoPagoPointController extends Controller
 
         try {
             $payment = $this->provider->syncPayment($payment);
+            $this->completionService->complete($payment);
         } catch (MercadoPagoApiException $exception) {
             report($exception);
 

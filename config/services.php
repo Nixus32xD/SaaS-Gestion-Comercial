@@ -40,7 +40,9 @@ return [
     ],
 
     'mercadopago' => [
+        'environment' => env('MERCADO_PAGO_ENVIRONMENT', 'testing'),
         'base_url' => env('MERCADO_PAGO_BASE_URL', 'https://api.mercadopago.com'),
+        'public_key' => env('MERCADO_PAGO_PUBLIC_KEY'),
         'access_token' => env('MERCADO_PAGO_ACCESS_TOKEN'),
         'webhook_secret' => env('MERCADO_PAGO_WEBHOOK_SECRET'),
         'point_terminal_id' => env('MERCADO_PAGO_POINT_TERMINAL_ID'),

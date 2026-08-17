@@ -14,6 +14,7 @@ const props = defineProps({
     quick_sale_options: { type: Array, default: () => [] },
     can_manage_quick_sale_options: { type: Boolean, default: false },
     vat_options: { type: Object, default: () => ({ treatments: [], rates: [], defaults: { treatment: 'gravado', rate: 21 } }) },
+    mercadopago_point: { type: Object, default: () => ({ enabled: false }) },
     receipt_feature_available: { type: Boolean, default: false },
 });
 
@@ -63,6 +64,7 @@ const form = useForm({
         address: '',
     },
     payment_status: 'paid',
+    payment_provider: 'manual',
     payment_method: 'cash',
     sale_sector_id: null,
     payment_destination_id: null,
@@ -89,6 +91,7 @@ const paymentStatusOptions = [
     { value: 'partial', label: 'Parcial' },
     { value: 'pending', label: 'Fiado' },
 ];
+const pointPaymentMethodValues = ['debit_card', 'credit_card', 'qr'];
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -245,6 +248,10 @@ watch(filteredProducts, () => {
 });
 
 watch(() => form.payment_status, (value) => {
+    if (form.payment_provider === 'mercadopago_point' && value !== 'paid') {
+        form.payment_provider = 'manual';
+    }
+
     if (value === 'pending') {
         form.payment_method = null;
         form.amount_received = '';
@@ -258,7 +265,31 @@ watch(() => form.payment_status, (value) => {
     }
 });
 
+watch(() => form.payment_provider, (value) => {
+    if (value === 'mercadopago_point') {
+        form.payment_status = 'paid';
+        form.amount_received = '';
+        form.paid_amount = '';
+
+        if (!pointPaymentMethodValues.includes(form.payment_method)) {
+            form.payment_method = 'debit_card';
+        }
+
+        return;
+    }
+
+    if (!form.payment_method) {
+        form.payment_method = 'cash';
+    }
+});
+
 watch(() => form.payment_method, (value) => {
+    if (form.payment_provider === 'mercadopago_point' && !pointPaymentMethodValues.includes(value)) {
+        form.payment_method = 'debit_card';
+
+        return;
+    }
+
     if (value !== 'cash') {
         form.amount_received = '';
     }
@@ -565,6 +596,14 @@ const isPendingSale = computed(() => form.payment_status === 'pending');
 const isPartialSale = computed(() => form.payment_status === 'partial');
 const requiresImmediatePayment = computed(() => form.payment_status !== 'pending');
 const isCashPayment = computed(() => form.payment_method === 'cash');
+const usesMercadoPagoPoint = computed(() => form.payment_provider === 'mercadopago_point');
+const canUseMercadoPagoPoint = computed(() => Boolean(props.mercadopago_point?.enabled));
+const pointPaymentMethodOptions = computed(() => (
+    paymentMethodOptions.filter((option) => pointPaymentMethodValues.includes(option.value))
+));
+const activePaymentMethodOptions = computed(() => (
+    usesMercadoPagoPoint.value ? pointPaymentMethodOptions.value : paymentMethodOptions
+));
 const selectedPaymentMethod = computed(() => (
     paymentMethodOptions.find((option) => option.value === form.payment_method) || null
 ));
@@ -573,7 +612,9 @@ const advancedSaleSettingsEnabled = computed(() => Boolean(props.advanced_sale_s
 const saleSectorOptions = computed(() => props.advanced_sale_settings?.sale_sectors || []);
 const paymentDestinationOptions = computed(() => props.advanced_sale_settings?.payment_destinations || []);
 const paidAmount = computed(() => (
-    form.payment_status === 'paid'
+    usesMercadoPagoPoint.value
+        ? 0
+        : form.payment_status === 'paid'
         ? total.value
         : Math.max(0, Number(form.paid_amount || 0))
 ));
@@ -595,7 +636,7 @@ const changeAmount = computed(() => (
 const requiresPaymentDestination = computed(() => (
     advancedSaleSettingsEnabled.value
     && requiresImmediatePayment.value
-    && paidAmount.value > 0
+    && (paidAmount.value > 0 || usesMercadoPagoPoint.value)
     && paymentMethodRequiresDestination(form.payment_method)
 ));
 const canSubmit = computed(() => (
@@ -607,6 +648,7 @@ const canSubmit = computed(() => (
     && (!isPendingSale.value || form.customer_id)
     && (!isPartialSale.value || (form.customer_id && paidAmount.value > 0 && pendingAmount.value > 0))
     && (!isCashPayment.value || remaining.value === 0)
+    && (!usesMercadoPagoPoint.value || canUseMercadoPagoPoint.value)
     && (!fiscalEnabled.value || fiscalCustomerReady.value)
 ));
 const itemErrorMessages = computed(() => Array.from(new Set(
@@ -619,15 +661,37 @@ const cartItemsCount = computed(() => form.items.length);
 const manualItemsCount = computed(() => form.items.filter((item) => item.is_manual).length);
 const cartUnitsCount = computed(() => form.items.reduce((carry, item) => carry + (Number(item.quantity) || 0), 0));
 const saleStatusLabel = computed(() => (
-    form.payment_status === 'paid'
+    usesMercadoPagoPoint.value
+        ? 'A cobrar Point'
+        : form.payment_status === 'paid'
         ? 'Pagado completo'
         : (form.payment_status === 'partial' ? 'Pago parcial' : 'Fiado')
 ));
 const paymentStatusTone = computed(() => (
-    form.payment_status === 'paid'
+    usesMercadoPagoPoint.value
+        ? 'warning'
+        : form.payment_status === 'paid'
         ? 'success'
         : (form.payment_status === 'partial' ? 'warning' : 'danger')
 ));
+const submitButtonLabel = computed(() => (
+    usesMercadoPagoPoint.value ? 'Enviar a Point' : 'Confirmar venta'
+));
+const readyMessage = computed(() => (
+    usesMercadoPagoPoint.value ? 'Lista para enviar a Point.' : 'Lista para confirmar.'
+));
+const mercadoPagoPointUnavailableMessage = computed(() => {
+    if (canUseMercadoPagoPoint.value) return '';
+
+    const missing = [];
+
+    if (!props.mercadopago_point?.access_token_configured) missing.push('access token');
+    if (!props.mercadopago_point?.terminal_configured) missing.push('terminal Point');
+
+    return missing.length
+        ? `Falta configurar ${missing.join(' y ')}.`
+        : 'Mercado Pago Point no esta configurado.';
+});
 const activeProductStock = computed(() => (
     activeProduct.value ? getDisplayedStock(activeProduct.value) : null
 ));
@@ -648,6 +712,10 @@ const summaryWarnings = computed(() => {
 
     if ((isPendingSale.value || isPartialSale.value) && !form.customer_id) {
         warnings.push('Las ventas fiadas o parciales requieren cliente asociado.');
+    }
+
+    if (usesMercadoPagoPoint.value && !canUseMercadoPagoPoint.value) {
+        warnings.push(mercadoPagoPointUnavailableMessage.value);
     }
 
     if (fiscalEnabled.value && fiscalCustomerWithData.value && !fiscalCustomerReady.value) {
@@ -688,6 +756,7 @@ const buildDraftSnapshot = () => ({
         customer_id: form.customer_id,
         fiscal_customer: { ...form.fiscal_customer },
         payment_status: form.payment_status,
+        payment_provider: form.payment_provider,
         payment_method: form.payment_method,
         sale_sector_id: form.sale_sector_id,
         payment_destination_id: form.payment_destination_id,
@@ -734,6 +803,7 @@ const restoreDraft = () => {
             ? { ...form.fiscal_customer, ...draft.form.fiscal_customer }
             : form.fiscal_customer;
         form.payment_status = draft?.form?.payment_status ?? form.payment_status;
+        form.payment_provider = draft?.form?.payment_provider ?? form.payment_provider;
         form.payment_method = draft?.form?.payment_method ?? form.payment_method;
         form.sale_sector_id = draft?.form?.sale_sector_id ?? form.sale_sector_id;
         form.payment_destination_id = draft?.form?.payment_destination_id ?? form.payment_destination_id;
@@ -853,6 +923,7 @@ const submit = () => {
                 }
                 : null,
             payment_status: data.payment_status,
+            payment_provider: usesMercadoPagoPoint.value ? 'mercadopago_point' : 'manual',
             payment_method: requiresImmediatePayment.value ? data.payment_method : null,
             sale_sector_id: advancedSaleSettingsEnabled.value ? data.sale_sector_id : null,
             payment_destination_id: requiresPaymentDestination.value ? data.payment_destination_id : null,
@@ -1491,7 +1562,7 @@ onBeforeUnmount(() => {
                                 v-model="form.payment_method"
                                 class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
                             >
-                                <option v-for="option in paymentMethodOptions" :key="option.value" :value="option.value">
+                                <option v-for="option in activePaymentMethodOptions" :key="option.value" :value="option.value">
                                     {{ option.label }}
                                 </option>
                             </select>
@@ -1552,6 +1623,10 @@ onBeforeUnmount(() => {
                                 </div>
                             </div>
 
+                            <p v-else-if="usesMercadoPagoPoint" class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
+                                Se enviara una orden a la terminal Point por {{ money(total) }}.
+                            </p>
+
                             <p v-else class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
                                 {{ selectedPaymentMethodLabel }} se registra como cobro manual confirmado en mostrador. No hace falta calcular vuelto.
                             </p>
@@ -1568,7 +1643,8 @@ onBeforeUnmount(() => {
                         <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
                         <p>Descuento: <strong>{{ money(form.discount) }}</strong></p>
                         <p class="mt-2 text-base text-slate-100">Total: <strong>{{ money(total) }}</strong></p>
-                        <p class="mt-2">Estado: <strong>{{ form.payment_status === 'paid' ? 'Pagado completo' : (form.payment_status === 'partial' ? 'Pago parcial' : 'Fiado') }}</strong></p>
+                        <p class="mt-2">Estado: <strong>{{ saleStatusLabel }}</strong></p>
+                        <p>Canal: <strong>{{ usesMercadoPagoPoint ? 'Mercado Pago Point' : 'Manual' }}</strong></p>
                         <p v-if="requiresImmediatePayment">Medio: <strong>{{ selectedPaymentMethodLabel }}</strong></p>
                         <p v-if="selectedCustomer">Cliente: <strong>{{ selectedCustomer.name }}</strong></p>
                         <template v-if="requiresImmediatePayment">
@@ -1584,7 +1660,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="mt-4 flex justify-end xl:hidden">
                     <button type="button" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50 sm:w-auto" :disabled="!canSubmit" @click="submitIfReady">
-                        Confirmar venta
+                        {{ submitButtonLabel }}
                     </button>
                 </div>
                 </div>
@@ -1601,6 +1677,28 @@ onBeforeUnmount(() => {
 
                     <div class="mt-4 space-y-4">
                         <div>
+                            <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Canal</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    class="h-10 rounded-lg border px-2 text-xs font-semibold transition"
+                                    :class="!usesMercadoPagoPoint ? 'border-cyan-300/60 bg-cyan-400/20 text-cyan-50' : 'border-cyan-100/15 bg-slate-950/35 text-slate-300 hover:bg-slate-800/70'"
+                                    @click="form.payment_provider = 'manual'"
+                                >
+                                    Manual
+                                </button>
+                                <button
+                                    type="button"
+                                    class="h-10 rounded-lg border px-2 text-xs font-semibold transition"
+                                    :class="usesMercadoPagoPoint ? 'border-emerald-300/60 bg-emerald-400/20 text-emerald-50' : 'border-cyan-100/15 bg-slate-950/35 text-slate-300 hover:bg-slate-800/70'"
+                                    @click="form.payment_provider = 'mercadopago_point'"
+                                >
+                                    Point
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
                             <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Estado</label>
                             <div class="grid grid-cols-3 gap-2">
                                 <button
@@ -1609,6 +1707,7 @@ onBeforeUnmount(() => {
                                     type="button"
                                     class="h-10 rounded-lg border px-2 text-xs font-semibold transition"
                                     :class="form.payment_status === option.value ? 'border-cyan-300/60 bg-cyan-400/20 text-cyan-50' : 'border-cyan-100/15 bg-slate-950/35 text-slate-300 hover:bg-slate-800/70'"
+                                    :disabled="usesMercadoPagoPoint && option.value !== 'paid'"
                                     @click="form.payment_status = option.value"
                                 >
                                     {{ option.label }}
@@ -1696,7 +1795,7 @@ onBeforeUnmount(() => {
                                 <label class="mb-2 block text-sm font-medium text-slate-300">Medio</label>
                                 <div class="grid grid-cols-2 gap-2">
                                     <button
-                                        v-for="option in paymentMethodOptions"
+                                        v-for="option in activePaymentMethodOptions"
                                         :key="option.value"
                                         type="button"
                                         class="min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition"
@@ -1708,6 +1807,9 @@ onBeforeUnmount(() => {
                                 </div>
                                 <p v-if="form.errors.payment_method" class="mt-1 text-xs text-rose-300">
                                     {{ form.errors.payment_method }}
+                                </p>
+                                <p v-if="usesMercadoPagoPoint && !canUseMercadoPagoPoint" class="mt-2 text-xs text-amber-100">
+                                    {{ mercadoPagoPointUnavailableMessage }}
                                 </p>
                             </div>
                         </div>
@@ -1783,8 +1885,8 @@ onBeforeUnmount(() => {
                             <span class="text-xl font-bold text-slate-100">{{ money(total) }}</span>
                         </div>
                         <div class="flex items-center justify-between gap-3">
-                            <span>Abonado ahora</span>
-                            <span class="font-semibold text-slate-100">{{ money(paidAmount) }}</span>
+                            <span>{{ usesMercadoPagoPoint ? 'A enviar a Point' : 'Abonado ahora' }}</span>
+                            <span class="font-semibold text-slate-100">{{ money(usesMercadoPagoPoint ? total : paidAmount) }}</span>
                         </div>
                         <div class="flex items-center justify-between gap-3">
                             <span>Pendiente</span>
@@ -1800,13 +1902,13 @@ onBeforeUnmount(() => {
                         <p v-for="warning in summaryWarnings" :key="warning">{{ warning }}</p>
                     </div>
                     <div v-else class="mt-4 rounded-xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm text-emerald-100">
-                        Lista para confirmar.
+                        {{ readyMessage }}
                     </div>
 
                     <template #footer>
                         <div class="grid gap-3">
                             <button type="button" class="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50" :disabled="!canSubmit" @click="submitIfReady">
-                                Confirmar venta
+                                {{ submitButtonLabel }}
                             </button>
                             <Link :href="route('sales.index')" class="inline-flex w-full items-center justify-center rounded-xl border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70">
                                 Volver al listado

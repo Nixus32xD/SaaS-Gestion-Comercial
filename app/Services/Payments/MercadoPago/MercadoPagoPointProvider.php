@@ -19,10 +19,14 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
     public function __construct(
         private readonly MercadoPagoOrdersClient $client,
         private readonly PaymentService $paymentService,
+        private readonly MercadoPagoSettingsResolver $settingsResolver,
     ) {}
 
     public function createOrder(Business $business, Sale $sale, User $user, string $method): Payment
     {
+        $settings = $this->settingsResolver->forBusiness($business);
+        $this->assertConfigured($settings);
+
         $payment = DB::transaction(function () use ($business, $sale, $user, $method): Payment {
             $lockedSale = Sale::query()
                 ->forBusiness($business->id)
@@ -50,9 +54,13 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
                 ]);
             }
 
-            if (! in_array($method, [Payment::METHOD_DEBIT_CARD, Payment::METHOD_CREDIT_CARD], true)) {
+            if (! in_array($method, [
+                Payment::METHOD_DEBIT_CARD,
+                Payment::METHOD_CREDIT_CARD,
+                Payment::METHOD_QR,
+            ], true)) {
                 throw ValidationException::withMessages([
-                    'payment_method' => 'Point integrado solo admite debito o credito.',
+                    'payment_method' => 'Point integrado solo admite debito, credito o QR.',
                 ]);
             }
 
@@ -60,6 +68,7 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
                 'business_id' => $business->id,
                 'sale_id' => $lockedSale->id,
                 'created_by' => $user->id,
+                'payment_destination_id' => $lockedSale->payment_destination_id,
                 'method' => $method,
                 'provider' => PaymentProvider::MercadoPago->value,
                 'status' => PaymentStatus::Pending->value,
@@ -69,6 +78,7 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
                 'requested_at' => now(),
                 'metadata' => [
                     'source' => 'mercadopago_point_order',
+                    'requested_method' => $method,
                 ],
             ]);
 
@@ -85,8 +95,9 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
 
         try {
             $response = $this->client->createOrder(
-                $this->createOrderPayload($sale, $payment),
-                (string) $payment->idempotency_key
+                $this->createOrderPayload($sale, $payment, $settings),
+                (string) $payment->idempotency_key,
+                (string) $settings['access_token']
             );
         } catch (MercadoPagoApiException $exception) {
             $payment->forceFill([
@@ -108,7 +119,7 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             'provider_status' => (string) data_get($response, 'status', 'created'),
             'metadata' => [
                 ...((array) $payment->metadata),
-                'terminal_id' => $this->terminalId(),
+                'terminal_id' => $settings['point_terminal_id'],
                 'order_response' => $response,
             ],
         ])->save();
@@ -124,7 +135,16 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             ]);
         }
 
-        $payload = $providerPayload ?? $this->client->getOrder((string) $payment->provider_order_id);
+        $payment->loadMissing('sale.business');
+        $business = $payment->sale?->business;
+        $settings = $business instanceof Business
+            ? $this->settingsResolver->forBusiness($business)
+            : $this->settingsResolver->forBusiness(Business::query()->findOrFail($payment->business_id));
+
+        $payload = $providerPayload ?? $this->client->getOrder(
+            (string) $payment->provider_order_id,
+            (string) $settings['access_token']
+        );
         $providerStatus = (string) data_get($payload, 'status', data_get($payload, 'data.status', ''));
         $internalStatus = $this->internalStatus($providerStatus);
         $providerPayment = collect((array) data_get($payload, 'transactions.payments', data_get($payload, 'data.transactions.payments', [])))->first();
@@ -169,12 +189,12 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
     /**
      * @return array<string, mixed>
      */
-    private function createOrderPayload(Sale $sale, Payment $payment): array
+    private function createOrderPayload(Sale $sale, Payment $payment, array $settings): array
     {
         $payload = [
             'type' => 'point',
             'external_reference' => $payment->external_reference,
-            'expiration_time' => (string) config('services.mercadopago.point_expiration_time', 'PT15M'),
+            'expiration_time' => (string) ($settings['point_expiration_time'] ?? 'PT15M'),
             'transactions' => [
                 'payments' => [
                     [
@@ -184,20 +204,18 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             ],
             'config' => [
                 'point' => [
-                    'terminal_id' => $this->terminalId(),
-                    'print_on_terminal' => (string) config('services.mercadopago.point_print_on_terminal', 'no_ticket'),
+                    'terminal_id' => (string) $settings['point_terminal_id'],
+                    'print_on_terminal' => (string) ($settings['point_print_on_terminal'] ?? 'no_ticket'),
                     'ticket_number' => $sale->sale_number,
                 ],
                 'payment_method' => [
-                    'default_type' => $payment->method === Payment::METHOD_CREDIT_CARD
-                        ? 'credit_card'
-                        : 'debit_card',
+                    'default_type' => $this->defaultTypeForMethod((string) $payment->method),
                 ],
             ],
             'description' => 'Venta '.$sale->sale_number,
         ];
 
-        $integrationData = $this->integrationData();
+        $integrationData = $this->integrationData($settings);
 
         if ($integrationData !== []) {
             $payload['integration_data'] = $integrationData;
@@ -209,14 +227,14 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
     /**
      * @return array<string, mixed>
      */
-    private function integrationData(): array
+    private function integrationData(array $settings): array
     {
         $data = array_filter([
-            'platform_id' => config('services.mercadopago.platform_id'),
-            'integrator_id' => config('services.mercadopago.integrator_id'),
+            'platform_id' => $settings['platform_id'] ?? null,
+            'integrator_id' => $settings['integrator_id'] ?? null,
         ], fn (mixed $value): bool => filled($value));
 
-        $sponsorId = config('services.mercadopago.sponsor_id');
+        $sponsorId = $settings['sponsor_id'] ?? null;
 
         if (filled($sponsorId)) {
             $data['sponsor'] = ['id' => (string) $sponsorId];
@@ -225,15 +243,21 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
         return $data;
     }
 
-    private function terminalId(): string
+    /**
+     * @param  array<string, mixed>  $settings
+     */
+    private function assertConfigured(array $settings): void
     {
-        $terminalId = trim((string) config('services.mercadopago.point_terminal_id'));
+        $accessToken = trim((string) ($settings['access_token'] ?? ''));
+        $terminalId = trim((string) ($settings['point_terminal_id'] ?? ''));
+
+        if ($accessToken === '') {
+            throw new MercadoPagoApiException('El access token de Mercado Pago no esta configurado.');
+        }
 
         if ($terminalId === '') {
             throw new MercadoPagoApiException('La terminal Point de Mercado Pago no esta configurada.');
         }
-
-        return $terminalId;
     }
 
     private function externalReference(Business $business, Sale $sale, Payment $payment): string
@@ -249,6 +273,15 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             'canceled', 'expired' => PaymentStatus::Cancelled->value,
             'refunded' => PaymentStatus::Refunded->value,
             default => PaymentStatus::Pending->value,
+        };
+    }
+
+    private function defaultTypeForMethod(string $method): string
+    {
+        return match ($method) {
+            Payment::METHOD_CREDIT_CARD => 'credit_card',
+            Payment::METHOD_QR => 'qr',
+            default => 'debit_card',
         };
     }
 }

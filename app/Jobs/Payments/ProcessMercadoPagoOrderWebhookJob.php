@@ -5,6 +5,7 @@ namespace App\Jobs\Payments;
 use App\Enums\Payments\PaymentProvider;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
+use App\Services\Payments\MercadoPago\MercadoPagoPaymentCompletionService;
 use App\Services\Payments\MercadoPago\MercadoPagoPointProvider;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -22,7 +23,10 @@ class ProcessMercadoPagoOrderWebhookJob implements ShouldQueue
         private readonly ?string $requestId = null,
     ) {}
 
-    public function handle(MercadoPagoPointProvider $provider): void
+    public function handle(
+        MercadoPagoPointProvider $provider,
+        MercadoPagoPaymentCompletionService $completionService,
+    ): void
     {
         $orderId = $this->orderId();
 
@@ -46,7 +50,8 @@ class ProcessMercadoPagoOrderWebhookJob implements ShouldQueue
         }
 
         if ($payment !== null) {
-            $provider->syncPayment($payment, $this->hasOrderStatus() ? $this->orderPayload() : null);
+            $payment = $provider->syncPayment($payment, $this->hasOrderStatus() ? $this->orderPayload() : null);
+            $completionService->complete($payment);
         }
 
         $event->forceFill([

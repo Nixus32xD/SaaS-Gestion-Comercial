@@ -31,6 +31,7 @@ class StoreMercadoPagoPointOrderRequest extends FormRequest
             'payment_method' => ['required', Rule::in([
                 Payment::METHOD_DEBIT_CARD,
                 Payment::METHOD_CREDIT_CARD,
+                Payment::METHOD_QR,
             ])],
         ];
     }

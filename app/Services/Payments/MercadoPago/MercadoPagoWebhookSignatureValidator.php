@@ -2,15 +2,17 @@
 
 namespace App\Services\Payments\MercadoPago;
 
+use App\Models\BusinessMercadoPagoCredential;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class MercadoPagoWebhookSignatureValidator
 {
     public function isValid(Request $request): bool
     {
-        $secret = trim((string) config('services.mercadopago.webhook_secret'));
+        $secrets = $this->secretCandidates();
 
-        if ($secret === '') {
+        if ($secrets->isEmpty()) {
             return app()->environment('testing');
         }
 
@@ -28,9 +30,31 @@ class MercadoPagoWebhookSignatureValidator
             $timestamp
         );
 
-        $expected = hash_hmac('sha256', $manifest, $secret);
+        return $secrets->contains(function (string $secret) use ($manifest, $hash): bool {
+            $expected = hash_hmac('sha256', $manifest, $secret);
 
-        return hash_equals($expected, $hash);
+            return hash_equals($expected, $hash);
+        });
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function secretCandidates(): Collection
+    {
+        $globalSecret = trim((string) config('services.mercadopago.webhook_secret'));
+
+        return collect([$globalSecret])
+            ->merge(
+                BusinessMercadoPagoCredential::query()
+                    ->where('is_enabled', true)
+                    ->whereNotNull('webhook_secret')
+                    ->get(['webhook_secret'])
+                    ->map(fn (BusinessMercadoPagoCredential $credential): string => trim((string) $credential->webhook_secret))
+            )
+            ->filter()
+            ->unique()
+            ->values();
     }
 
     /**

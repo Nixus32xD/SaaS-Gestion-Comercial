@@ -20,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 
 class SaleService
 {
+    private const PAYMENT_PROVIDER_MERCADOPAGO_POINT = 'mercadopago_point';
+
     public function __construct(
         private readonly DocumentNumberService $documentNumberService,
         private readonly ProductBatchService $productBatchService,
@@ -138,6 +140,7 @@ class SaleService
                 $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
             );
             $customer = $this->resolveCustomer($business, $payload['customer_id'] ?? null);
+            $usesMercadoPagoPoint = $this->usesMercadoPagoPointProvider($payload);
             [$paymentStatus, $paymentMethod, $paidAmount, $pendingAmount, $amountReceived, $changeAmount] = $this->resolvePaymentData(
                 $payload,
                 $total,
@@ -147,7 +150,8 @@ class SaleService
                 $business,
                 $payload,
                 $paymentMethod,
-                $paidAmount
+                $paidAmount,
+                $usesMercadoPagoPoint
             );
 
             $sale = Sale::query()->create([
@@ -242,7 +246,7 @@ class SaleService
                 $product->save();
             }
 
-            if ($paidAmount > 0 && $paymentMethod !== null) {
+            if (! $usesMercadoPagoPoint && $paidAmount > 0 && $paymentMethod !== null) {
                 $this->paymentService->createManualPaymentForSale(
                     $business,
                     $sale,
@@ -262,7 +266,7 @@ class SaleService
                 $pendingAmount = round((float) $sale->pending_amount, 2);
             }
 
-            if ($pendingAmount > 0 && $customer !== null) {
+            if (! $usesMercadoPagoPoint && $pendingAmount > 0 && $customer !== null) {
                 $this->customerAccountService->recordDebtForSale(
                     $business,
                     $sale,
@@ -308,10 +312,22 @@ class SaleService
 
     /**
      * @param  array<string, mixed>  $payload
+     */
+    private function usesMercadoPagoPointProvider(array $payload): bool
+    {
+        return ($payload['payment_provider'] ?? null) === self::PAYMENT_PROVIDER_MERCADOPAGO_POINT;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
      * @return array{0: string, 1: string|null, 2: float, 3: float, 4: float|null, 5: float|null}
      */
     private function resolvePaymentData(array $payload, float $total, ?Customer $customer): array
     {
+        if ($this->usesMercadoPagoPointProvider($payload)) {
+            return $this->resolveMercadoPagoPointPaymentData($payload, $total);
+        }
+
         $paymentStatus = $this->resolvePaymentStatus($payload['payment_status'] ?? null);
         $paymentMethod = $this->resolvePaymentMethod($payload['payment_method'] ?? null);
 
@@ -320,6 +336,27 @@ class SaleService
             Sale::PAYMENT_STATUS_PARTIAL => $this->resolvePartialPaymentData($payload, $total, $paymentMethod, $customer),
             default => $this->resolvePaidPaymentData($payload, $total, $paymentMethod),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{0: string, 1: string|null, 2: float, 3: float, 4: float|null, 5: float|null}
+     */
+    private function resolveMercadoPagoPointPaymentData(array $payload, float $total): array
+    {
+        $paymentMethod = $this->resolvePaymentMethod($payload['payment_method'] ?? null);
+
+        if (! in_array($paymentMethod, [
+            Sale::PAYMENT_METHOD_DEBIT_CARD,
+            Sale::PAYMENT_METHOD_CREDIT_CARD,
+            Sale::PAYMENT_METHOD_QR,
+        ], true)) {
+            throw ValidationException::withMessages([
+                'payment_method' => 'Point integrado solo admite debito, credito o QR.',
+            ]);
+        }
+
+        return [Sale::PAYMENT_STATUS_PENDING, $paymentMethod, 0.0, $total, null, null];
     }
 
     private function resolvePaymentStatus(mixed $value): string
@@ -441,7 +478,8 @@ class SaleService
         Business $business,
         array $payload,
         ?string $paymentMethod,
-        float $paidAmount
+        float $paidAmount,
+        bool $requiresIntegratedPaymentDestination = false
     ): array {
         if (! $business->hasAdvancedSaleSettings()) {
             return [null, null];
@@ -462,7 +500,8 @@ class SaleService
             ]);
         }
 
-        if ($paidAmount <= 0 || ! Sale::requiresPaymentDestination($paymentMethod)) {
+        if (($paidAmount <= 0 && ! $requiresIntegratedPaymentDestination)
+            || ! Sale::requiresPaymentDestination($paymentMethod)) {
             return [$saleSectorId, null];
         }
 

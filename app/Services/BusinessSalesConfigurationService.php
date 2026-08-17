@@ -5,11 +5,15 @@ namespace App\Services;
 use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Services\Fiscal\FiscalCompanySyncService;
+use App\Services\Payments\MercadoPago\MercadoPagoCredentialService;
 use Illuminate\Support\Facades\DB;
 
 class BusinessSalesConfigurationService
 {
-    public function __construct(private readonly FiscalCompanySyncService $fiscalCompanySync) {}
+    public function __construct(
+        private readonly FiscalCompanySyncService $fiscalCompanySync,
+        private readonly MercadoPagoCredentialService $mercadoPagoCredentialService,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload
@@ -60,6 +64,21 @@ class BusinessSalesConfigurationService
                 'fiscal_caea_report_deadline' => $payload['fiscal_caea_report_deadline'] ?: null,
                 'fiscal_activities' => $payload['fiscal_activities'] ?: null,
             ]);
+
+            $this->mercadoPagoCredentialService->updateForBusiness($business, [
+                'is_enabled' => $payload['mercadopago_enabled'] ?? false,
+                'environment' => $payload['mercadopago_environment'] ?? 'testing',
+                'public_key' => $payload['mercadopago_public_key'] ?? '',
+                'access_token' => $payload['mercadopago_access_token'] ?? '',
+                'webhook_secret' => $payload['mercadopago_webhook_secret'] ?? '',
+                'point_terminal_id' => $payload['mercadopago_point_terminal_id'] ?? '',
+                'point_store_id' => $payload['mercadopago_point_store_id'] ?? '',
+                'point_pos_id' => $payload['mercadopago_point_pos_id'] ?? '',
+                'point_external_store_id' => $payload['mercadopago_point_external_store_id'] ?? '',
+                'point_external_pos_id' => $payload['mercadopago_point_external_pos_id'] ?? '',
+                'point_expiration_time' => $payload['mercadopago_point_expiration_time'] ?? 'PT15M',
+                'point_print_on_terminal' => $payload['mercadopago_point_print_on_terminal'] ?? 'no_ticket',
+            ], request()->user());
 
             foreach ((array) ($payload['sale_sectors'] ?? []) as $index => $sector) {
                 $record = isset($sector['id'])

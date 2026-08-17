@@ -16,6 +16,9 @@ use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalSaleDocumentService;
 use App\Services\Fiscal\FiscalVatCalculator;
+use App\Services\Payments\MercadoPago\MercadoPagoApiException;
+use App\Services\Payments\MercadoPago\MercadoPagoPointProvider;
+use App\Services\Payments\MercadoPago\MercadoPagoSettingsResolver;
 use App\Services\SaleReceiptService;
 use App\Services\SaleService;
 use App\Support\CurrentBusiness;
@@ -27,6 +30,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -40,6 +44,8 @@ class SaleController extends Controller
         private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
         private readonly SaleReceiptService $saleReceiptService,
         private readonly FiscalVatCalculator $vatCalculator,
+        private readonly MercadoPagoPointProvider $mercadoPagoPointProvider,
+        private readonly MercadoPagoSettingsResolver $mercadoPagoSettingsResolver,
     ) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
@@ -148,6 +154,7 @@ class SaleController extends Controller
                 'issuer_condition' => $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
                 'receiver_iva_conditions' => config('fiscal.receiver_iva_conditions', []),
             ],
+            'mercadopago_point' => $this->mercadoPagoPointPayload($business),
             'receipt_feature_available' => $this->saleReceiptsAvailable(),
         ]);
     }
@@ -173,7 +180,9 @@ class SaleController extends Controller
 
         abort_if($business === null || $user === null, 404);
 
-        $sale = $this->saleService->createSale($business, $user, $request->validated());
+        $payload = $request->validated();
+        $usesMercadoPagoPoint = ($payload['payment_provider'] ?? null) === 'mercadopago_point';
+        $sale = $this->saleService->createSale($business, $user, $payload);
         $warning = null;
         $receipt = $request->file('receipt');
         $receiptFeatureAvailable = $this->saleReceiptsAvailable();
@@ -190,6 +199,42 @@ class SaleController extends Controller
                     $warning = 'Venta registrada, pero no se pudo adjuntar el comprobante.';
                 }
             }
+        }
+
+        if ($usesMercadoPagoPoint) {
+            $pointWarning = null;
+            $payment = null;
+
+            try {
+                $payment = $this->mercadoPagoPointProvider->createOrder(
+                    $business,
+                    $sale,
+                    $user,
+                    (string) $payload['payment_method']
+                );
+            } catch (MercadoPagoApiException|ValidationException $exception) {
+                report($exception);
+
+                $pointWarning = 'Venta registrada, pero no se pudo enviar la orden a Mercado Pago Point. '
+                    .$this->exceptionMessage($exception);
+            }
+
+            $redirect = redirect()
+                ->route('sales.show', ['sale' => $sale, 'auto_back' => 0])
+                ->with('success', $payment !== null
+                    ? 'Venta creada y orden enviada a Mercado Pago Point.'
+                    : 'Venta registrada pendiente de cobro Point.');
+
+            $warnings = array_values(array_filter([$warning, $pointWarning]));
+            if ($warnings !== []) {
+                $redirect->with('warning', implode(' ', $warnings));
+            }
+
+            if ($payment !== null) {
+                $redirect->with('payment_id', $payment->id);
+            }
+
+            return $redirect;
         }
 
         $fiscalDocument = null;
@@ -253,10 +298,7 @@ class SaleController extends Controller
                 'document' => $this->mapFiscalDocument($fiscalDocument),
             ],
             'mercadopago_point' => [
-                'enabled' => $this->mercadoPagoPointConfigured(),
-                'access_token_configured' => filled(config('services.mercadopago.access_token')),
-                'terminal_configured' => filled(config('services.mercadopago.point_terminal_id')),
-                'webhook_url' => route('webhooks.mercadopago.orders'),
+                ...$this->mercadoPagoPointPayload($business),
             ],
             'receipt_feature_available' => $receiptFeatureAvailable,
             'sale' => [
@@ -917,10 +959,32 @@ class SaleController extends Controller
         return $available;
     }
 
-    private function mercadoPagoPointConfigured(): bool
+    /**
+     * @return array<string, mixed>
+     */
+    private function mercadoPagoPointPayload(Business $business): array
     {
-        return filled(config('services.mercadopago.access_token'))
-            && filled(config('services.mercadopago.point_terminal_id'));
+        $settings = $this->mercadoPagoSettingsResolver->forBusiness($business);
+
+        return [
+            'enabled' => $this->mercadoPagoSettingsResolver->pointConfigured($business),
+            'environment' => (string) ($settings['environment'] ?? 'testing'),
+            'access_token_configured' => filled($settings['access_token'] ?? null),
+            'terminal_configured' => filled($settings['point_terminal_id'] ?? null),
+            'terminal_id' => $settings['point_terminal_id'] ?? null,
+            'webhook_url' => route('webhooks.mercadopago.orders'),
+        ];
+    }
+
+    private function exceptionMessage(Throwable $exception): string
+    {
+        if ($exception instanceof ValidationException) {
+            $message = collect($exception->errors())->flatten()->first();
+
+            return is_string($message) && $message !== '' ? $message : $exception->getMessage();
+        }
+
+        return $exception->getMessage();
     }
 
     /**

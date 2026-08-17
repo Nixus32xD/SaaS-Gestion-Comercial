@@ -158,6 +158,7 @@ class BusinessController extends Controller
                 ->latest('paid_at')
                 ->latest('id')
                 ->limit(20),
+            'mercadoPagoCredential',
         ]);
 
         $implementationPaidAmount = (float) $business->payments()
@@ -203,6 +204,21 @@ class BusinessController extends Controller
                 'fiscal_caea_report_deadline' => $business->fiscal_caea_report_deadline?->format('Y-m-d'),
                 'fiscal_activities' => implode(', ', $business->fiscal_activities ?: config('fiscal.defaults.activities', [])),
                 'fiscal_point_of_sale_options' => $this->fiscalPointOfSaleOptions->forBusiness($business),
+                'mercadopago' => [
+                    'is_enabled' => (bool) ($business->mercadoPagoCredential?->is_enabled ?? false),
+                    'environment' => $business->mercadoPagoCredential?->environment ?: 'testing',
+                    'public_key_configured' => filled($business->mercadoPagoCredential?->public_key),
+                    'access_token_configured' => filled($business->mercadoPagoCredential?->access_token),
+                    'webhook_secret_configured' => filled($business->mercadoPagoCredential?->webhook_secret),
+                    'point_terminal_id' => $business->mercadoPagoCredential?->point_terminal_id,
+                    'point_store_id' => $business->mercadoPagoCredential?->point_store_id,
+                    'point_pos_id' => $business->mercadoPagoCredential?->point_pos_id,
+                    'point_external_store_id' => $business->mercadoPagoCredential?->point_external_store_id,
+                    'point_external_pos_id' => $business->mercadoPagoCredential?->point_external_pos_id,
+                    'point_expiration_time' => $business->mercadoPagoCredential?->point_expiration_time ?: 'PT15M',
+                    'point_print_on_terminal' => $business->mercadoPagoCredential?->point_print_on_terminal ?: 'no_ticket',
+                    'webhook_url' => route('webhooks.mercadopago.orders'),
+                ],
                 'sale_sectors' => $business->saleSectors->map(fn ($sector) => [
                     'id' => $sector->id,
                     'name' => $sector->name,

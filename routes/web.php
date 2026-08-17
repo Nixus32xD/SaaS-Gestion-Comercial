@@ -13,6 +13,7 @@ use App\Http\Controllers\Fiscal\ElectronicBillingController;
 use App\Http\Controllers\Fiscal\FiscalCredentialProxyController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Payments\MercadoPagoPointController;
+use App\Http\Controllers\Payments\MercadoPagoSettingsController;
 use App\Http\Controllers\Payments\MercadoPagoWebhookController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -112,6 +113,8 @@ Route::middleware(['auth', 'business', 'business.admin'])->group(function (): vo
     Route::post('/electronic-billing/credentials/certificate', [FiscalCredentialProxyController::class, 'storeCertificate'])->name('electronic-billing.credentials.certificate.store');
     Route::post('/sales/quick-options', [QuickSaleOptionController::class, 'store'])->name('sales.quick-options.store');
     Route::delete('/sales/quick-options/{quickSaleOption}', [QuickSaleOptionController::class, 'destroy'])->name('sales.quick-options.destroy');
+    Route::get('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'edit'])->name('mercadopago-settings.edit');
+    Route::put('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'update'])->name('mercadopago-settings.update');
 
     Route::get('/users', [BusinessUserController::class, 'index'])->name('users.index');
     Route::post('/users', [BusinessUserController::class, 'store'])->name('users.store');

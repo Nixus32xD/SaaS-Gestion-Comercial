@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\Business;
+use App\Models\BusinessMercadoPagoCredential;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
@@ -60,6 +62,134 @@ test('authenticated business user can create a Mercado Pago Point order for a pe
             && $payload['config']['point']['terminal_id'] === 'NEWLAND_N950__SBX0000001'
             && $payload['config']['payment_method']['default_type'] === 'credit_card';
     });
+});
+
+test('business user can create a sale and send a QR order to Mercado Pago Point from POS', function () {
+    config()->set('services.mercadopago.access_token', 'APP_USR-testing-token');
+    config()->set('services.mercadopago.point_terminal_id', 'NEWLAND_N950__SBX0000001');
+
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['sale_price' => 2100, 'stock' => 5]);
+
+    Http::fake([
+        'https://api.mercadopago.com/v1/orders' => Http::response([
+            'id' => 'ORD01SALEQR',
+            'status' => 'created',
+            'transactions' => [
+                'payments' => [
+                    ['id' => 'PAY01SALEQR', 'amount' => '2100.00', 'status' => 'created'],
+                ],
+            ],
+        ], 201),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('sales.store'), [
+            'payment_status' => Sale::PAYMENT_STATUS_PAID,
+            'payment_provider' => 'mercadopago_point',
+            'payment_method' => Payment::METHOD_QR,
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 2100,
+            ]],
+        ])
+        ->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+    $payment = Payment::query()->firstOrFail();
+
+    expect($sale->payment_status)->toBe(Sale::PAYMENT_STATUS_PENDING);
+    expect($sale->payment_method)->toBe(Payment::METHOD_QR);
+    expect((float) $sale->paid_amount)->toBe(0.0);
+    expect((float) $sale->pending_amount)->toBe(2100.0);
+    expect($payment->provider)->toBe(Payment::PROVIDER_MERCADOPAGO);
+    expect($payment->status)->toBe(Payment::STATUS_PENDING);
+    expect($payment->provider_order_id)->toBe('ORD01SALEQR');
+
+    Http::assertSent(function (Request $request): bool {
+        $payload = $request->data();
+
+        return $request->method() === 'POST'
+            && $payload['config']['payment_method']['default_type'] === 'qr'
+            && $payload['transactions']['payments'][0]['amount'] === '2100.00';
+    });
+});
+
+test('Mercado Pago Point uses enabled business credentials before global config', function () {
+    config()->set('services.mercadopago.access_token', 'APP_USR-global-token');
+    config()->set('services.mercadopago.point_terminal_id', 'NEWLAND_N950__GLOBAL');
+
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $sale = createMercadoPagoPointSale($business, $admin, 640);
+
+    BusinessMercadoPagoCredential::query()->create([
+        'business_id' => $business->id,
+        'is_enabled' => true,
+        'environment' => 'testing',
+        'access_token' => 'APP_USR-business-token',
+        'point_terminal_id' => 'NEWLAND_N950__BUSINESS',
+    ]);
+
+    Http::fake([
+        'https://api.mercadopago.com/v1/orders' => Http::response([
+            'id' => 'ORD01BUSINESS',
+            'status' => 'created',
+            'transactions' => [
+                'payments' => [
+                    ['id' => 'PAY01BUSINESS', 'amount' => '640.00', 'status' => 'created'],
+                ],
+            ],
+        ], 201),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('sales.payments.mercadopago-point.store', $sale), [
+            'payment_method' => Payment::METHOD_DEBIT_CARD,
+        ])
+        ->assertRedirect(route('sales.show', $sale));
+
+    Http::assertSent(function (Request $request): bool {
+        $payload = $request->data();
+
+        return $request->hasHeader('Authorization', 'Bearer APP_USR-business-token')
+            && $payload['config']['point']['terminal_id'] === 'NEWLAND_N950__BUSINESS';
+    });
+});
+
+test('business admin can store Mercado Pago Point credentials for their business', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    $this
+        ->actingAs($admin)
+        ->put(route('mercadopago-settings.update'), [
+            'is_enabled' => true,
+            'environment' => 'testing',
+            'public_key' => 'APP_USR-public-test',
+            'access_token' => 'APP_USR-private-test',
+            'webhook_secret' => 'webhook-secret-test',
+            'point_terminal_id' => 'NEWLAND_N950__SBX0000001',
+            'point_store_id' => '86244114',
+            'point_pos_id' => '136820601',
+            'point_external_store_id' => 'SUC001',
+            'point_external_pos_id' => 'CAJA001',
+            'point_expiration_time' => 'PT15M',
+            'point_print_on_terminal' => 'no_ticket',
+        ])
+        ->assertRedirect(route('mercadopago-settings.edit'));
+
+    $credential = BusinessMercadoPagoCredential::query()->firstOrFail();
+
+    expect($credential->business_id)->toBe($business->id);
+    expect($credential->is_enabled)->toBeTrue();
+    expect($credential->access_token)->toBe('APP_USR-private-test');
+    expect($credential->webhook_secret)->toBe('webhook-secret-test');
+    expect($credential->point_terminal_id)->toBe('NEWLAND_N950__SBX0000001');
 });
 
 test('Mercado Pago Point order creation reuses a pending provider payment', function () {
@@ -241,6 +371,27 @@ function createMercadoPagoPointSale(Business $business, User $user, float $total
         'discount' => 0,
         'total' => $total,
         'sold_at' => now(),
+    ]);
+}
+
+/**
+ * @param  array<string, mixed>  $overrides
+ */
+function createPointProduct(Business $business, array $overrides = []): Product
+{
+    return Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Producto Point '.fake()->unique()->numberBetween(1000, 9999),
+        'slug' => 'producto-point-'.fake()->unique()->numberBetween(1000, 9999),
+        'unit_type' => 'unit',
+        'sale_price' => 1000,
+        'cost_price' => 500,
+        'vat_treatment' => 'gravado',
+        'vat_rate' => 21,
+        'stock' => 10,
+        'min_stock' => 0,
+        'is_active' => true,
+        ...$overrides,
     ]);
 }
 
