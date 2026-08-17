@@ -63,6 +63,8 @@ class MercadoPagoPointController extends Controller
         try {
             $payment = $this->provider->syncPayment($payment);
             $this->completionService->complete($payment);
+            $payment->loadMissing('sale');
+            $payment->sale?->refresh();
         } catch (MercadoPagoApiException $exception) {
             report($exception);
 
@@ -80,6 +82,12 @@ class MercadoPagoPointController extends Controller
                 'provider_payment_id' => $payment->provider_payment_id,
                 'amount' => (float) $payment->amount,
             ],
+            'sale' => $payment->sale ? [
+                'id' => $payment->sale->id,
+                'payment_status' => $payment->sale->payment_status,
+                'paid_amount' => (float) $payment->sale->paid_amount,
+                'pending_amount' => (float) $payment->sale->pending_amount,
+            ] : null,
         ]);
     }
 }

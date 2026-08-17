@@ -248,8 +248,25 @@ const syncMercadoPagoPointPayment = async (payment, options = {}) => {
             throw new Error(payload.message || 'No se pudo consultar Mercado Pago.');
         }
 
+        const payload = await response.json().catch(() => ({}));
+        const syncedPayment = payload.payment || {};
+        const saleHasNoPendingAmount = Number(payload.sale?.pending_amount ?? props.sale.pending_amount) <= 0;
+
+        if (syncedPayment.status === 'approved' && saleHasNoPendingAmount) {
+            if (paymentPollInterval !== null) {
+                window.clearInterval(paymentPollInterval);
+                paymentPollInterval = null;
+            }
+
+            window.setTimeout(() => {
+                router.visit(route('sales.create'));
+            }, options.silent ? 1200 : 300);
+
+            return;
+        }
+
         router.reload({
-            only: ['sale'],
+            only: ['sale', 'fiscal'],
             preserveScroll: true,
         });
     } catch (error) {
