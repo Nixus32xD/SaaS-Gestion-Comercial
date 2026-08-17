@@ -1,16 +1,13 @@
 <?php
 
-namespace App\Http\Requests\Customers;
+namespace App\Http\Requests\Payments;
 
-use App\Models\Sale;
+use App\Models\Payment;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreCustomerPaymentRequest extends FormRequest
+class StoreMercadoPagoPointOrderRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
@@ -19,10 +16,9 @@ class StoreCustomerPaymentRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'description' => trim((string) $this->input('description')),
             'payment_method' => $this->filled('payment_method')
                 ? (string) $this->input('payment_method')
-                : null,
+                : Payment::METHOD_DEBIT_CARD,
         ]);
     }
 
@@ -32,10 +28,10 @@ class StoreCustomerPaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'numeric', 'gt:0'],
-            'paid_at' => ['nullable', 'date'],
-            'payment_method' => ['nullable', Rule::in(Sale::PAYMENT_METHODS)],
-            'description' => ['nullable', 'string', 'max:1000'],
+            'payment_method' => ['required', Rule::in([
+                Payment::METHOD_DEBIT_CARD,
+                Payment::METHOD_CREDIT_CARD,
+            ])],
         ];
     }
 }

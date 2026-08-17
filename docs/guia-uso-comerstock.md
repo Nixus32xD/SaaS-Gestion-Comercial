@@ -105,6 +105,16 @@ Flujo basico:
 6. Elegir medio de pago.
 7. Confirmar venta.
 
+Medios de pago disponibles:
+
+- efectivo;
+- transferencia;
+- QR;
+- tarjeta debito;
+- tarjeta credito.
+
+En efectivo el sistema calcula monto recibido y vuelto. En transferencia, QR y tarjetas el cobro queda registrado manualmente y no calcula vuelto. Si el comercio usa configuracion avanzada de ventas, seleccionar tambien el destino de cobro: caja, banco, QR, Mercado Pago, posnet o terminal equivalente.
+
 Atajos utiles:
 
 - F2: enfocar buscador.
@@ -164,7 +174,7 @@ En ventas se puede adjuntar un comprobante, como PDF o imagen.
 
 Sirve para:
 
-- guardar comprobantes de transferencia;
+- guardar comprobantes de transferencia, QR o tarjeta;
 - conservar respaldo de pagos;
 - revisar operaciones despues.
 
@@ -252,7 +262,7 @@ Esto permite adaptar el sistema a rubros distintos sin cargar pantallas innecesa
 Cuando esta activa, permite configurar:
 
 - sectores o puntos de venta;
-- cuentas o destinos de cobro.
+- destinos de cobro.
 
 Ejemplos de sectores:
 
@@ -261,10 +271,12 @@ Ejemplos de sectores:
 - Deposito;
 - Reparto.
 
-Ejemplos de cuentas:
+Ejemplos de destinos:
 
 - Efectivo caja;
 - Mercado Pago Mostrador;
+- QR Mostrador;
+- Posnet / terminal;
 - Banco;
 - Cuenta del taller.
 
@@ -311,7 +323,7 @@ Antes de entregar el sistema a un comercio:
 5. Cargar proveedores principales.
 6. Cargar productos iniciales o importar desde catalogo global si esta habilitado.
 7. Revisar stock minimo y precios.
-8. Configurar sectores/cuentas si el comercio los usa.
+8. Configurar sectores/destinos de cobro si el comercio los usa.
 9. Configurar opciones rapidas sin stock propias del rubro.
 10. Configurar notificaciones.
 11. Si usa facturacion electronica, validar CUIT, punto de venta y conexion con API fiscal.
@@ -333,7 +345,7 @@ Durante el dia:
 1. Registrar ventas desde POS.
 2. Usar venta rapida solo para conceptos sin stock.
 3. Asociar cliente cuando sea fiado o pago parcial.
-4. Cargar comprobante si hay transferencia.
+4. Cargar comprobante si hay transferencia, QR o tarjeta.
 
 Al cerrar:
 

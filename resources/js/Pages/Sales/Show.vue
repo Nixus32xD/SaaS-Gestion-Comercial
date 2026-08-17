@@ -2,6 +2,7 @@
 import AppPanel from '@/Components/AppPanel.vue';
 import MetricCard from '@/Components/MetricCard.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
+import { paymentMethodLabel as formatPaymentMethodLabel } from '@/Support/paymentMethods';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
@@ -9,6 +10,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 const props = defineProps({
     sale: { type: Object, required: true },
     fiscal: { type: Object, required: true },
+    mercadopago_point: { type: Object, default: () => ({}) },
     auto_back: { type: Boolean, default: false },
     advanced_sale_settings_enabled: { type: Boolean, default: false },
     receipt_feature_available: { type: Boolean, default: false },
@@ -20,9 +22,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
 
-const paymentMethodLabel = computed(() => (
-    props.sale.payment_method === 'transfer' ? 'Transferencia' : 'Efectivo'
-));
+const paymentMethodLabel = computed(() => formatPaymentMethodLabel(props.sale.payment_method));
 
 const fiscalDocument = computed(() => props.fiscal?.document || null);
 
@@ -149,6 +149,28 @@ const paymentStatusTone = computed(() => {
 const itemsCount = computed(() => props.sale.items?.length || 0);
 const manualItemsCount = computed(() => (props.sale.items || []).filter((item) => item.is_manual).length);
 const pendingTone = computed(() => (Number(props.sale.pending_amount) > 0 ? 'warning' : 'success'));
+const salePayments = computed(() => props.sale.payments || []);
+const hasSalePendingAmount = computed(() => Number(props.sale.pending_amount) > 0);
+const pendingMercadoPagoPayment = computed(() => salePayments.value.find((payment) => (
+    payment.provider === 'mercadopago' && payment.status === 'pending'
+)) || null);
+const canCreateMercadoPagoPointOrder = computed(() => (
+    props.mercadopago_point?.enabled === true
+    && hasSalePendingAmount.value
+    && !pendingMercadoPagoPayment.value
+));
+const mercadoPagoPointUnavailableMessage = computed(() => {
+    if (props.mercadopago_point?.enabled) return '';
+
+    const missing = [];
+
+    if (!props.mercadopago_point?.access_token_configured) missing.push('access token');
+    if (!props.mercadopago_point?.terminal_configured) missing.push('terminal Point');
+
+    return missing.length
+        ? `Falta configurar ${missing.join(' y ')}.`
+        : 'Mercado Pago Point no esta configurado.';
+});
 const hasFiscalBreakdown = computed(() => (
     Number(props.sale.fiscal_vat_amount || 0) > 0
     || Number(props.sale.fiscal_exempt_amount || 0) > 0
@@ -159,6 +181,9 @@ const showAutoBackMessage = computed(() => props.auto_back === true);
 const receiptInput = ref(null);
 const receiptForm = useForm({ receipt: null });
 const receiptFileName = computed(() => receiptForm.receipt?.name || '');
+const mercadoPagoPointForm = useForm({ payment_method: 'debit_card' });
+const syncingPaymentId = ref(null);
+const mercadoPagoPointSyncError = ref('');
 
 let redirectTimeout = null;
 let countdownInterval = null;
@@ -182,6 +207,86 @@ const submitReceipt = () => {
         },
     });
 };
+
+const createMercadoPagoPointOrder = (paymentMethod) => {
+    mercadoPagoPointForm.payment_method = paymentMethod;
+    mercadoPagoPointSyncError.value = '';
+
+    mercadoPagoPointForm.post(route('sales.payments.mercadopago-point.store', props.sale.id), {
+        preserveScroll: true,
+    });
+};
+
+const syncMercadoPagoPointPayment = async (payment) => {
+    if (!payment?.can_sync || syncingPaymentId.value !== null) return;
+
+    syncingPaymentId.value = payment.id;
+    mercadoPagoPointSyncError.value = '';
+
+    try {
+        const response = await fetch(route('sales.payments.mercadopago-point.show', {
+            sale: props.sale.id,
+            payment: payment.id,
+        }), {
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+
+            throw new Error(payload.message || 'No se pudo consultar Mercado Pago.');
+        }
+
+        router.reload({
+            only: ['sale'],
+            preserveScroll: true,
+        });
+    } catch (error) {
+        mercadoPagoPointSyncError.value = error.message || 'No se pudo actualizar el estado del pago.';
+    } finally {
+        syncingPaymentId.value = null;
+    }
+};
+
+const salePaymentProviderLabel = (provider) => {
+    if (provider === 'mercadopago') return 'Mercado Pago';
+    if (provider === 'manual') return 'Manual';
+    if (provider === 'external') return 'Externo';
+
+    return provider || '-';
+};
+
+const salePaymentStatusLabel = (status) => {
+    if (status === 'approved') return 'Aprobado';
+    if (status === 'pending') return 'Pendiente';
+    if (status === 'rejected') return 'Rechazado';
+    if (status === 'cancelled') return 'Cancelado';
+    if (status === 'refunded') return 'Devuelto';
+
+    return status || '-';
+};
+
+const salePaymentStatusTone = (status) => {
+    if (status === 'approved') return 'success';
+    if (status === 'pending') return 'warning';
+    if (status === 'rejected') return 'danger';
+    if (status === 'cancelled' || status === 'refunded') return 'neutral';
+
+    return 'neutral';
+};
+
+const salePaymentDate = (payment) => (
+    payment.approved_at
+    || payment.rejected_at
+    || payment.cancelled_at
+    || payment.refunded_at
+    || payment.requested_at
+    || payment.created_at
+    || '-'
+);
 
 onMounted(() => {
     if (!showAutoBackMessage.value) return;
@@ -273,7 +378,7 @@ onBeforeUnmount(() => {
                             <div class="app-subsection">
                                 <p class="app-section-title">Circuito de venta</p>
                                 <p v-if="advanced_sale_settings_enabled" class="mt-2">Sector / punto de venta: <strong class="text-slate-100">{{ sale.sale_sector || '-' }}</strong></p>
-                                <p v-if="advanced_sale_settings_enabled" class="mt-1">Cuenta de cobro / destino: <strong class="text-slate-100">{{ sale.payment_destination || '-' }}</strong></p>
+                                <p v-if="advanced_sale_settings_enabled" class="mt-1">Destino de cobro: <strong class="text-slate-100">{{ sale.payment_destination || '-' }}</strong></p>
                                 <p class="mt-1">Fecha: <strong class="text-slate-100">{{ sale.sold_at || '-' }}</strong></p>
                             </div>
                         </div>
@@ -434,6 +539,88 @@ onBeforeUnmount(() => {
                             <div class="flex items-center justify-between gap-3">
                                 <span>Items</span>
                                 <span class="font-semibold text-slate-100">{{ itemsCount }}</span>
+                            </div>
+                        </div>
+                    </AppPanel>
+
+                    <AppPanel title="Mercado Pago Point" subtitle="Enviar saldo pendiente a la terminal.">
+                        <div class="space-y-4 text-sm text-slate-300">
+                            <div v-if="!mercadopago_point.enabled" class="rounded-xl border border-amber-200/25 bg-amber-400/10 px-4 py-3 text-amber-50">
+                                {{ mercadoPagoPointUnavailableMessage }}
+                            </div>
+
+                            <div v-else class="space-y-3">
+                                <div class="grid gap-2 sm:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center justify-center rounded-xl bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="!canCreateMercadoPagoPointOrder || mercadoPagoPointForm.processing"
+                                        @click="createMercadoPagoPointOrder('debit_card')"
+                                    >
+                                        Debito
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center justify-center rounded-xl border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="!canCreateMercadoPagoPointOrder || mercadoPagoPointForm.processing"
+                                        @click="createMercadoPagoPointOrder('credit_card')"
+                                    >
+                                        Credito
+                                    </button>
+                                </div>
+
+                                <p v-if="pendingMercadoPagoPayment" class="text-xs text-amber-100">
+                                    Ya hay una orden pendiente en Point.
+                                </p>
+                                <p v-else-if="!hasSalePendingAmount" class="text-xs text-emerald-100">
+                                    La venta no tiene saldo pendiente.
+                                </p>
+                            </div>
+
+                            <p v-if="mercadoPagoPointForm.errors.mercadopago_point || mercadoPagoPointForm.errors.payment || mercadoPagoPointForm.errors.payment_method" class="text-xs text-rose-300">
+                                {{ mercadoPagoPointForm.errors.mercadopago_point || mercadoPagoPointForm.errors.payment || mercadoPagoPointForm.errors.payment_method }}
+                            </p>
+                            <p v-if="mercadoPagoPointSyncError" class="text-xs text-rose-300">{{ mercadoPagoPointSyncError }}</p>
+
+                            <div class="border-t border-cyan-100/10 pt-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="font-semibold text-slate-100">Cobros</p>
+                                    <span class="text-xs text-slate-400">{{ salePayments.length }}</span>
+                                </div>
+
+                                <div v-if="salePayments.length" class="mt-3 space-y-3">
+                                    <article v-for="payment in salePayments" :key="payment.id" class="rounded-xl border border-cyan-100/15 bg-slate-950/35 px-4 py-3">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p class="font-semibold text-slate-100">{{ money(payment.amount) }}</p>
+                                                <p class="mt-1 text-xs text-slate-400">
+                                                    {{ salePaymentProviderLabel(payment.provider) }} - {{ formatPaymentMethodLabel(payment.method, '-') }}
+                                                </p>
+                                            </div>
+                                            <StatusBadge :tone="salePaymentStatusTone(payment.status)" size="sm" :label="salePaymentStatusLabel(payment.status)" />
+                                        </div>
+
+                                        <div class="mt-3 space-y-1 text-xs text-slate-400">
+                                            <p>Fecha: <span class="text-slate-300">{{ salePaymentDate(payment) }}</span></p>
+                                            <p v-if="payment.provider_order_id">Orden: <span class="text-slate-300">{{ payment.provider_order_id }}</span></p>
+                                            <p v-if="payment.provider_status">Estado MP: <span class="text-slate-300">{{ payment.provider_status }}</span></p>
+                                        </div>
+
+                                        <button
+                                            v-if="payment.can_sync"
+                                            type="button"
+                                            class="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-50"
+                                            :disabled="syncingPaymentId !== null"
+                                            @click="syncMercadoPagoPointPayment(payment)"
+                                        >
+                                            {{ syncingPaymentId === payment.id ? 'Consultando...' : 'Actualizar estado' }}
+                                        </button>
+                                    </article>
+                                </div>
+
+                                <p v-else class="mt-3 rounded-xl border border-cyan-100/15 bg-slate-950/35 px-4 py-3 text-xs text-slate-400">
+                                    Sin cobros registrados.
+                                </p>
                             </div>
                         </div>
                     </AppPanel>

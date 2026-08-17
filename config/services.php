@@ -39,4 +39,18 @@ return [
         'default_country_code' => env('WHATSAPP_DEFAULT_COUNTRY_CODE', '54'),
     ],
 
+    'mercadopago' => [
+        'base_url' => env('MERCADO_PAGO_BASE_URL', 'https://api.mercadopago.com'),
+        'access_token' => env('MERCADO_PAGO_ACCESS_TOKEN'),
+        'webhook_secret' => env('MERCADO_PAGO_WEBHOOK_SECRET'),
+        'point_terminal_id' => env('MERCADO_PAGO_POINT_TERMINAL_ID'),
+        'point_expiration_time' => env('MERCADO_PAGO_POINT_EXPIRATION_TIME', 'PT15M'),
+        'point_print_on_terminal' => env('MERCADO_PAGO_POINT_PRINT_ON_TERMINAL', 'no_ticket'),
+        'platform_id' => env('MERCADO_PAGO_PLATFORM_ID'),
+        'integrator_id' => env('MERCADO_PAGO_INTEGRATOR_ID'),
+        'sponsor_id' => env('MERCADO_PAGO_SPONSOR_ID'),
+        'timeout' => env('MERCADO_PAGO_TIMEOUT', 30),
+        'connect_timeout' => env('MERCADO_PAGO_CONNECT_TIMEOUT', 5),
+    ],
+
 ];

@@ -20,6 +20,37 @@ class Sale extends Model
 
     public const PAYMENT_STATUS_PENDING = 'pending';
 
+    public const PAYMENT_METHOD_CASH = 'cash';
+
+    public const PAYMENT_METHOD_TRANSFER = 'transfer';
+
+    public const PAYMENT_METHOD_QR = 'qr';
+
+    public const PAYMENT_METHOD_DEBIT_CARD = 'debit_card';
+
+    public const PAYMENT_METHOD_CREDIT_CARD = 'credit_card';
+
+    /**
+     * @var list<string>
+     */
+    public const PAYMENT_METHODS = [
+        self::PAYMENT_METHOD_CASH,
+        self::PAYMENT_METHOD_TRANSFER,
+        self::PAYMENT_METHOD_QR,
+        self::PAYMENT_METHOD_DEBIT_CARD,
+        self::PAYMENT_METHOD_CREDIT_CARD,
+    ];
+
+    /**
+     * @var list<string>
+     */
+    public const PAYMENT_METHODS_WITH_DESTINATION = [
+        self::PAYMENT_METHOD_TRANSFER,
+        self::PAYMENT_METHOD_QR,
+        self::PAYMENT_METHOD_DEBIT_CARD,
+        self::PAYMENT_METHOD_CREDIT_CARD,
+    ];
+
     /**
      * @var list<string>
      */
@@ -125,6 +156,14 @@ class Sale extends Model
     }
 
     /**
+     * @return HasMany<Payment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
      * @return HasOne<SaleFiscalDocument, $this>
      */
     public function latestFiscalDocument(): HasOne
@@ -143,5 +182,10 @@ class Sale extends Model
     public function hasReceipt(): bool
     {
         return filled($this->receipt_path);
+    }
+
+    public static function requiresPaymentDestination(?string $paymentMethod): bool
+    {
+        return in_array($paymentMethod, self::PAYMENT_METHODS_WITH_DESTINATION, true);
     }
 }

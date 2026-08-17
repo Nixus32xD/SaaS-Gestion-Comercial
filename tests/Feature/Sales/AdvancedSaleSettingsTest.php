@@ -50,7 +50,7 @@ test('sale create page only exposes advanced sale settings for enabled businesse
         );
 });
 
-test('enabled advanced sale settings require sector and payment destination for transfer sales', function () {
+test('enabled advanced sale settings require sector and payment destination for non cash sales', function () {
     $business = Business::factory()->create();
     $admin = User::factory()->businessAdmin($business->id)->create();
 
@@ -86,17 +86,89 @@ test('enabled advanced sale settings require sector and payment destination for 
         'is_active' => true,
     ]);
 
-    $this->actingAs($admin)
-        ->from('/sales/create')
-        ->post('/sales', [
-            'payment_method' => 'transfer',
-            'items' => [[
-                'product_id' => $product->id,
-                'quantity' => 1,
-                'unit_price' => 1200,
-            ]],
-        ])
-        ->assertSessionHasErrors(['sale_sector_id', 'payment_destination_id']);
+    foreach ([
+        Sale::PAYMENT_METHOD_TRANSFER,
+        Sale::PAYMENT_METHOD_QR,
+        Sale::PAYMENT_METHOD_DEBIT_CARD,
+        Sale::PAYMENT_METHOD_CREDIT_CARD,
+    ] as $paymentMethod) {
+        $this->actingAs($admin)
+            ->from('/sales/create')
+            ->post('/sales', [
+                'payment_method' => $paymentMethod,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 1200,
+                ]],
+            ])
+            ->assertSessionHasErrors(['sale_sector_id', 'payment_destination_id']);
+    }
+});
+
+test('enabled advanced sale settings store destination for qr and card sales', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+
+    BusinessFeature::query()->create([
+        'business_id' => $business->id,
+        'feature' => BusinessFeature::ADVANCED_SALE_SETTINGS,
+        'is_enabled' => true,
+    ]);
+
+    $sector = BusinessSaleSector::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Mostrador',
+        'is_active' => true,
+        'sort_order' => 0,
+    ]);
+
+    $destination = BusinessPaymentDestination::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Posnet Mostrador',
+        'is_active' => true,
+        'sort_order' => 0,
+    ]);
+
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Tornillos',
+        'slug' => 'tornillos-advanced-card',
+        'unit_type' => 'unit',
+        'sale_price' => 500,
+        'cost_price' => 250,
+        'stock' => 10,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    foreach ([
+        Sale::PAYMENT_METHOD_QR,
+        Sale::PAYMENT_METHOD_DEBIT_CARD,
+        Sale::PAYMENT_METHOD_CREDIT_CARD,
+    ] as $paymentMethod) {
+        $this->actingAs($admin)
+            ->post('/sales', [
+                'payment_method' => $paymentMethod,
+                'sale_sector_id' => $sector->id,
+                'payment_destination_id' => $destination->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'unit_price' => 500,
+                ]],
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $sale = Sale::query()->latest('id')->firstOrFail();
+
+        expect($sale->sale_sector_id)->toBe($sector->id);
+        expect($sale->payment_method)->toBe($paymentMethod);
+        expect($sale->payment_destination_id)->toBe($destination->id);
+        expect($sale->amount_received)->toBeNull();
+        expect($sale->change_amount)->toBeNull();
+    }
 });
 
 test('enabled advanced sale settings ignore payment destination for cash sales', function () {

@@ -12,6 +12,7 @@ use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Services\Fiscal\FiscalVatCalculator;
+use App\Services\Payments\PaymentService;
 use App\Support\ProductMeasurement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ class SaleService
         private readonly ProductBatchService $productBatchService,
         private readonly CustomerAccountService $customerAccountService,
         private readonly FiscalVatCalculator $vatCalculator,
+        private readonly PaymentService $paymentService,
     ) {}
 
     /**
@@ -240,6 +242,26 @@ class SaleService
                 $product->save();
             }
 
+            if ($paidAmount > 0 && $paymentMethod !== null) {
+                $this->paymentService->createManualPaymentForSale(
+                    $business,
+                    $sale,
+                    $user,
+                    $paymentMethod,
+                    $paidAmount,
+                    $paymentDestinationId,
+                    'sale:'.$sale->id.':initial-payment',
+                    [
+                        'source' => 'sale_creation',
+                        'sale_payment_status' => $paymentStatus,
+                    ],
+                    $sale->sold_at
+                );
+
+                $sale->refresh();
+                $pendingAmount = round((float) $sale->pending_amount, 2);
+            }
+
             if ($pendingAmount > 0 && $customer !== null) {
                 $this->customerAccountService->recordDebtForSale(
                     $business,
@@ -273,7 +295,15 @@ class SaleService
             return null;
         }
 
-        return $value === 'transfer' ? 'transfer' : 'cash';
+        $paymentMethod = (string) $value;
+
+        if (! in_array($paymentMethod, Sale::PAYMENT_METHODS, true)) {
+            throw ValidationException::withMessages([
+                'payment_method' => 'El medio de pago seleccionado no es valido.',
+            ]);
+        }
+
+        return $paymentMethod;
     }
 
     /**
@@ -386,7 +416,7 @@ class SaleService
      */
     private function resolveCollectedAmounts(?string $paymentMethod, mixed $amountReceivedValue, float $expectedAmount): array
     {
-        if ($paymentMethod !== 'cash') {
+        if ($paymentMethod !== Sale::PAYMENT_METHOD_CASH) {
             return [null, null];
         }
 
@@ -432,7 +462,7 @@ class SaleService
             ]);
         }
 
-        if ($paidAmount <= 0 || $paymentMethod !== 'transfer') {
+        if ($paidAmount <= 0 || ! Sale::requiresPaymentDestination($paymentMethod)) {
             return [$saleSectorId, null];
         }
 

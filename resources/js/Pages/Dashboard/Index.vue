@@ -366,7 +366,7 @@ const priorityCards = computed(() => ([
                 </article>
 
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
-                    <h3 class="text-base font-semibold text-slate-100">Cobros del mes por cuenta</h3>
+                    <h3 class="text-base font-semibold text-slate-100">Cobros del mes por destino</h3>
                     <ul v-if="advanced_sales.sales_by_payment_destination?.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="destination in advanced_sales.sales_by_payment_destination" :key="destination.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
                             <div class="flex items-center justify-between gap-3">
@@ -376,7 +376,7 @@ const priorityCards = computed(() => ([
                             <p class="mt-1 text-xs text-slate-300">{{ destination.sales_count }} ventas</p>
                         </li>
                     </ul>
-                    <p v-else class="mt-3 text-sm text-slate-300">Sin cobros asociados a cuentas este mes.</p>
+                    <p v-else class="mt-3 text-sm text-slate-300">Sin cobros asociados a destinos este mes.</p>
                 </article>
             </section>
 
@@ -439,7 +439,7 @@ const priorityCards = computed(() => ([
                             <p class="font-medium text-slate-100">{{ sale.sale_number || `Venta #${sale.id}` }} - {{ money(sale.total) }}</p>
                             <p class="text-xs text-slate-300">{{ sale.sold_at }} - {{ sale.user || '-' }}</p>
                             <p v-if="advancedSalesEnabled" class="mt-1 text-xs text-slate-400">
-                                {{ sale.sale_sector || 'Sin sector' }} | {{ sale.payment_destination || 'Sin cuenta' }}
+                                {{ sale.sale_sector || 'Sin sector' }} | {{ sale.payment_destination || 'Sin destino' }}
                             </p>
                         </li>
                     </ul>

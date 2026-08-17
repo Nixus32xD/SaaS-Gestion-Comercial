@@ -7,11 +7,16 @@ use App\Models\Customer;
 use App\Models\CustomerAccountMovement;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\Payments\PaymentService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CustomerAccountService
 {
+    public function __construct(
+        private readonly PaymentService $paymentService,
+    ) {}
+
     public function recordDebtForSale(
         Business $business,
         Sale $sale,
@@ -84,6 +89,8 @@ class CustomerAccountService
 
             $remaining = $amount;
             $allocations = [];
+            $paidAt = $this->resolveDateTimeValue($payload['paid_at'] ?? null);
+            $paymentMethod = $this->resolvePaymentMethod($payload['payment_method'] ?? null);
 
             $openSales = Sale::query()
                 ->forBusiness($business->id)
@@ -106,14 +113,23 @@ class CustomerAccountService
                 }
 
                 $appliedAmount = round(min($pendingAmount, $remaining), 2);
-                $nextPending = round($pendingAmount - $appliedAmount, 2);
-                $nextPaid = round((float) $sale->paid_amount + $appliedAmount, 2);
 
-                $sale->update([
-                    'paid_amount' => $nextPaid,
-                    'pending_amount' => $nextPending,
-                    'payment_status' => $nextPending > 0 ? Sale::PAYMENT_STATUS_PARTIAL : Sale::PAYMENT_STATUS_PAID,
-                ]);
+                $this->paymentService->createManualPaymentForSale(
+                    $business,
+                    $sale,
+                    $user,
+                    $paymentMethod,
+                    $appliedAmount,
+                    null,
+                    null,
+                    [
+                        'source' => 'customer_account_payment',
+                        'customer_id' => $lockedCustomer->id,
+                    ],
+                    $paidAt
+                );
+
+                $sale->refresh();
 
                 $allocations[] = [
                     'sale_id' => $sale->id,
@@ -132,7 +148,6 @@ class CustomerAccountService
             }
 
             $nextBalance = round($currentBalance - $amount, 2);
-            $paidAt = $this->resolveDateTimeValue($payload['paid_at'] ?? null);
             $description = trim((string) ($payload['description'] ?? ''));
 
             return CustomerAccountMovement::query()->create([
@@ -144,7 +159,7 @@ class CustomerAccountService
                 'balance_after' => $nextBalance,
                 'description' => $description !== '' ? $description : 'Pago registrado en cuenta corriente.',
                 'meta' => [
-                    'payment_method' => $payload['payment_method'] ?? null,
+                    'payment_method' => $paymentMethod,
                     'allocations' => $allocations,
                 ],
                 'created_by' => $user->id,
@@ -160,12 +175,12 @@ class CustomerAccountService
             ->forBusiness($customer->business_id)
             ->where('customer_id', $customer->id)
             ->selectRaw(
-                "COALESCE(SUM(CASE
+                'COALESCE(SUM(CASE
                     WHEN type = ? THEN amount
                     WHEN type = ? THEN -amount
                     WHEN type = ? THEN amount
                     ELSE 0
-                END), 0) as balance",
+                END), 0) as balance',
                 [
                     CustomerAccountMovement::TYPE_DEBT,
                     CustomerAccountMovement::TYPE_PAYMENT,
@@ -188,6 +203,23 @@ class CustomerAccountService
         }
 
         return $value;
+    }
+
+    private function resolvePaymentMethod(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return Sale::PAYMENT_METHOD_CASH;
+        }
+
+        $paymentMethod = (string) $value;
+
+        if (! in_array($paymentMethod, Sale::PAYMENT_METHODS, true)) {
+            throw ValidationException::withMessages([
+                'payment_method' => 'El medio de pago seleccionado no es valido.',
+            ]);
+        }
+
+        return $paymentMethod;
     }
 
     private function lockCustomer(Business $business, int $customerId): Customer

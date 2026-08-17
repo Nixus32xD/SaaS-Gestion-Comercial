@@ -2,6 +2,7 @@
 import AppPanel from '@/Components/AppPanel.vue';
 import MetricCard from '@/Components/MetricCard.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
+import { paymentMethodLabel } from '@/Support/paymentMethods';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, reactive } from 'vue';
@@ -29,7 +30,6 @@ const moneyFormatter = new Intl.NumberFormat('es-AR', {
 
 const money = (value) => moneyFormatter.format(Number(value) || 0);
 
-const paymentMethodLabel = (value) => (value === 'transfer' ? 'Transferencia' : 'Efectivo');
 const paymentStatusLabel = (value) => {
     if (value === 'partial') return 'Parcial';
     if (value === 'pending') return 'Fiada';
@@ -73,7 +73,7 @@ const activeFilters = computed(() => {
 
     if (state.payment_destination_id) {
         const destination = paymentDestinations.value.find((item) => String(item.id) === String(state.payment_destination_id));
-        filters.push({ key: 'payment_destination_id', label: `Cuenta: ${destination?.name || state.payment_destination_id}` });
+        filters.push({ key: 'payment_destination_id', label: `Destino: ${destination?.name || state.payment_destination_id}` });
     }
 
     return filters;
@@ -165,7 +165,7 @@ const clearSingleFilter = (key) => {
                     </article>
 
                     <article class="app-subsection">
-                        <h4 class="app-section-title">Totales por cuenta de cobro</h4>
+                        <h4 class="app-section-title">Totales por destino de cobro</h4>
                         <ul v-if="monthly_summary.by_payment_destination?.length" class="mt-3 space-y-2 text-sm">
                             <li v-for="destination in monthly_summary.by_payment_destination" :key="destination.id" class="rounded-xl border border-cyan-100/10 bg-slate-900/55 px-3 py-2">
                                 <div class="flex items-center justify-between gap-3">
@@ -175,7 +175,7 @@ const clearSingleFilter = (key) => {
                                 <p class="mt-1 text-xs text-slate-400">{{ destination.sales_count }} ventas</p>
                             </li>
                         </ul>
-                        <p v-else class="mt-3 text-sm text-slate-400">Sin ventas por cuenta en este periodo.</p>
+                        <p v-else class="mt-3 text-sm text-slate-400">Sin ventas por destino en este periodo.</p>
                     </article>
                 </div>
             </AppPanel>
@@ -216,7 +216,7 @@ const clearSingleFilter = (key) => {
                         v-model="state.payment_destination_id"
                         class="min-w-0 rounded-xl bg-slate-950/35 text-sm text-slate-100"
                     >
-                        <option value="">Todas las cuentas</option>
+                        <option value="">Todos los destinos</option>
                         <option v-for="destination in paymentDestinations" :key="destination.id" :value="destination.id">{{ destination.name }}</option>
                     </select>
                     <div class="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-1 xl:flex xl:justify-end">
@@ -259,7 +259,7 @@ const clearSingleFilter = (key) => {
 
                         <div v-if="advancedSaleSettingsEnabled" class="mt-3 app-chip-row">
                             <StatusBadge tone="info" size="sm" :label="sale.sale_sector || 'Sin sector'" />
-                            <StatusBadge tone="neutral" size="sm" :label="sale.payment_destination || 'Sin cuenta'" />
+                            <StatusBadge tone="neutral" size="sm" :label="sale.payment_destination || 'Sin destino'" />
                         </div>
 
                         <div class="mt-3 grid gap-2 text-xs text-slate-400">
@@ -294,7 +294,7 @@ const clearSingleFilter = (key) => {
                                     <p class="mt-1 text-xs text-slate-400">{{ sale.sold_at || '-' }} · {{ sale.user || 'Sin usuario' }}</p>
                                     <div v-if="advancedSaleSettingsEnabled" class="mt-2 app-chip-row">
                                         <StatusBadge tone="info" size="sm" :label="sale.sale_sector || 'Sin sector'" />
-                                        <StatusBadge tone="neutral" size="sm" :label="sale.payment_destination || 'Sin cuenta'" />
+                                        <StatusBadge tone="neutral" size="sm" :label="sale.payment_destination || 'Sin destino'" />
                                     </div>
                                 </td>
                                 <td class="px-3 py-2 align-top">

@@ -1,6 +1,7 @@
 <script setup>
 import AppPanel from '@/Components/AppPanel.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
+import { paymentMethodLabel, paymentMethodOptions, paymentMethodRequiresDestination } from '@/Support/paymentMethods';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -82,6 +83,12 @@ const quickOptionForm = useForm({
     vat_rate: defaultVatRate,
     is_active: true,
 });
+
+const paymentStatusOptions = [
+    { value: 'paid', label: 'Pagada' },
+    { value: 'partial', label: 'Parcial' },
+    { value: 'pending', label: 'Fiado' },
+];
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -558,6 +565,10 @@ const isPendingSale = computed(() => form.payment_status === 'pending');
 const isPartialSale = computed(() => form.payment_status === 'partial');
 const requiresImmediatePayment = computed(() => form.payment_status !== 'pending');
 const isCashPayment = computed(() => form.payment_method === 'cash');
+const selectedPaymentMethod = computed(() => (
+    paymentMethodOptions.find((option) => option.value === form.payment_method) || null
+));
+const selectedPaymentMethodLabel = computed(() => selectedPaymentMethod.value?.label || paymentMethodLabel(form.payment_method));
 const advancedSaleSettingsEnabled = computed(() => Boolean(props.advanced_sale_settings?.enabled));
 const saleSectorOptions = computed(() => props.advanced_sale_settings?.sale_sectors || []);
 const paymentDestinationOptions = computed(() => props.advanced_sale_settings?.payment_destinations || []);
@@ -585,7 +596,7 @@ const requiresPaymentDestination = computed(() => (
     advancedSaleSettingsEnabled.value
     && requiresImmediatePayment.value
     && paidAmount.value > 0
-    && form.payment_method === 'transfer'
+    && paymentMethodRequiresDestination(form.payment_method)
 ));
 const canSubmit = computed(() => (
     form.items.length > 0
@@ -632,7 +643,7 @@ const summaryWarnings = computed(() => {
     }
 
     if (requiresPaymentDestination.value && !form.payment_destination_id) {
-        warnings.push('Falta indicar la cuenta de cobro donde entra el dinero.');
+        warnings.push('Falta indicar el destino de cobro donde entra el dinero.');
     }
 
     if ((isPendingSale.value || isPartialSale.value) && !form.customer_id) {
@@ -660,6 +671,17 @@ const summaryTone = computed(() => {
 });
 const saleDraftStorageKey = 'saas-gestion-comercial:sales-create-draft';
 const receiptFileName = computed(() => form.receipt?.name || '');
+const hasFiscalCustomerErrors = computed(() => (
+    Object.keys(form.errors || {}).some((key) => key.startsWith('fiscal_customer.'))
+));
+const saleDetailsOpen = computed(() => (
+    fiscalCustomerWithData.value
+    || hasFiscalCustomerErrors.value
+    || Boolean(form.errors.customer_id || form.errors.receipt || form.errors.sold_at || form.errors.discount || form.errors.notes)
+    || Boolean(receiptFileName.value)
+    || String(form.notes || '').trim() !== ''
+    || Number(form.discount || 0) > 0
+));
 
 const buildDraftSnapshot = () => ({
     form: {
@@ -782,13 +804,18 @@ const moneyFormatter = new Intl.NumberFormat('es-AR', {
 });
 
 const money = (value) => moneyFormatter.format(Number(value) || 0);
-const selectedSaleSectorName = computed(() => saleSectorOptions.value.find((item) => item.id === form.sale_sector_id)?.name || '-');
+const selectedSaleSectorName = computed(() => (
+    saleSectorOptions.value.find((item) => String(item.id) === String(form.sale_sector_id))?.name || '-'
+));
+const selectedPaymentDestination = computed(() => (
+    paymentDestinationOptions.value.find((item) => String(item.id) === String(form.payment_destination_id)) || null
+));
 const selectedPaymentDestinationName = computed(() => {
     if (!requiresPaymentDestination.value) {
         return requiresImmediatePayment.value ? 'No aplica' : 'Sin cobro inicial';
     }
 
-    return paymentDestinationOptions.value.find((item) => item.id === form.payment_destination_id)?.name || '-';
+    return selectedPaymentDestination.value?.name || '-';
 });
 
 const applyQuickAmount = (mode, amount = 0) => {
@@ -906,7 +933,7 @@ onBeforeUnmount(() => {
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
                     <h2 class="text-2xl font-bold text-slate-100">Nueva venta</h2>
-                    <p class="mt-1 text-sm text-slate-300/80">Carga rapida por nombre o lector de codigo.</p>
+                    <p class="mt-1 text-sm text-slate-300/80">Mostrador</p>
                 </div>
                 <div class="flex w-full sm:w-auto sm:justify-end">
                     <Link :href="route('sales.index')" class="inline-flex w-full items-center justify-center rounded-xl border border-cyan-100/20 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-slate-100 sm:w-auto">Volver</Link>
@@ -914,24 +941,19 @@ onBeforeUnmount(() => {
             </div>
         </template>
 
-        <form class="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_22rem]" @submit.prevent>
-            <div class="grid gap-6">
-            <AppPanel title="Carga de items" subtitle="Busca, agrega y revisa el carrito sin perder ritmo en caja.">
-                <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
-                    <p class="font-semibold">Atajos</p>
-                    <p class="leading-relaxed">F2: foco en buscador | F4: foco en cantidad | Alt+A: agregar producto | Ctrl+Enter: confirmar venta | Esc: limpiar busqueda</p>
-                </div>
-
-                <div class="mt-4 grid gap-3 lg:grid-cols-4">
-                    <div class="lg:col-span-2">
-                        <label for="product-search" class="mb-1 block text-sm font-medium text-slate-300">Producto (nombre, barcode o SKU)</label>
+        <form class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]" @submit.prevent>
+            <div class="grid self-start gap-6">
+            <AppPanel title="Venta" subtitle="" padding="sm">
+                <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_8rem_9rem]">
+                    <div>
+                        <label for="product-search" class="mb-1 block text-sm font-medium text-slate-300">Producto</label>
                         <input
                             id="product-search"
                             ref="searchInput"
                             v-model="state.search"
                             type="text"
-                            class="w-full rounded-xl border-cyan-100/25 text-sm"
-                            placeholder="Escanear codigo o escribir nombre y Enter"
+                            class="h-11 w-full rounded-xl border-cyan-100/25 text-base"
+                            placeholder="Escanear o buscar"
                             aria-controls="product-results"
                             aria-autocomplete="list"
                             role="combobox"
@@ -941,7 +963,7 @@ onBeforeUnmount(() => {
                         >
                     </div>
                     <div>
-                        <label for="product-qty" class="mb-1 block text-sm font-medium text-slate-300">Cantidad <span class="text-xs text-slate-400">({{ activeProductMeta.quantityLabel }})</span></label>
+                        <label for="product-qty" class="mb-1 block text-sm font-medium text-slate-300">Cant. <span class="text-xs text-slate-400">({{ activeProductMeta.quantityLabel }})</span></label>
                         <input
                             id="product-qty"
                             ref="quantityInput"
@@ -949,13 +971,13 @@ onBeforeUnmount(() => {
                             type="number"
                             :min="activeProductMeta.quantityMin"
                             :step="activeProductMeta.quantityStep"
-                            class="w-full rounded-xl border-cyan-100/25 text-sm"
+                            class="h-11 w-full rounded-xl border-cyan-100/25 text-base"
                         >
                     </div>
                     <div class="flex items-end">
                         <button
                             type="button"
-                            class="w-full rounded-xl border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                            class="h-11 w-full rounded-xl bg-cyan-600 px-3 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-60"
                             :disabled="isResolvingSearch"
                             @click="addProductToCart(activeProduct, 'manual')"
                         >
@@ -1002,7 +1024,6 @@ onBeforeUnmount(() => {
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h3 class="text-sm font-semibold text-amber-100">Venta rapida sin stock</h3>
-                            <p class="mt-1 text-xs text-amber-50/80">Para productos sueltos, servicios, materiales, lubricantes o importes puntuales que no quieras manejar con stock.</p>
                         </div>
                         <div class="flex flex-wrap gap-2 sm:justify-end">
                             <button
@@ -1076,8 +1097,12 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <div v-if="can_manage_quick_sale_options" class="mt-4 border-t border-amber-100/20 pt-4">
-                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <details v-if="can_manage_quick_sale_options" class="mt-4 border-t border-amber-100/20 pt-3">
+                        <summary class="cursor-pointer text-sm font-semibold text-amber-100">
+                            Configurar opciones rapidas
+                        </summary>
+
+                        <div class="mt-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h4 class="text-sm font-semibold text-amber-100">Opciones rapidas del comercio</h4>
                                 <p class="text-xs text-amber-50/70">Agrega accesos propios para ferreteria, lubricentro, servicios o venta suelta.</p>
@@ -1085,7 +1110,7 @@ onBeforeUnmount(() => {
                             <StatusBadge v-if="customQuickSaleOptions.length" tone="warning" size="sm" :label="`${customQuickSaleOptions.length} propias`" />
                         </div>
 
-                        <form class="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_10rem_15rem_auto]" @submit.prevent="storeQuickOption">
+                        <div class="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_10rem_15rem_auto]">
                             <div>
                                 <label for="quick-option-name" class="mb-1 block text-xs font-medium text-amber-50/90">Nombre</label>
                                 <input
@@ -1134,14 +1159,15 @@ onBeforeUnmount(() => {
                             </div>
                             <div class="flex items-end">
                                 <button
-                                    type="submit"
+                                    type="button"
                                     class="w-full rounded-xl bg-amber-200 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-100 disabled:opacity-60"
                                     :disabled="quickOptionForm.processing"
+                                    @click="storeQuickOption"
                                 >
                                     Guardar
                                 </button>
                             </div>
-                        </form>
+                        </div>
 
                         <div class="mt-3">
                             <label for="quick-option-description" class="mb-1 block text-xs font-medium text-amber-50/90">Descripcion opcional</label>
@@ -1161,12 +1187,11 @@ onBeforeUnmount(() => {
                                 <button type="button" class="text-rose-200 hover:text-rose-100" @click="deleteQuickOption(option)">Quitar</button>
                             </span>
                         </div>
-                    </div>
+                    </details>
                 </div>
 
                 <div class="mt-5">
-                    <h3 class="app-section-title">Carrito actual</h3>
-                    <p class="app-section-copy">Chequea cantidades, precios y subtotales antes de pasar al cobro.</p>
+                    <h3 class="app-section-title">Carrito</h3>
                 </div>
 
                 <div v-if="form.items.length" class="mt-4 grid gap-3 md:hidden">
@@ -1246,12 +1271,16 @@ onBeforeUnmount(() => {
                 </div>
             </AppPanel>
 
-            <AppPanel title="Cobro y cierre" subtitle="Define cliente, condicion de pago y datos de caja antes de confirmar.">
-                <div v-if="advancedSaleSettingsEnabled" class="mb-4 rounded-2xl border border-cyan-200/20 bg-slate-950/35 p-4">
+            <details class="rounded-2xl border border-cyan-100/15 bg-slate-950/30 p-4 text-slate-100" :open="saleDetailsOpen">
+                <summary class="cursor-pointer text-sm font-semibold text-slate-200">
+                    Mas datos de venta
+                </summary>
+                <div class="mt-4">
+                <div v-if="advancedSaleSettingsEnabled" class="hidden mb-4 rounded-2xl border border-cyan-200/20 bg-slate-950/35 p-4">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div class="min-w-0">
                             <h3 class="text-base font-semibold text-slate-100">Contexto de venta</h3>
-                            <p class="mt-1 text-sm text-slate-300/80">Selecciona el sector y la cuenta configurados para este comercio.</p>
+                            <p class="mt-1 text-sm text-slate-300/80">Selecciona el sector y el destino de cobro configurados para este comercio.</p>
                         </div>
                         <span class="inline-flex w-fit rounded-full bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-100">Exclusivo por comercio</span>
                     </div>
@@ -1275,23 +1304,29 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div>
-                            <label for="payment-destination" class="mb-1 block text-sm font-medium text-slate-300">Cuenta de cobro / destino</label>
+                            <label for="payment-destination" class="mb-1 block text-sm font-medium text-slate-300">Destino de cobro</label>
                             <select
                                 id="payment-destination"
                                 v-model="form.payment_destination_id"
                                 :disabled="!requiresPaymentDestination"
                                 class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
                             >
-                                <option :value="null">{{ requiresPaymentDestination ? 'Seleccionar cuenta' : (isCashPayment && requiresImmediatePayment ? 'No aplica en efectivo' : 'Sin cobro inicial') }}</option>
+                                <option :value="null">{{ requiresPaymentDestination ? 'Seleccionar destino' : (isCashPayment && requiresImmediatePayment ? 'No aplica en efectivo' : 'Sin cobro inicial') }}</option>
                                 <option v-for="destination in paymentDestinationOptions" :key="destination.id" :value="destination.id">
                                     {{ destination.name }}
                                 </option>
                             </select>
                             <p v-if="!requiresPaymentDestination" class="mt-1 text-xs text-slate-400">
                                 {{ isCashPayment && requiresImmediatePayment
-                                    ? 'En pagos en efectivo no se asigna cuenta de cobro.'
-                                    : 'La cuenta de cobro se pide solo cuando entra dinero por transferencia.' }}
+                                    ? 'En pagos en efectivo no se asigna destino de cobro.'
+                                    : 'El destino de cobro se pide cuando entra dinero por transferencia, QR o tarjeta.' }}
                             </p>
+                            <div v-if="requiresPaymentDestination && selectedPaymentDestination" class="mt-2 rounded-lg border border-cyan-100/15 bg-slate-900/45 px-3 py-2 text-xs text-slate-300">
+                                <p class="font-semibold text-slate-100">{{ selectedPaymentDestination.name }}</p>
+                                <p v-if="selectedPaymentDestination.account_holder" class="mt-1">Titular: {{ selectedPaymentDestination.account_holder }}</p>
+                                <p v-if="selectedPaymentDestination.reference" class="mt-1">Alias / referencia: {{ selectedPaymentDestination.reference }}</p>
+                                <p v-if="selectedPaymentDestination.account_number" class="mt-1">Dato de cobro: {{ selectedPaymentDestination.account_number }}</p>
+                            </div>
                             <p v-if="form.errors.payment_destination_id" class="mt-1 text-xs text-rose-300">
                                 {{ form.errors.payment_destination_id }}
                             </p>
@@ -1300,7 +1335,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="mb-4 grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-                    <article class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                    <article class="hidden rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <h3 class="text-base font-semibold text-slate-100">Cliente</h3>
@@ -1447,7 +1482,7 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                <div class="hidden mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
                     <div>
                         <template v-if="requiresImmediatePayment">
                             <label for="payment-method" class="mb-1 block text-sm font-medium text-slate-300">Medio de pago del cobro inicial</label>
@@ -1456,8 +1491,9 @@ onBeforeUnmount(() => {
                                 v-model="form.payment_method"
                                 class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
                             >
-                                <option value="cash">Efectivo</option>
-                                <option value="transfer">Transferencia</option>
+                                <option v-for="option in paymentMethodOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </option>
                             </select>
                             <p v-if="form.errors.payment_method" class="mt-1 text-xs text-rose-300">
                                 {{ form.errors.payment_method }}
@@ -1517,7 +1553,7 @@ onBeforeUnmount(() => {
                             </div>
 
                             <p v-else class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
-                                En transferencia no hace falta calcular vuelto.
+                                {{ selectedPaymentMethodLabel }} se registra como cobro manual confirmado en mostrador. No hace falta calcular vuelto.
                             </p>
                         </template>
 
@@ -1528,11 +1564,12 @@ onBeforeUnmount(() => {
 
                     <div class="rounded-xl bg-slate-950/35 p-4 text-sm text-slate-300">
                         <p v-if="advancedSaleSettingsEnabled">Sector: <strong>{{ selectedSaleSectorName }}</strong></p>
-                        <p v-if="advancedSaleSettingsEnabled">Cuenta: <strong>{{ selectedPaymentDestinationName }}</strong></p>
+                        <p v-if="advancedSaleSettingsEnabled">Destino: <strong>{{ selectedPaymentDestinationName }}</strong></p>
                         <p>Subtotal: <strong>{{ money(subtotal) }}</strong></p>
                         <p>Descuento: <strong>{{ money(form.discount) }}</strong></p>
                         <p class="mt-2 text-base text-slate-100">Total: <strong>{{ money(total) }}</strong></p>
                         <p class="mt-2">Estado: <strong>{{ form.payment_status === 'paid' ? 'Pagado completo' : (form.payment_status === 'partial' ? 'Pago parcial' : 'Fiado') }}</strong></p>
+                        <p v-if="requiresImmediatePayment">Medio: <strong>{{ selectedPaymentMethodLabel }}</strong></p>
                         <p v-if="selectedCustomer">Cliente: <strong>{{ selectedCustomer.name }}</strong></p>
                         <template v-if="requiresImmediatePayment">
                             <p class="mt-2">Abonado ahora: <strong>{{ money(paidAmount) }}</strong></p>
@@ -1550,15 +1587,170 @@ onBeforeUnmount(() => {
                         Confirmar venta
                     </button>
                 </div>
-            </AppPanel>
+                </div>
+            </details>
             </div>
 
             <aside class="app-sticky-column">
-                <AppPanel title="Resumen operativo" :tone="summaryTone" subtitle="Controla rapido si la venta queda lista para confirmar.">
+                <AppPanel title="Cobro" :tone="summaryTone" subtitle="">
                     <div class="app-chip-row">
                         <StatusBadge :tone="paymentStatusTone" :label="saleStatusLabel" />
                         <StatusBadge tone="info" :label="`${cartItemsCount} items`" />
                         <StatusBadge v-if="manualItemsCount" tone="warning" :label="`${manualItemsCount} manuales`" />
+                    </div>
+
+                    <div class="mt-4 space-y-4">
+                        <div>
+                            <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Estado</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button
+                                    v-for="option in paymentStatusOptions"
+                                    :key="option.value"
+                                    type="button"
+                                    class="h-10 rounded-lg border px-2 text-xs font-semibold transition"
+                                    :class="form.payment_status === option.value ? 'border-cyan-300/60 bg-cyan-400/20 text-cyan-50' : 'border-cyan-100/15 bg-slate-950/35 text-slate-300 hover:bg-slate-800/70'"
+                                    @click="form.payment_status = option.value"
+                                >
+                                    {{ option.label }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="mb-1 flex items-center justify-between gap-2">
+                                <label for="sale-customer-sidebar" class="text-sm font-medium text-slate-300">Cliente</label>
+                                <Link :href="route('customers.create', { return_to: 'sales.create' })" class="text-xs font-semibold text-cyan-100 hover:text-cyan-50">
+                                    Nuevo
+                                </Link>
+                            </div>
+                            <select
+                                id="sale-customer-sidebar"
+                                v-model="form.customer_id"
+                                class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                            >
+                                <option :value="null">Consumidor final</option>
+                                <option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
+                                    {{ customer.name }}
+                                </option>
+                            </select>
+                            <p v-if="form.errors.customer_id" class="mt-1 text-xs text-rose-300">
+                                {{ form.errors.customer_id }}
+                            </p>
+                            <p v-if="selectedCustomer" class="mt-1 text-xs text-slate-400">
+                                Saldo: {{ money(selectedCustomer.current_balance) }}
+                            </p>
+                        </div>
+
+                        <div v-if="advancedSaleSettingsEnabled" class="grid gap-3">
+                            <div>
+                                <label for="sale-sector-sidebar" class="mb-1 block text-sm font-medium text-slate-300">Sector</label>
+                                <select
+                                    id="sale-sector-sidebar"
+                                    v-model="form.sale_sector_id"
+                                    class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                >
+                                    <option :value="null">Seleccionar</option>
+                                    <option v-for="sector in saleSectorOptions" :key="sector.id" :value="sector.id">
+                                        {{ sector.name }}
+                                    </option>
+                                </select>
+                                <p v-if="form.errors.sale_sector_id" class="mt-1 text-xs text-rose-300">
+                                    {{ form.errors.sale_sector_id }}
+                                </p>
+                            </div>
+
+                            <div>
+                                <label for="payment-destination-sidebar" class="mb-1 block text-sm font-medium text-slate-300">Destino</label>
+                                <select
+                                    id="payment-destination-sidebar"
+                                    v-model="form.payment_destination_id"
+                                    :disabled="!requiresPaymentDestination"
+                                    class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                >
+                                    <option :value="null">{{ requiresPaymentDestination ? 'Seleccionar' : 'No aplica' }}</option>
+                                    <option v-for="destination in paymentDestinationOptions" :key="destination.id" :value="destination.id">
+                                        {{ destination.name }}
+                                    </option>
+                                </select>
+                                <p v-if="form.errors.payment_destination_id" class="mt-1 text-xs text-rose-300">
+                                    {{ form.errors.payment_destination_id }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                            <div>
+                                <label for="discount-sidebar" class="mb-1 block text-sm font-medium text-slate-300">Descuento</label>
+                                <input
+                                    id="discount-sidebar"
+                                    v-model.number="form.discount"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                    placeholder="0.00"
+                                >
+                            </div>
+
+                            <div v-if="requiresImmediatePayment">
+                                <label class="mb-2 block text-sm font-medium text-slate-300">Medio</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button
+                                        v-for="option in paymentMethodOptions"
+                                        :key="option.value"
+                                        type="button"
+                                        class="min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition"
+                                        :class="form.payment_method === option.value ? 'border-emerald-300/60 bg-emerald-400/20 text-emerald-50' : 'border-cyan-100/15 bg-slate-950/35 text-slate-300 hover:bg-slate-800/70'"
+                                        @click="form.payment_method = option.value"
+                                    >
+                                        {{ option.label }}
+                                    </button>
+                                </div>
+                                <p v-if="form.errors.payment_method" class="mt-1 text-xs text-rose-300">
+                                    {{ form.errors.payment_method }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div v-if="isPartialSale" class="grid gap-2">
+                            <label for="paid-amount-sidebar" class="text-sm font-medium text-slate-300">Abonado ahora</label>
+                            <input
+                                id="paid-amount-sidebar"
+                                v-model="form.paid_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                placeholder="0.00"
+                            >
+                            <p v-if="form.errors.paid_amount" class="text-xs text-rose-300">
+                                {{ form.errors.paid_amount }}
+                            </p>
+                        </div>
+
+                        <div v-if="isCashPayment && requiresImmediatePayment" class="grid gap-3">
+                            <div>
+                                <label for="amount-received-sidebar" class="mb-1 block text-sm font-medium text-slate-300">Recibido</label>
+                                <input
+                                    id="amount-received-sidebar"
+                                    v-model="form.amount_received"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100"
+                                    placeholder="0.00"
+                                >
+                                <p v-if="form.errors.amount_received" class="mt-1 text-xs text-rose-300">
+                                    {{ form.errors.amount_received }}
+                                </p>
+                            </div>
+                            <div class="grid grid-cols-4 gap-2">
+                                <button type="button" class="rounded-lg border border-cyan-100/25 px-2 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('exact')">Exacto</button>
+                                <button type="button" class="rounded-lg border border-cyan-100/25 px-2 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 500)">+500</button>
+                                <button type="button" class="rounded-lg border border-cyan-100/25 px-2 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 1000)">+1000</button>
+                                <button type="button" class="rounded-lg border border-rose-300/45 px-2 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="applyQuickAmount('clear')">Borrar</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mt-4 space-y-3 text-sm text-slate-300">
@@ -1586,9 +1778,9 @@ onBeforeUnmount(() => {
                             <span>Descuento</span>
                             <span class="font-semibold text-slate-100">{{ money(form.discount) }}</span>
                         </div>
-                        <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center justify-between gap-3 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2">
                             <span>Total</span>
-                            <span class="font-semibold text-slate-100">{{ money(total) }}</span>
+                            <span class="text-xl font-bold text-slate-100">{{ money(total) }}</span>
                         </div>
                         <div class="flex items-center justify-between gap-3">
                             <span>Abonado ahora</span>
@@ -1608,12 +1800,12 @@ onBeforeUnmount(() => {
                         <p v-for="warning in summaryWarnings" :key="warning">{{ warning }}</p>
                     </div>
                     <div v-else class="mt-4 rounded-xl border border-emerald-300/25 bg-emerald-400/10 p-3 text-sm text-emerald-100">
-                        La venta esta lista para confirmarse sin pasos adicionales.
+                        Lista para confirmar.
                     </div>
 
                     <template #footer>
                         <div class="grid gap-3">
-                            <button type="button" class="hidden w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50 xl:inline-flex xl:items-center xl:justify-center" :disabled="!canSubmit" @click="submitIfReady">
+                            <button type="button" class="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50" :disabled="!canSubmit" @click="submitIfReady">
                                 Confirmar venta
                             </button>
                             <Link :href="route('sales.index')" class="inline-flex w-full items-center justify-center rounded-xl border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70">

@@ -175,7 +175,7 @@ test('cash sale fails when amount received is lower than total', function () {
     expect(Sale::query()->count())->toBe(0);
 });
 
-test('transfer sale stores payment method without cash amounts', function () {
+test('non cash sale stores payment method without cash amounts', function () {
     $business = Business::factory()->create();
     $admin = User::factory()->businessAdmin($business->id)->create();
     $product = Product::query()->create([
@@ -190,25 +190,32 @@ test('transfer sale stores payment method without cash amounts', function () {
         'is_active' => true,
     ]);
 
-    $this
-        ->actingAs($admin)
-        ->post('/sales', [
-            'payment_method' => 'transfer',
-            'items' => [
-                [
-                    'product_id' => $product->id,
-                    'quantity' => 1,
-                    'unit_price' => 3000,
+    foreach ([
+        Sale::PAYMENT_METHOD_TRANSFER,
+        Sale::PAYMENT_METHOD_QR,
+        Sale::PAYMENT_METHOD_DEBIT_CARD,
+        Sale::PAYMENT_METHOD_CREDIT_CARD,
+    ] as $paymentMethod) {
+        $this
+            ->actingAs($admin)
+            ->post('/sales', [
+                'payment_method' => $paymentMethod,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'quantity' => 1,
+                        'unit_price' => 3000,
+                    ],
                 ],
-            ],
-        ])
-        ->assertRedirect();
+            ])
+            ->assertRedirect();
 
-    $sale = Sale::query()->firstOrFail();
+        $sale = Sale::query()->latest('id')->firstOrFail();
 
-    expect($sale->payment_method)->toBe('transfer');
-    expect($sale->amount_received)->toBeNull();
-    expect($sale->change_amount)->toBeNull();
+        expect($sale->payment_method)->toBe($paymentMethod);
+        expect($sale->amount_received)->toBeNull();
+        expect($sale->change_amount)->toBeNull();
+    }
 });
 
 test('gram-based weighted sale calculates subtotal and stock correctly', function () {

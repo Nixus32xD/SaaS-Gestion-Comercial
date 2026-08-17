@@ -746,11 +746,11 @@ const planLabel = (plan) => {
                     <section class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
                         <div class="flex items-center justify-between gap-3">
                             <div>
-                                <h4 class="text-base font-semibold text-slate-100">Cuentas de cobro / destino</h4>
-                                <p class="mt-1 text-xs text-slate-400">Mercado Pago, banco, alias o referencia equivalente.</p>
+                                <h4 class="text-base font-semibold text-slate-100">Destinos de cobro</h4>
+                                <p class="mt-1 text-xs text-slate-400">Caja, banco, QR, Mercado Pago, terminal posnet o referencia equivalente.</p>
                             </div>
                             <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="addPaymentDestination">
-                                Agregar cuenta
+                                Agregar destino
                             </button>
                         </div>
 
@@ -758,7 +758,7 @@ const planLabel = (plan) => {
                             <article v-for="(destination, index) in salesSettingsForm.payment_destinations" :key="`destination-${destination.id ?? `new-${index}`}`" class="rounded-xl border border-cyan-100/15 bg-slate-900/45 p-4">
                                 <div class="grid gap-3">
                                     <div class="flex items-center justify-between gap-3">
-                                        <p class="text-sm font-semibold text-slate-100">Cuenta {{ index + 1 }}</p>
+                                        <p class="text-sm font-semibold text-slate-100">Destino {{ index + 1 }}</p>
                                         <div class="flex items-center gap-3">
                                             <label class="inline-flex items-center gap-2 text-xs text-slate-300">
                                                 <input v-model="destination.is_active" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
@@ -788,13 +788,13 @@ const planLabel = (plan) => {
 
                                     <div class="space-y-1">
                                         <label class="text-sm font-medium text-slate-300">Numero de cuenta o dato equivalente</label>
-                                        <input v-model="destination.account_number" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="CBU, CVU, cuenta, link, etc." />
+                                        <input v-model="destination.account_number" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="CBU, CVU, terminal, link, etc." />
                                     </div>
                                 </div>
                             </article>
 
                             <p v-if="!salesSettingsForm.payment_destinations.length" class="rounded-xl border border-dashed border-cyan-100/20 px-4 py-5 text-sm text-slate-400">
-                                Todavia no hay cuentas configuradas.
+                                Todavia no hay destinos configurados.
                             </p>
                         </div>
                     </section>

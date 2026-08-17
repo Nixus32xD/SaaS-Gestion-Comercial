@@ -12,6 +12,8 @@ use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Fiscal\ElectronicBillingController;
 use App\Http\Controllers\Fiscal\FiscalCredentialProxyController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
+use App\Http\Controllers\Payments\MercadoPagoPointController;
+use App\Http\Controllers\Payments\MercadoPagoWebhookController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchases\PurchaseController;
@@ -24,6 +26,9 @@ use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', WelcomeController::class);
+
+Route::post('/webhooks/mercadopago/orders', [MercadoPagoWebhookController::class, 'orders'])
+    ->name('webhooks.mercadopago.orders');
 
 Route::middleware(['auth', 'superadmin'])
     ->prefix('admin')
@@ -88,6 +93,8 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::post('/sales/{sale}/receipt', [SaleController::class, 'storeReceipt'])->name('sales.receipt.store');
     Route::get('/sales/{sale}/receipt', [SaleController::class, 'downloadReceipt'])->name('sales.receipt.download');
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+    Route::post('/sales/{sale}/payments/mercadopago-point', [MercadoPagoPointController::class, 'store'])->name('sales.payments.mercadopago-point.store');
+    Route::get('/sales/{sale}/payments/{payment}/mercadopago-point', [MercadoPagoPointController::class, 'show'])->name('sales.payments.mercadopago-point.show');
     Route::post('/sales/{sale}/fiscal-documents', [SaleFiscalDocumentController::class, 'store'])->name('sales.fiscal-documents.store');
     Route::get('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/pdf', [SaleFiscalDocumentController::class, 'downloadPdf'])->name('sales.fiscal-documents.pdf');
     Route::post('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/reconcile', [SaleFiscalDocumentController::class, 'reconcile'])->name('sales.fiscal-documents.reconcile');

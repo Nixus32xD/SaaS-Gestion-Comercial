@@ -9,6 +9,7 @@ use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Models\BusinessQuickSaleOption;
 use App\Models\Customer;
+use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
@@ -229,7 +230,12 @@ class SaleController extends Controller
         abort_if($sale->business_id !== $business->id, 403);
         $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
-        $sale->load(['items.product', 'user', 'latestFiscalDocument']);
+        $sale->load([
+            'items.product',
+            'user',
+            'latestFiscalDocument',
+            'payments' => fn ($query) => $query->latest('created_at')->latest('id'),
+        ]);
         $sale->loadMissing(['saleSector', 'paymentDestination', 'customer']);
         $fiscalDocument = $sale->latestFiscalDocument;
         $fiscalEnabled = (bool) config('fiscal.enabled') && $business->hasElectronicBilling();
@@ -245,6 +251,12 @@ class SaleController extends Controller
                 'can_issue' => $this->canIssueFiscalDocument($fiscalEnabled, $fiscalDocument),
                 'can_reconcile' => $this->canReconcileFiscalDocument($fiscalEnabled, $fiscalDocument),
                 'document' => $this->mapFiscalDocument($fiscalDocument),
+            ],
+            'mercadopago_point' => [
+                'enabled' => $this->mercadoPagoPointConfigured(),
+                'access_token_configured' => filled(config('services.mercadopago.access_token')),
+                'terminal_configured' => filled(config('services.mercadopago.point_terminal_id')),
+                'webhook_url' => route('webhooks.mercadopago.orders'),
             ],
             'receipt_feature_available' => $receiptFeatureAvailable,
             'sale' => [
@@ -276,6 +288,9 @@ class SaleController extends Controller
                     'uploaded_at' => $sale->receipt_uploaded_at?->format('Y-m-d H:i'),
                     'download_url' => route('sales.receipt.download', $sale),
                 ] : null,
+                'payments' => $sale->payments
+                    ->map(fn (Payment $payment): array => $this->mapSalePayment($payment))
+                    ->values(),
                 'items' => $sale->items->map(fn ($item) => [
                     'id' => $item->id,
                     'product_name' => $item->product_name,
@@ -517,6 +532,34 @@ class SaleController extends Controller
             'fiscal_observations' => $document->fiscal_observations ?? [],
             'attempted_at' => $document->attempted_at?->format('Y-m-d H:i'),
             'authorized_at' => $document->authorized_at?->format('Y-m-d H:i'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapSalePayment(Payment $payment): array
+    {
+        return [
+            'id' => $payment->id,
+            'method' => $payment->method,
+            'provider' => $payment->provider,
+            'status' => $payment->status,
+            'amount' => (float) $payment->amount,
+            'currency' => $payment->currency,
+            'external_reference' => $payment->external_reference,
+            'provider_order_id' => $payment->provider_order_id,
+            'provider_payment_id' => $payment->provider_payment_id,
+            'provider_status' => $payment->provider_status,
+            'requested_at' => $payment->requested_at?->format('Y-m-d H:i'),
+            'approved_at' => $payment->approved_at?->format('Y-m-d H:i'),
+            'rejected_at' => $payment->rejected_at?->format('Y-m-d H:i'),
+            'cancelled_at' => $payment->cancelled_at?->format('Y-m-d H:i'),
+            'refunded_at' => $payment->refunded_at?->format('Y-m-d H:i'),
+            'created_at' => $payment->created_at?->format('Y-m-d H:i'),
+            'can_sync' => $payment->provider === Payment::PROVIDER_MERCADOPAGO
+                && $payment->status === Payment::STATUS_PENDING
+                && filled($payment->provider_order_id),
         ];
     }
 
@@ -872,6 +915,12 @@ class SaleController extends Controller
         }
 
         return $available;
+    }
+
+    private function mercadoPagoPointConfigured(): bool
+    {
+        return filled(config('services.mercadopago.access_token'))
+            && filled(config('services.mercadopago.point_terminal_id'));
     }
 
     /**

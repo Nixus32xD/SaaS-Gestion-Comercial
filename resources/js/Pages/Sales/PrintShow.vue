@@ -1,5 +1,6 @@
 <script setup>
 import StatusBadge from '@/Components/StatusBadge.vue';
+import { paymentMethodLabel as formatPaymentMethodLabel } from '@/Support/paymentMethods';
 import { Head } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -15,11 +16,7 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
 
-const paymentMethodLabel = () => (
-    props.sale.payment_method === 'transfer'
-        ? 'Transferencia'
-        : (props.sale.payment_method ? 'Efectivo' : 'Sin cobro inicial')
-);
+const paymentMethodLabel = () => formatPaymentMethodLabel(props.sale.payment_method);
 
 const paymentStatusLabel = () => {
     if (props.sale.payment_status === 'partial') return 'Pago parcial';
@@ -82,7 +79,7 @@ const closePage = () => window.close();
                             <p>Cliente: <strong class="text-slate-900">{{ sale.customer || 'Consumidor final' }}</strong></p>
                             <p>Vendedor: <strong class="text-slate-900">{{ sale.user || '-' }}</strong></p>
                             <p v-if="advanced_sale_settings_enabled">Sector: <strong class="text-slate-900">{{ sale.sale_sector || '-' }}</strong></p>
-                            <p v-if="advanced_sale_settings_enabled">Cuenta de cobro: <strong class="text-slate-900">{{ sale.payment_destination || '-' }}</strong></p>
+                            <p v-if="advanced_sale_settings_enabled">Destino de cobro: <strong class="text-slate-900">{{ sale.payment_destination || '-' }}</strong></p>
                             <p>Comprobante adjunto: <strong class="text-slate-900">{{ sale.receipt_name || 'No' }}</strong></p>
                         </div>
                     </div>

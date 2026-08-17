@@ -1,5 +1,6 @@
 <script setup>
 import StatusBadge from '@/Components/StatusBadge.vue';
+import { paymentMethodLabel } from '@/Support/paymentMethods';
 import { Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -16,7 +17,6 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
     minimumFractionDigits: 2,
 }).format(Number(value) || 0);
 
-const paymentMethodLabel = (value) => (value === 'transfer' ? 'Transferencia' : (value ? 'Efectivo' : 'Sin cobro inicial'));
 const paymentStatusLabel = (value) => {
     if (value === 'partial') return 'Parcial';
     if (value === 'pending') return 'Fiada';
@@ -34,7 +34,7 @@ const activeFilters = computed(() => {
     if (props.filters.search) filters.push(`Busqueda: ${props.filters.search}`);
     if (props.filters.month) filters.push(`Mes: ${props.filters.month}`);
     if (props.filters.sale_sector_id) filters.push('Sector filtrado');
-    if (props.filters.payment_destination_id) filters.push('Cuenta filtrada');
+    if (props.filters.payment_destination_id) filters.push('Destino filtrado');
 
     return filters;
 });
@@ -108,7 +108,7 @@ const closePage = () => window.close();
                                 <td class="px-4 py-3 align-top">
                                     <p class="font-semibold">{{ sale.sale_number || `VENTA-${sale.id}` }}</p>
                                     <p class="mt-1 text-xs text-slate-500">{{ sale.sold_at || '-' }} · {{ sale.user || 'Sin usuario' }}</p>
-                                    <p v-if="summary.advanced_sale_settings_enabled" class="mt-1 text-xs text-slate-500">{{ sale.sale_sector || 'Sin sector' }} · {{ sale.payment_destination || 'Sin cuenta' }}</p>
+                                    <p v-if="summary.advanced_sale_settings_enabled" class="mt-1 text-xs text-slate-500">{{ sale.sale_sector || 'Sin sector' }} · {{ sale.payment_destination || 'Sin destino' }}</p>
                                 </td>
                                 <td class="px-4 py-3 align-top">
                                     <p class="font-medium">{{ sale.customer || 'Consumidor final' }}</p>

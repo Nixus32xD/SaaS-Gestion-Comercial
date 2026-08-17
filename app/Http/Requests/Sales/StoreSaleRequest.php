@@ -72,7 +72,7 @@ class StoreSaleRequest extends FormRequest
                 Sale::PAYMENT_STATUS_PARTIAL,
                 Sale::PAYMENT_STATUS_PENDING,
             ])],
-            'payment_method' => [$requiresInitialPayment ? 'required' : 'nullable', 'in:cash,transfer'],
+            'payment_method' => [$requiresInitialPayment ? 'required' : 'nullable', Rule::in(Sale::PAYMENT_METHODS)],
             'sale_sector_id' => [
                 $advancedSaleSettingsEnabled ? 'required' : 'nullable',
                 'integer',
@@ -152,7 +152,7 @@ class StoreSaleRequest extends FormRequest
                 : Sale::PAYMENT_STATUS_PAID,
             'payment_method' => $this->filled('payment_method')
                 ? (string) $this->input('payment_method')
-                : ($paymentStatus === Sale::PAYMENT_STATUS_PENDING ? null : 'cash'),
+                : ($paymentStatus === Sale::PAYMENT_STATUS_PENDING ? null : Sale::PAYMENT_METHOD_CASH),
             'sale_sector_id' => $this->filled('sale_sector_id')
                 ? (int) $this->input('sale_sector_id')
                 : null,
@@ -222,9 +222,9 @@ class StoreSaleRequest extends FormRequest
 
         $paymentMethod = $this->filled('payment_method')
             ? (string) $this->input('payment_method')
-            : 'cash';
+            : Sale::PAYMENT_METHOD_CASH;
 
-        return $paymentMethod === 'transfer';
+        return Sale::requiresPaymentDestination($paymentMethod);
     }
 
     /**

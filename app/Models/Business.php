@@ -158,6 +158,14 @@ class Business extends Model
     }
 
     /**
+     * @return HasMany<Payment, $this>
+     */
+    public function salePayments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
      * @return HasMany<SaleFiscalDocument, $this>
      */
     public function saleFiscalDocuments(): HasMany

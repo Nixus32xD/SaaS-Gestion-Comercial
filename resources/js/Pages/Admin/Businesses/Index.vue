@@ -134,7 +134,7 @@ const statusBadgeClass = (tone) => {
                                     {{ business.advanced_sale_settings_enabled ? 'Habilitada' : 'No' }}
                                 </span>
                                 <p class="mt-1 text-xs text-slate-300/80">
-                                    Sectores {{ business.active_sale_sectors_count }} | Cuentas {{ business.active_payment_destinations_count }}
+                                    Sectores {{ business.active_sale_sectors_count }} | Destinos {{ business.active_payment_destinations_count }}
                                 </p>
                             </td>
                             <td class="px-3 py-2 text-slate-200">{{ business.products_count }}</td>

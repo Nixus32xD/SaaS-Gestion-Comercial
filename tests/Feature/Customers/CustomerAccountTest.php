@@ -149,6 +149,58 @@ test('customer payment applies to oldest open sales and updates pending balances
     expect($paymentMovement->meta['allocations'])->toHaveCount(2);
 });
 
+test('customer payment stores qr and card payment methods', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $customer = Customer::factory()->create([
+        'business_id' => $business->id,
+    ]);
+    $product = Product::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Lija',
+        'slug' => 'lija-pago-medios',
+        'unit_type' => 'unit',
+        'sale_price' => 100,
+        'cost_price' => 40,
+        'stock' => 10,
+        'min_stock' => 1,
+        'is_active' => true,
+    ]);
+
+    foreach ([
+        Sale::PAYMENT_METHOD_QR,
+        Sale::PAYMENT_METHOD_DEBIT_CARD,
+        Sale::PAYMENT_METHOD_CREDIT_CARD,
+    ] as $index => $paymentMethod) {
+        $this->actingAs($admin)->post('/sales', [
+            'customer_id' => $customer->id,
+            'payment_status' => 'pending',
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 100,
+            ]],
+        ])->assertRedirect();
+
+        $this
+            ->actingAs($admin)
+            ->from("/customers/{$customer->id}")
+            ->post("/customers/{$customer->id}/payments", [
+                'amount' => 100,
+                'paid_at' => now()->addMinutes($index)->toDateTimeString(),
+                'payment_method' => $paymentMethod,
+            ])
+            ->assertRedirect("/customers/{$customer->id}");
+
+        $paymentMovement = CustomerAccountMovement::query()
+            ->where('type', CustomerAccountMovement::TYPE_PAYMENT)
+            ->latest('id')
+            ->firstOrFail();
+
+        expect($paymentMovement->meta['payment_method'])->toBe($paymentMethod);
+    }
+});
+
 test('customer payment can not exceed the current pending balance', function () {
     $business = Business::factory()->create();
     $admin = User::factory()->businessAdmin($business->id)->create();

@@ -2,6 +2,7 @@
 import AppPanel from '@/Components/AppPanel.vue';
 import MetricCard from '@/Components/MetricCard.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
+import { paymentMethodLabel, paymentMethodOptions } from '@/Support/paymentMethods';
 import { computed } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -59,6 +60,12 @@ const paymentStatusLabel = (status) => {
     if (status === 'pending') return 'Fiada';
     return 'Pagada';
 };
+
+const movementPaymentMethodLabel = (movement) => (
+    movement.type === 'payment'
+        ? paymentMethodLabel(movement.meta?.payment_method, '-')
+        : '-'
+);
 
 const submitPayment = () => {
     paymentForm.post(route('customers.payments.store', props.customer.id), {
@@ -171,8 +178,9 @@ const accountLabel = computed(() => {
                             <input v-model="paymentForm.paid_at" type="datetime-local" class="rounded-xl bg-slate-950/35 text-sm text-slate-100" />
                             <p v-if="paymentForm.errors.paid_at" class="text-xs text-rose-300">{{ paymentForm.errors.paid_at }}</p>
                             <select v-model="paymentForm.payment_method" class="rounded-xl bg-slate-950/35 text-sm text-slate-100">
-                                <option value="cash">Efectivo</option>
-                                <option value="transfer">Transferencia</option>
+                                <option v-for="option in paymentMethodOptions" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </option>
                             </select>
                             <textarea v-model="paymentForm.description" rows="2" class="rounded-xl bg-slate-950/35 text-sm text-slate-100" placeholder="Descripcion opcional" />
                             <p class="text-xs text-slate-400">El pago se aplica automaticamente a las ventas pendientes mas antiguas.</p>
@@ -222,6 +230,7 @@ const accountLabel = computed(() => {
                                 <p>Venta: <span class="text-slate-200">{{ movementSaleLabel(movement) }}</span></p>
                                 <p>Monto: <span class="text-slate-100">{{ money(movement.amount) }}</span></p>
                                 <p>Saldo: <span class="text-slate-100">{{ money(movement.balance_after) }}</span></p>
+                                <p>Medio: <span class="text-slate-200">{{ movementPaymentMethodLabel(movement) }}</span></p>
                                 <p>Usuario: <span class="text-slate-200">{{ movement.creator || '-' }}</span></p>
                             </div>
                         </article>
@@ -233,6 +242,7 @@ const accountLabel = computed(() => {
                                 <tr>
                                     <th class="px-3 py-2 text-left font-medium text-slate-300/80">Fecha</th>
                                     <th class="px-3 py-2 text-left font-medium text-slate-300/80">Tipo</th>
+                                    <th class="px-3 py-2 text-left font-medium text-slate-300/80">Medio</th>
                                     <th class="px-3 py-2 text-left font-medium text-slate-300/80">Descripcion</th>
                                     <th class="px-3 py-2 text-left font-medium text-slate-300/80">Venta</th>
                                     <th class="px-3 py-2 text-left font-medium text-slate-300/80">Monto</th>
@@ -248,6 +258,7 @@ const accountLabel = computed(() => {
                                             {{ movementTypeLabel(movement.type) }}
                                         </span>
                                     </td>
+                                    <td class="px-3 py-2">{{ movementPaymentMethodLabel(movement) }}</td>
                                     <td class="px-3 py-2">{{ movement.description || '-' }}</td>
                                     <td class="px-3 py-2">{{ movementSaleLabel(movement) }}</td>
                                     <td class="px-3 py-2">{{ money(movement.amount) }}</td>
@@ -257,7 +268,7 @@ const accountLabel = computed(() => {
                             </tbody>
                             <tbody v-else>
                                 <tr>
-                                    <td colspan="7" class="px-3 py-6 text-center text-slate-400">No hay movimientos registrados.</td>
+                                    <td colspan="8" class="px-3 py-6 text-center text-slate-400">No hay movimientos registrados.</td>
                                 </tr>
                             </tbody>
                         </table>

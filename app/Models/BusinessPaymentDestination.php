@@ -43,4 +43,12 @@ class BusinessPaymentDestination extends Model
     {
         return $this->hasMany(Sale::class, 'payment_destination_id');
     }
+
+    /**
+     * @return HasMany<Payment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'payment_destination_id');
+    }
 }
