@@ -8,6 +8,7 @@ import { Head, Link } from '@inertiajs/vue3';
 
 const props = defineProps({
     summary: { type: Object, required: true },
+    historical_summary: { type: Object, default: () => ({ periods: [] }) },
     daily_totals: { type: Array, default: () => [] },
     low_stock_products: { type: Array, default: () => [] },
     top_sold_products: { type: Array, default: () => [] },
@@ -96,6 +97,28 @@ const trendLabelIndexes = computed(() => {
 });
 
 const advancedSalesEnabled = computed(() => Boolean(props.advanced_sales?.enabled));
+
+const historicalPeriods = computed(() => {
+    const periods = Array.isArray(props.historical_summary?.periods)
+        ? props.historical_summary.periods
+        : [];
+
+    return periods.map((period) => ({
+        ...period,
+        sales_total: Number(period.sales_total) || 0,
+        purchases_total: Number(period.purchases_total) || 0,
+        net_total: Number(period.net_total) || 0,
+        sales_count: Number(period.sales_count) || 0,
+        purchases_count: Number(period.purchases_count) || 0,
+        average_ticket: Number(period.average_ticket) || 0,
+    }));
+});
+
+const historicalTone = (period) => {
+    if (period.sales_count === 0 && period.purchases_count === 0) return 'neutral';
+
+    return period.net_total >= 0 ? 'success' : 'warning';
+};
 
 const expirationAlerts = computed(() => {
     const items = Array.isArray(props.expiration_alerts) ? props.expiration_alerts : [];
@@ -290,6 +313,51 @@ const priorityCards = computed(() => ([
                         <Link :href="card.href" class="mt-4 inline-flex items-center rounded-lg border border-cyan-100/20 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800/60">
                             {{ card.action }}
                         </Link>
+                    </article>
+                </div>
+            </AppPanel>
+
+            <AppPanel title="Historico comercial" subtitle="Acumulados para no perder contexto entre dias, meses y anos.">
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <article
+                        v-for="period in historicalPeriods"
+                        :key="period.key"
+                        class="app-subsection"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-100">{{ period.label }}</h3>
+                                <p class="mt-1 text-xs text-slate-400">{{ period.range_label }}</p>
+                            </div>
+                            <StatusBadge :tone="historicalTone(period)" size="sm" :label="period.net_total >= 0 ? 'Positivo' : 'Revisar'" />
+                        </div>
+
+                        <dl class="mt-4 grid gap-3 text-sm">
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-slate-400">Ventas</dt>
+                                <dd class="font-semibold text-slate-100">{{ money(period.sales_total) }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <dt class="text-slate-400">Compras</dt>
+                                <dd class="font-semibold text-slate-100">{{ money(period.purchases_total) }}</dd>
+                            </div>
+                            <div class="flex items-center justify-between gap-3 border-t border-cyan-100/10 pt-3">
+                                <dt class="text-slate-300">Diferencia</dt>
+                                <dd :class="period.net_total >= 0 ? 'text-emerald-100' : 'text-amber-100'" class="font-semibold">
+                                    {{ money(period.net_total) }}
+                                </dd>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 rounded-lg border border-cyan-100/10 bg-slate-950/30 p-3 text-xs text-slate-300">
+                                <div>
+                                    <p class="text-slate-500">Ventas</p>
+                                    <p class="mt-1 font-semibold text-slate-100">{{ period.sales_count }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-500">Ticket prom.</p>
+                                    <p class="mt-1 font-semibold text-slate-100">{{ money(period.average_ticket) }}</p>
+                                </div>
+                            </div>
+                        </dl>
                     </article>
                 </div>
             </AppPanel>

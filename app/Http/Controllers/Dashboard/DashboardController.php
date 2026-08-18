@@ -33,6 +33,8 @@ class DashboardController extends Controller
         $todayEnd = now()->endOfDay();
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
+        $yearStart = now()->startOfYear();
+        $yearEnd = now()->endOfYear();
 
         $salesSummary = Sale::query()
             ->forBusiness($business->id)
@@ -132,6 +134,36 @@ class DashboardController extends Controller
                 'products_count' => $productsCount,
                 'suppliers_count' => $suppliersCount,
             ],
+            'historical_summary' => [
+                'periods' => [
+                    $this->periodSummary(
+                        $business->id,
+                        'last_14_days',
+                        'Ultimos 14 dias',
+                        $trendStart,
+                        $trendEnd
+                    ),
+                    $this->periodSummary(
+                        $business->id,
+                        'current_month',
+                        'Mes actual',
+                        $monthStart,
+                        $monthEnd
+                    ),
+                    $this->periodSummary(
+                        $business->id,
+                        'current_year',
+                        'Anio actual',
+                        $yearStart,
+                        $yearEnd
+                    ),
+                    $this->periodSummary(
+                        $business->id,
+                        'all_time',
+                        'Historico total'
+                    ),
+                ],
+            ],
             'daily_totals' => $dailyTotals->all(),
             'low_stock_products' => $lowStock->map(fn (Product $product) => [
                 'id' => $product->id,
@@ -173,6 +205,50 @@ class DashboardController extends Controller
                     : [],
             ],
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function periodSummary(
+        int $businessId,
+        string $key,
+        string $label,
+        mixed $start = null,
+        mixed $end = null,
+    ): array {
+        $salesQuery = Sale::query()->forBusiness($businessId);
+        $purchasesQuery = Purchase::query()->forBusiness($businessId);
+
+        if ($start !== null && $end !== null) {
+            $salesQuery->whereBetween('sold_at', [$start, $end]);
+            $purchasesQuery->whereBetween('purchased_at', [$start, $end]);
+        }
+
+        $sales = $salesQuery
+            ->selectRaw('COUNT(*) as sales_count, COALESCE(SUM(total), 0) as sales_total, COALESCE(AVG(total), 0) as average_ticket')
+            ->first();
+
+        $purchases = $purchasesQuery
+            ->selectRaw('COUNT(*) as purchases_count, COALESCE(SUM(total), 0) as purchases_total')
+            ->first();
+
+        $salesTotal = (float) ($sales?->sales_total ?? 0);
+        $purchasesTotal = (float) ($purchases?->purchases_total ?? 0);
+
+        return [
+            'key' => $key,
+            'label' => $label,
+            'range_label' => $start !== null && $end !== null
+                ? $start->format('d/m/Y').' - '.$end->format('d/m/Y')
+                : 'Desde el inicio',
+            'sales_total' => $salesTotal,
+            'sales_count' => (int) ($sales?->sales_count ?? 0),
+            'purchases_total' => $purchasesTotal,
+            'purchases_count' => (int) ($purchases?->purchases_count ?? 0),
+            'net_total' => round($salesTotal - $purchasesTotal, 2),
+            'average_ticket' => round((float) ($sales?->average_ticket ?? 0), 2),
+        ];
     }
 
     /**

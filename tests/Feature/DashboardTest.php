@@ -91,6 +91,97 @@ test('dashboard only exposes metrics from the authenticated business', function 
         );
 });
 
+test('dashboard exposes historical sales and purchase periods for the active business', function () {
+    $this->travelTo(now()->setDate(2026, 8, 17)->setTime(10, 0));
+
+    $business = Business::factory()->create();
+    $otherBusiness = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $otherAdmin = User::factory()->businessAdmin($otherBusiness->id)->create();
+    $supplier = Supplier::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Proveedor historico',
+    ]);
+    $otherSupplier = Supplier::query()->create([
+        'business_id' => $otherBusiness->id,
+        'name' => 'Proveedor externo',
+    ]);
+
+    foreach ([
+        ['number' => 'S-HIST-001', 'total' => 100, 'sold_at' => now()],
+        ['number' => 'S-HIST-002', 'total' => 200, 'sold_at' => now()->subDays(10)],
+        ['number' => 'S-HIST-003', 'total' => 300, 'sold_at' => now()->subDays(40)],
+        ['number' => 'S-HIST-004', 'total' => 400, 'sold_at' => now()->subYear()],
+    ] as $row) {
+        Sale::query()->create([
+            'business_id' => $business->id,
+            'user_id' => $admin->id,
+            'sale_number' => $row['number'],
+            'subtotal' => $row['total'],
+            'discount' => 0,
+            'total' => $row['total'],
+            'sold_at' => $row['sold_at'],
+        ]);
+    }
+
+    Sale::query()->create([
+        'business_id' => $otherBusiness->id,
+        'user_id' => $otherAdmin->id,
+        'sale_number' => 'S-HIST-OTHER',
+        'subtotal' => 999,
+        'discount' => 0,
+        'total' => 999,
+        'sold_at' => now(),
+    ]);
+
+    foreach ([
+        ['number' => 'P-HIST-001', 'total' => 50, 'purchased_at' => now()],
+        ['number' => 'P-HIST-002', 'total' => 25, 'purchased_at' => now()->subDays(10)],
+        ['number' => 'P-HIST-003', 'total' => 30, 'purchased_at' => now()->subDays(40)],
+        ['number' => 'P-HIST-004', 'total' => 20, 'purchased_at' => now()->subYear()],
+    ] as $row) {
+        Purchase::query()->create([
+            'business_id' => $business->id,
+            'user_id' => $admin->id,
+            'supplier_id' => $supplier->id,
+            'purchase_number' => $row['number'],
+            'subtotal' => $row['total'],
+            'total' => $row['total'],
+            'purchased_at' => $row['purchased_at'],
+        ]);
+    }
+
+    Purchase::query()->create([
+        'business_id' => $otherBusiness->id,
+        'user_id' => $otherAdmin->id,
+        'supplier_id' => $otherSupplier->id,
+        'purchase_number' => 'P-HIST-OTHER',
+        'subtotal' => 999,
+        'total' => 999,
+        'purchased_at' => now(),
+    ]);
+
+    $this->actingAs($admin)->get('/dashboard')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Dashboard/Index')
+            ->where('historical_summary.periods.0.key', 'last_14_days')
+            ->where('historical_summary.periods.0.sales_total', 300)
+            ->where('historical_summary.periods.0.purchases_total', 75)
+            ->where('historical_summary.periods.0.sales_count', 2)
+            ->where('historical_summary.periods.0.average_ticket', 150)
+            ->where('historical_summary.periods.1.key', 'current_month')
+            ->where('historical_summary.periods.1.sales_total', 300)
+            ->where('historical_summary.periods.1.purchases_total', 75)
+            ->where('historical_summary.periods.2.key', 'current_year')
+            ->where('historical_summary.periods.2.sales_total', 600)
+            ->where('historical_summary.periods.2.purchases_total', 105)
+            ->where('historical_summary.periods.3.key', 'all_time')
+            ->where('historical_summary.periods.3.sales_total', 1000)
+            ->where('historical_summary.periods.3.purchases_total', 125)
+        );
+});
+
 test('dashboard normalizes gram-based top sold products to kilograms', function () {
     $business = Business::factory()->create();
     $admin = User::factory()->businessAdmin($business->id)->create();
