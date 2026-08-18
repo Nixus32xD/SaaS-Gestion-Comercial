@@ -102,12 +102,6 @@ const historicalPeriods = computed(() => {
     }));
 });
 
-const historicalTone = (period) => {
-    if (period.sales_count === 0 && period.purchases_count === 0) return 'neutral';
-
-    return period.net_total >= 0 ? 'success' : 'warning';
-};
-
 const selectablePeriods = computed(() => historicalPeriods.value.map((period) => ({
     ...period,
     tab_label: periodTabLabels[period.key] || period.label,
@@ -460,7 +454,7 @@ const priorityCards = computed(() => ([
                 />
             </section>
 
-            <section class="grid gap-4 lg:grid-cols-3">
+            <section class="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -541,6 +535,23 @@ const priorityCards = computed(() => ([
                         </div>
                     </dl>
                 </article>
+
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <h3 class="text-base font-semibold text-slate-100">Productos mas vendidos</h3>
+                    <p class="mt-1 text-sm text-slate-300/80">Referencia para reposicion y compras.</p>
+                    <ul v-if="top_sold_products.length" class="mt-4 space-y-3 text-sm">
+                        <li v-for="item in top_sold_products" :key="`${item.product_id}-${item.product_name}`">
+                            <div class="mb-1 flex items-center justify-between gap-2">
+                                <span class="truncate font-medium text-slate-100">{{ item.product_name }}</span>
+                                <span class="text-xs text-slate-300">{{ item.sold_quantity }} {{ item.sold_quantity_label }}</span>
+                            </div>
+                            <div class="h-2.5 rounded-full bg-slate-800">
+                                <div class="h-2.5 rounded-full bg-indigo-500" :style="{ width: topSoldWidth(item.sold_quantity) }"></div>
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-3 text-sm text-slate-300">Sin ventas registradas aun.</p>
+                </article>
             </section>
 
             <AppPanel :title="operationPulse.label" :subtitle="operationPulse.message" :tone="operationPulse.tone">
@@ -549,67 +560,18 @@ const priorityCards = computed(() => ([
                     <StatusBadge tone="info" :label="`${summary.suppliers_count} proveedores`" />
                 </template>
 
-                <div class="grid gap-3 xl:grid-cols-3">
-                    <article v-for="card in priorityCards" :key="card.key" class="app-subsection">
+                <div class="grid gap-2 xl:grid-cols-3">
+                    <article v-for="card in priorityCards" :key="card.key" class="rounded-xl border border-cyan-100/15 bg-slate-950/30 p-3">
                         <div class="flex items-start justify-between gap-3">
-                            <h3 class="text-sm font-semibold text-slate-100">{{ card.title }}</h3>
+                            <div class="min-w-0">
+                                <h3 class="truncate text-sm font-semibold text-slate-100">{{ card.title }}</h3>
+                                <p class="mt-1 text-xs text-slate-300/80">{{ card.description }}</p>
+                            </div>
                             <StatusBadge :tone="card.tone" size="sm" :label="card.tone === 'success' ? 'OK' : 'Revisar'" />
                         </div>
-                        <p class="mt-2 text-sm text-slate-300/80">{{ card.description }}</p>
-                        <Link :href="card.href" class="mt-4 inline-flex items-center rounded-lg border border-cyan-100/20 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800/60">
+                        <Link :href="card.href" class="mt-3 inline-flex items-center rounded-lg border border-cyan-100/20 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-800/60">
                             {{ card.action }}
                         </Link>
-                    </article>
-                </div>
-            </AppPanel>
-
-            <AppPanel title="Periodos comparados" subtitle="Resumen historico de ventas, compras y balance.">
-                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <article
-                        v-for="period in historicalPeriods"
-                        :key="period.key"
-                        role="button"
-                        tabindex="0"
-                        class="app-subsection cursor-pointer text-left transition hover:border-cyan-200/35 hover:bg-slate-900/55"
-                        :class="selectedPeriodKey === period.key ? 'border-cyan-200/50 bg-cyan-400/10' : ''"
-                        @click="selectedPeriodKey = period.key"
-                        @keydown.enter.prevent="selectedPeriodKey = period.key"
-                        @keydown.space.prevent="selectedPeriodKey = period.key"
-                    >
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <h3 class="text-sm font-semibold text-slate-100">{{ period.label }}</h3>
-                                <p class="mt-1 text-xs text-slate-400">{{ period.range_label }}</p>
-                            </div>
-                            <StatusBadge :tone="historicalTone(period)" size="sm" :label="period.net_total >= 0 ? 'Positivo' : 'Revisar'" />
-                        </div>
-
-                        <dl class="mt-4 grid gap-3 text-sm">
-                            <div class="flex items-center justify-between gap-3">
-                                <dt class="text-slate-400">Ventas</dt>
-                                <dd class="font-semibold text-slate-100">{{ money(period.sales_total) }}</dd>
-                            </div>
-                            <div class="flex items-center justify-between gap-3">
-                                <dt class="text-slate-400">Compras</dt>
-                                <dd class="font-semibold text-slate-100">{{ money(period.purchases_total) }}</dd>
-                            </div>
-                            <div class="flex items-center justify-between gap-3 border-t border-cyan-100/10 pt-3">
-                                <dt class="text-slate-300">Diferencia</dt>
-                                <dd :class="period.net_total >= 0 ? 'text-emerald-100' : 'text-amber-100'" class="font-semibold">
-                                    {{ money(period.net_total) }}
-                                </dd>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3 rounded-lg border border-cyan-100/10 bg-slate-950/30 p-3 text-xs text-slate-300">
-                                <div>
-                                    <p class="text-slate-500">Ventas</p>
-                                    <p class="mt-1 font-semibold text-slate-100">{{ period.sales_count }}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-500">Ticket prom.</p>
-                                    <p class="mt-1 font-semibold text-slate-100">{{ money(period.average_ticket) }}</p>
-                                </div>
-                            </div>
-                        </dl>
                     </article>
                 </div>
             </AppPanel>
@@ -684,22 +646,6 @@ const priorityCards = computed(() => ([
                         </section>
                     </div>
                     <p v-else class="mt-3 text-sm text-slate-300">No hay productos proximos a vencer.</p>
-                </article>
-
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
-                    <h3 class="text-base font-semibold text-slate-100">Productos mas vendidos</h3>
-                    <ul v-if="top_sold_products.length" class="mt-3 space-y-3 text-sm">
-                        <li v-for="item in top_sold_products" :key="`${item.product_id}-${item.product_name}`">
-                            <div class="mb-1 flex items-center justify-between gap-2">
-                                <span class="truncate font-medium text-slate-100">{{ item.product_name }}</span>
-                                <span class="text-xs text-slate-300">{{ item.sold_quantity }} {{ item.sold_quantity_label }}</span>
-                            </div>
-                            <div class="h-2.5 rounded-full bg-slate-800">
-                                <div class="h-2.5 rounded-full bg-indigo-500" :style="{ width: topSoldWidth(item.sold_quantity) }"></div>
-                            </div>
-                        </li>
-                    </ul>
-                    <p v-else class="mt-3 text-sm text-slate-300">Sin ventas registradas aun.</p>
                 </article>
 
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
