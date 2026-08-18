@@ -119,7 +119,7 @@ class MercadoPagoOrdersClient
 
     private function token(?string $accessToken = null): string
     {
-        $token = trim((string) ($accessToken ?: config('services.mercadopago.access_token')));
+        $token = trim((string) $accessToken);
 
         if ($token === '') {
             throw new MercadoPagoApiException('El access token de Mercado Pago no esta configurado.');

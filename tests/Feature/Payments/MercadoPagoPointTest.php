@@ -11,10 +11,9 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 test('authenticated business user can create a Mercado Pago Point order for a pending sale', function () {
-    config()->set('services.mercadopago.access_token', 'APP_USR-testing-token');
-    config()->set('services.mercadopago.point_terminal_id', 'NEWLAND_N950__SBX0000001');
-
     $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+
     $admin = User::factory()->businessAdmin($business->id)->create();
     $sale = createMercadoPagoPointSale($business, $admin, 1250);
 
@@ -65,10 +64,9 @@ test('authenticated business user can create a Mercado Pago Point order for a pe
 });
 
 test('business user can create a sale and send a QR order to Mercado Pago Point from POS', function () {
-    config()->set('services.mercadopago.access_token', 'APP_USR-testing-token');
-    config()->set('services.mercadopago.point_terminal_id', 'NEWLAND_N950__SBX0000001');
-
     $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+
     $admin = User::factory()->businessAdmin($business->id)->create();
     $product = createPointProduct($business, ['sale_price' => 2100, 'stock' => 5]);
 
@@ -126,10 +124,7 @@ test('Mercado Pago Point uses enabled business credentials before global config'
     $admin = User::factory()->businessAdmin($business->id)->create();
     $sale = createMercadoPagoPointSale($business, $admin, 640);
 
-    BusinessMercadoPagoCredential::query()->create([
-        'business_id' => $business->id,
-        'is_enabled' => true,
-        'environment' => 'testing',
+    createMercadoPagoCredential($business, [
         'access_token' => 'APP_USR-business-token',
         'point_terminal_id' => 'NEWLAND_N950__BUSINESS',
     ]);
@@ -159,6 +154,29 @@ test('Mercado Pago Point uses enabled business credentials before global config'
         return $request->hasHeader('Authorization', 'Bearer APP_USR-business-token')
             && $payload['config']['point']['terminal_id'] === 'NEWLAND_N950__BUSINESS';
     });
+});
+
+test('Mercado Pago Point does not use global credentials when business credentials are inactive', function () {
+    config()->set('services.mercadopago.access_token', 'APP_USR-global-token');
+    config()->set('services.mercadopago.point_terminal_id', 'NEWLAND_N950__GLOBAL');
+
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business, ['is_enabled' => false]);
+
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $sale = createMercadoPagoPointSale($business, $admin, 640);
+
+    Http::fake();
+
+    $this
+        ->actingAs($admin)
+        ->post(route('sales.payments.mercadopago-point.store', $sale), [
+            'payment_method' => Payment::METHOD_DEBIT_CARD,
+        ])
+        ->assertSessionHasErrors('mercadopago_point');
+
+    expect(Payment::query()->count())->toBe(0);
+    Http::assertNothingSent();
 });
 
 test('business admin can store Mercado Pago Point credentials for their business', function () {
@@ -194,6 +212,8 @@ test('business admin can store Mercado Pago Point credentials for their business
 
 test('Mercado Pago Point order creation reuses a pending provider payment', function () {
     $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+
     $admin = User::factory()->businessAdmin($business->id)->create();
     $sale = createMercadoPagoPointSale($business, $admin, 500);
 
@@ -217,9 +237,9 @@ test('Mercado Pago Point order creation reuses a pending provider payment', func
 });
 
 test('Mercado Pago order webhook approves payment and recalculates sale once', function () {
-    config()->set('services.mercadopago.webhook_secret', 'testing-webhook-secret');
-
     $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+
     $admin = User::factory()->businessAdmin($business->id)->create();
     $sale = createMercadoPagoPointSale($business, $admin, 900);
     $payment = Payment::query()->create([
@@ -282,10 +302,83 @@ test('Mercado Pago order webhook approves payment and recalculates sale once', f
     expect(PaymentEvent::query()->count())->toBe(1);
 });
 
-test('Mercado Pago minimal webhook fetches order details before syncing payment', function () {
-    config()->set('services.mercadopago.webhook_secret', 'testing-webhook-secret');
+test('Mercado Pago webhook rejects payloads with crossed business references', function () {
+    $victimBusiness = Business::factory()->create();
+    createMercadoPagoCredential($victimBusiness, ['webhook_secret' => 'victim-webhook-secret']);
 
+    $attackerBusiness = Business::factory()->create();
+    createMercadoPagoCredential($attackerBusiness, ['webhook_secret' => 'attacker-webhook-secret']);
+
+    $victimAdmin = User::factory()->businessAdmin($victimBusiness->id)->create();
+    $attackerAdmin = User::factory()->businessAdmin($attackerBusiness->id)->create();
+    $victimSale = createMercadoPagoPointSale($victimBusiness, $victimAdmin, 1200);
+    $attackerSale = createMercadoPagoPointSale($attackerBusiness, $attackerAdmin, 800);
+
+    $victimPayment = Payment::query()->create([
+        'business_id' => $victimBusiness->id,
+        'sale_id' => $victimSale->id,
+        'created_by' => $victimAdmin->id,
+        'method' => Payment::METHOD_DEBIT_CARD,
+        'provider' => Payment::PROVIDER_MERCADOPAGO,
+        'status' => Payment::STATUS_PENDING,
+        'amount' => 1200,
+        'currency' => 'ARS',
+        'external_reference' => "b{$victimBusiness->id}-s{$victimSale->id}-p1",
+        'provider_order_id' => 'ORD01VICTIM',
+        'requested_at' => now(),
+    ]);
+
+    $attackerPayment = Payment::query()->create([
+        'business_id' => $attackerBusiness->id,
+        'sale_id' => $attackerSale->id,
+        'created_by' => $attackerAdmin->id,
+        'method' => Payment::METHOD_DEBIT_CARD,
+        'provider' => Payment::PROVIDER_MERCADOPAGO,
+        'status' => Payment::STATUS_PENDING,
+        'amount' => 800,
+        'currency' => 'ARS',
+        'external_reference' => "b{$attackerBusiness->id}-s{$attackerSale->id}-p1",
+        'provider_order_id' => 'ORD01ATTACKER',
+        'requested_at' => now(),
+    ]);
+
+    $this
+        ->postJson(route('webhooks.mercadopago.orders', [
+            'data.id' => 'ORD01ATTACKER',
+            'type' => 'order',
+        ]), [
+            'id' => 'notification-attacker',
+            'action' => 'order.processed',
+            'type' => 'order',
+            'data' => [
+                'id' => 'ORD01ATTACKER',
+                'external_reference' => $victimPayment->external_reference,
+                'status' => 'processed',
+                'transactions' => [
+                    'payments' => [
+                        [
+                            'id' => 'PAY01ATTACKER',
+                            'amount' => '800.00',
+                            'paid_amount' => '800.00',
+                            'status' => 'processed',
+                        ],
+                    ],
+                ],
+            ],
+        ], signedMercadoPagoHeaders('ORD01ATTACKER', 'request-attacker', 'attacker-webhook-secret'))
+        ->assertUnauthorized();
+
+    expect($victimPayment->fresh()->status)->toBe(Payment::STATUS_PENDING);
+    expect($victimSale->fresh()->payment_status)->toBe(Sale::PAYMENT_STATUS_PENDING);
+    expect($attackerPayment->fresh()->status)->toBe(Payment::STATUS_PENDING);
+    expect($attackerSale->fresh()->payment_status)->toBe(Sale::PAYMENT_STATUS_PENDING);
+    expect(PaymentEvent::query()->count())->toBe(0);
+});
+
+test('Mercado Pago minimal webhook fetches order details before syncing payment', function () {
     $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+
     $admin = User::factory()->businessAdmin($business->id)->create();
     $sale = createMercadoPagoPointSale($business, $admin, 700);
     Payment::query()->create([
@@ -338,8 +431,6 @@ test('Mercado Pago minimal webhook fetches order details before syncing payment'
 });
 
 test('Mercado Pago webhook rejects invalid signature', function () {
-    config()->set('services.mercadopago.webhook_secret', 'testing-webhook-secret');
-
     $this
         ->postJson(route('webhooks.mercadopago.orders', [
             'data.id' => 'ORD01BAD',
@@ -356,6 +447,25 @@ test('Mercado Pago webhook rejects invalid signature', function () {
 
     expect(PaymentEvent::query()->count())->toBe(0);
 });
+
+/**
+ * @param  array<string, mixed>  $overrides
+ */
+function createMercadoPagoCredential(Business $business, array $overrides = []): BusinessMercadoPagoCredential
+{
+    return BusinessMercadoPagoCredential::query()->create([
+        'business_id' => $business->id,
+        'is_enabled' => true,
+        'environment' => 'testing',
+        'public_key' => 'APP_USR-public-test',
+        'access_token' => 'APP_USR-testing-token',
+        'webhook_secret' => 'testing-webhook-secret',
+        'point_terminal_id' => 'NEWLAND_N950__SBX0000001',
+        'point_expiration_time' => 'PT15M',
+        'point_print_on_terminal' => 'no_ticket',
+        ...$overrides,
+    ]);
+}
 
 function createMercadoPagoPointSale(Business $business, User $user, float $total): Sale
 {
@@ -398,11 +508,11 @@ function createPointProduct(Business $business, array $overrides = []): Product
 /**
  * @return array<string, string>
  */
-function signedMercadoPagoHeaders(string $orderId, string $requestId): array
+function signedMercadoPagoHeaders(string $orderId, string $requestId, string $secret = 'testing-webhook-secret'): array
 {
     $timestamp = '1234567890';
     $manifest = 'id:'.strtolower($orderId).';request-id:'.$requestId.';ts:'.$timestamp.';';
-    $signature = hash_hmac('sha256', $manifest, 'testing-webhook-secret');
+    $signature = hash_hmac('sha256', $manifest, $secret);
 
     return [
         'x-request-id' => $requestId,

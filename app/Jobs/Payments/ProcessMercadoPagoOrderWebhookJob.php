@@ -16,32 +16,42 @@ class ProcessMercadoPagoOrderWebhookJob implements ShouldQueue
     use Queueable;
 
     /**
+     * @var array<string, mixed>
+     */
+    private array $payload;
+
+    private ?string $requestId;
+
+    private ?int $paymentId = null;
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     public function __construct(
-        private readonly array $payload,
-        private readonly ?string $requestId = null,
-    ) {}
+        array $payload,
+        ?string $requestId = null,
+        ?int $paymentId = null,
+    ) {
+        $this->payload = $payload;
+        $this->requestId = $requestId;
+        $this->paymentId = $paymentId;
+    }
 
     public function handle(
         MercadoPagoPointProvider $provider,
         MercadoPagoPaymentCompletionService $completionService,
-    ): void
-    {
+    ): void {
         $orderId = $this->orderId();
 
         if ($orderId === '') {
             return;
         }
 
-        $payment = Payment::query()
-            ->where('provider', PaymentProvider::MercadoPago->value)
-            ->where(function ($query) use ($orderId): void {
-                $query
-                    ->where('provider_order_id', $orderId)
-                    ->orWhere('external_reference', (string) data_get($this->payload, 'data.external_reference'));
-            })
-            ->first();
+        $payment = $this->payment();
+
+        if ($payment === null) {
+            return;
+        }
 
         $event = $this->event($payment, $orderId);
 
@@ -49,19 +59,17 @@ class ProcessMercadoPagoOrderWebhookJob implements ShouldQueue
             return;
         }
 
-        if ($payment !== null) {
-            $payment = $provider->syncPayment($payment, $this->hasOrderStatus() ? $this->orderPayload() : null);
-            $completionService->complete($payment);
-        }
+        $payment = $provider->syncPayment($payment, $this->hasOrderStatus() ? $this->orderPayload() : null);
+        $completionService->complete($payment);
 
         $event->forceFill([
-            'business_id' => $payment?->business_id,
-            'payment_id' => $payment?->id,
+            'business_id' => $payment->business_id,
+            'payment_id' => $payment->id,
             'processed_at' => now(),
         ])->save();
     }
 
-    private function event(?Payment $payment, string $orderId): PaymentEvent
+    private function event(Payment $payment, string $orderId): PaymentEvent
     {
         return DB::transaction(function () use ($payment, $orderId): PaymentEvent {
             return PaymentEvent::query()->firstOrCreate(
@@ -70,14 +78,26 @@ class ProcessMercadoPagoOrderWebhookJob implements ShouldQueue
                     'event_key' => $this->eventKey($orderId),
                 ],
                 [
-                    'business_id' => $payment?->business_id,
-                    'payment_id' => $payment?->id,
+                    'business_id' => $payment->business_id,
+                    'payment_id' => $payment->id,
                     'event_type' => (string) data_get($this->payload, 'action'),
                     'resource_id' => $orderId,
                     'payload' => $this->payload,
                 ]
             );
         });
+    }
+
+    private function payment(): ?Payment
+    {
+        if ($this->paymentId === null) {
+            return null;
+        }
+
+        return Payment::query()
+            ->whereKey($this->paymentId)
+            ->where('provider', PaymentProvider::MercadoPago->value)
+            ->first();
     }
 
     private function eventKey(string $orderId): string
