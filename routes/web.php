@@ -32,6 +32,7 @@ Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap
 Route::get('/', WelcomeController::class);
 
 Route::post('/webhooks/mercadopago/orders', [MercadoPagoWebhookController::class, 'orders'])
+    ->middleware('throttle:mercadopago-webhook')
     ->name('webhooks.mercadopago.orders');
 
 Route::middleware(['auth', 'superadmin'])

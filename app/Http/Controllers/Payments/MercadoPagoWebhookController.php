@@ -16,13 +16,16 @@ class MercadoPagoWebhookController extends Controller
 
     public function orders(Request $request): JsonResponse
     {
-        if (! $this->signatureValidator->isValid($request)) {
+        $payment = $this->signatureValidator->validatedPayment($request);
+
+        if ($payment === null) {
             return response()->json(['message' => 'Invalid Mercado Pago signature.'], 401);
         }
 
         ProcessMercadoPagoOrderWebhookJob::dispatch(
             $request->json()->all(),
-            (string) $request->header('x-request-id', '')
+            (string) $request->header('x-request-id', ''),
+            $payment->id
         );
 
         return response()->json(['received' => true]);
