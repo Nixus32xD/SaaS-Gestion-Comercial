@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Guía de uso - Gestor Comercial SaaS</title>
+    <style>
+        @page {
+            margin: 28px 34px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            color: #1f2933;
+            font-family: "DejaVu Sans", Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.48;
+            margin: 0;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #111827;
+            line-height: 1.2;
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 30px;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            border-bottom: 1px solid #d7dde7;
+            font-size: 18px;
+            margin: 24px 0 10px;
+            padding-bottom: 6px;
+        }
+
+        h3 {
+            font-size: 13px;
+            margin: 15px 0 6px;
+        }
+
+        p {
+            margin: 0 0 8px;
+        }
+
+        ul,
+        ol {
+            margin: 6px 0 10px 18px;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 4px;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin: 8px 0 14px;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #d7dde7;
+            padding: 7px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #eef2f7;
+            color: #111827;
+            font-weight: 700;
+        }
+
+        code {
+            background: #eef2f7;
+            border-radius: 3px;
+            color: #111827;
+            font-family: "DejaVu Sans Mono", monospace;
+            font-size: 10.5px;
+            padding: 1px 3px;
+        }
+
+        .cover {
+            border-bottom: 4px solid #2563eb;
+            margin-bottom: 26px;
+            padding: 34px 0 28px;
+        }
+
+        .subtitle {
+            color: #4b5563;
+            font-size: 14px;
+            margin-bottom: 14px;
+        }
+
+        .meta {
+            background: #eef6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            margin-top: 18px;
+            padding: 12px;
+        }
+
+        .note {
+            background: #f8fafc;
+            border-left: 4px solid #64748b;
+            margin: 10px 0 13px;
+            padding: 9px 11px;
+        }
+
+        .warning {
+            background: #fff7ed;
+            border-left: 4px solid #f97316;
+            margin: 10px 0 13px;
+            padding: 9px 11px;
+        }
+
+        .success {
+            background: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            margin: 10px 0 13px;
+            padding: 9px 11px;
+        }
+
+        .toc {
+            columns: 2;
+            column-gap: 28px;
+            margin-top: 12px;
+        }
+
+        .toc li {
+            break-inside: avoid;
+            margin-bottom: 5px;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        .small {
+            color: #4b5563;
+            font-size: 10.5px;
+        }
+
+        .checklist li {
+            margin-bottom: 5px;
+        }
+
+        .badge {
+            background: #e0f2fe;
+            border-radius: 999px;
+            color: #075985;
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            margin-right: 4px;
+            padding: 2px 7px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <section class="cover">
+        <h1>Guía de uso<br>Gestor Comercial SaaS</h1>
+        <p class="subtitle">Manual operativo para comercios: dashboard, productos, clientes, cuenta corriente, proveedores, ventas, compras, facturación electrónica, usuarios, notificaciones y mi cuenta.</p>
+        <div class="meta">
+            <p><strong>Alcance:</strong> guía basada en la estructura actual del proyecto Laravel/Inertia y en la documentación fiscal interna disponible.</p>
+            <p><strong>Importante:</strong> algunas opciones pueden mostrarse u ocultarse según el comercio activo, el rol del usuario, las funcionalidades contratadas y la configuración del módulo.</p>
+        </div>
+    </section>
+
+    <h2>Índice</h2>
+    <ol class="toc">
+        <li>Acceso, roles y contexto del comercio</li>
+        <li>Flujo diario recomendado</li>
+        <li>Dashboard</li>
+        <li>Categorías</li>
+        <li>Productos, stock y lotes</li>
+        <li>Clientes</li>
+        <li>Cuenta corriente</li>
+        <li>Proveedores</li>
+        <li>Ventas y POS</li>
+        <li>Compras</li>
+        <li>Facturación electrónica y ARCA</li>
+        <li>Usuarios</li>
+        <li>Notificaciones</li>
+        <li>Mi cuenta</li>
+        <li>Checklists operativos</li>
+        <li>Preguntas frecuentes y resolución de problemas</li>
+    </ol>
+
+    <h2>1. Acceso, roles y contexto del comercio</h2>
+    <p>La aplicación trabaja con un contexto de comercio activo. Cada usuario accede a la información del comercio al que pertenece y las consultas se filtran por ese comercio para evitar mezclar datos entre negocios.</p>
+
+    <h3>Roles principales</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Rol</th>
+                <th>Qué puede hacer</th>
+                <th>Uso recomendado</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Administrador del comercio</strong></td>
+                <td>Opera todos los módulos del comercio y administra usuarios, notificaciones y configuración fiscal disponible.</td>
+                <td>Dueño, encargado o responsable administrativo.</td>
+            </tr>
+            <tr>
+                <td><strong>Staff</strong></td>
+                <td>Opera módulos del comercio según las pantallas habilitadas. No administra usuarios ni ajustes sensibles.</td>
+                <td>Cajero, vendedor o personal operativo.</td>
+            </tr>
+            <tr>
+                <td><strong>Superadmin</strong></td>
+                <td>Administra comercios, funcionalidades, planes, configuración fiscal general y opciones globales del SaaS.</td>
+                <td>Equipo interno del sistema.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="note">
+        <strong>Acceso bloqueado:</strong> si el comercio está inactivo, el usuario no pertenece al comercio o hay restricciones de facturación del SaaS, el sistema puede impedir el acceso al panel operativo.
+    </div>
+
+    <h2>2. Flujo diario recomendado</h2>
+    <ol>
+        <li>Ingresar al <strong>Dashboard</strong> y revisar ventas del día, alertas de stock bajo, vencimientos y últimas operaciones.</li>
+        <li>Verificar <strong>Productos</strong> con poco stock, sin precio, sin costo o con lotes próximos a vencer.</li>
+        <li>Registrar <strong>Compras</strong> antes de vender mercadería recién ingresada para mantener stock y costo actualizados.</li>
+        <li>Usar <strong>Ventas</strong> para registrar operaciones del mostrador, cobros parciales y ventas a cuenta corriente.</li>
+        <li>Controlar <strong>Cuenta corriente</strong> para cobrar saldos pendientes y enviar recordatorios.</li>
+        <li>Si está habilitada, revisar <strong>Facturación electrónica</strong> para confirmar comprobantes autorizados, rechazados o pendientes de conciliación.</li>
+        <li>Al cierre, revisar ventas recientes, medios de pago y transferencias por destino o sector si el comercio usa configuración avanzada.</li>
+    </ol>
+
+    <h2>3. Dashboard</h2>
+    <p>El dashboard resume la actividad comercial y permite detectar problemas operativos sin entrar módulo por módulo.</p>
+
+    <h3>Indicadores visibles</h3>
+    <ul>
+        <li><strong>Ventas de hoy:</strong> total vendido en el día actual.</li>
+        <li><strong>Ventas del mes:</strong> acumulado del mes en curso.</li>
+        <li><strong>Productos activos:</strong> cantidad de productos disponibles para operar.</li>
+        <li><strong>Proveedores:</strong> cantidad de proveedores cargados.</li>
+        <li><strong>Stock bajo:</strong> productos cuyo stock está por debajo del mínimo definido.</li>
+        <li><strong>Top productos:</strong> productos más vendidos en el período calculado.</li>
+        <li><strong>Últimas ventas y compras:</strong> actividad reciente para control rápido.</li>
+        <li><strong>Alertas de vencimiento:</strong> productos o lotes próximos a vencer cuando el producto usa vida útil o lotes.</li>
+    </ul>
+
+    <h3>Acciones rápidas</h3>
+    <ul>
+        <li><strong>Nueva venta:</strong> abre el flujo de venta/POS.</li>
+        <li><strong>Nueva compra:</strong> permite ingresar mercadería y actualizar stock.</li>
+        <li><strong>Revisar stock bajo:</strong> lleva a productos filtrados por necesidad de reposición.</li>
+    </ul>
+
+    <div class="success">
+        <strong>Buenas prácticas:</strong> usar el dashboard al inicio y al cierre del día. Si aparecen muchos productos sin precio, sin costo o con stock negativo, conviene corregir esos datos antes de seguir operando.
+    </div>
+
+    <h2>4. Categorías</h2>
+    <p>Las categorías ordenan los productos y facilitan búsquedas, filtros y reportes.</p>
+
+    <h3>Listado</h3>
+    <ul>
+        <li>Permite buscar por nombre o descripción.</li>
+        <li>Muestra categorías del comercio activo.</li>
+        <li>Puede filtrar o indicar categorías activas/inactivas según la pantalla.</li>
+    </ul>
+
+    <h3>Crear o editar categoría</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Campo</th>
+                <th>Uso</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Nombre</td>
+                <td>Nombre visible para clasificar productos.</td>
+            </tr>
+            <tr>
+                <td>Slug</td>
+                <td>Identificador amigable. Puede generarse desde el nombre si la pantalla lo permite.</td>
+            </tr>
+            <tr>
+                <td>Descripción</td>
+                <td>Detalle interno opcional.</td>
+            </tr>
+            <tr>
+                <td>Activa</td>
+                <td>Define si la categoría queda disponible para uso operativo.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="note">
+        <strong>Impacto:</strong> desactivar una categoría no debería borrar productos. Sirve para dejar de usarla sin perder historial.
+    </div>
+
+    <h2>5. Productos, stock y lotes</h2>
+    <p>Productos es uno de los módulos centrales. De su calidad de carga dependen las ventas, compras, reportes, alertas y cuenta corriente.</p>
+
+    <h3>Filtros del listado</h3>
+    <ul>
+        <li><strong>Búsqueda:</strong> por nombre, código, SKU, código de barras u otros campos disponibles.</li>
+        <li><strong>Categoría:</strong> restringe el listado a una categoría.</li>
+        <li><strong>Sin precio:</strong> detecta productos que no deberían venderse aún.</li>
+        <li><strong>Sin costo:</strong> útil para mejorar márgenes y reportes.</li>
+        <li><strong>Sin stock / con stock / stock bajo:</strong> ayuda a reposición.</li>
+        <li><strong>Vencimientos:</strong> permite revisar productos o lotes próximos a vencer.</li>
+    </ul>
+
+    <h3>Datos principales del producto</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Grupo</th>
+                <th>Campos habituales</th>
+                <th>Recomendación</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Identificación</td>
+                <td>Nombre, descripción, código de barras, SKU, slug.</td>
+                <td>Usar códigos consistentes para acelerar ventas por escáner o búsqueda.</td>
+            </tr>
+            <tr>
+                <td>Clasificación</td>
+                <td>Categoría y proveedor.</td>
+                <td>Asignar categoría desde el inicio para ordenar reportes y filtros.</td>
+            </tr>
+            <tr>
+                <td>Unidad de venta</td>
+                <td>Unidad, kilo o gramo.</td>
+                <td>Configurar correctamente productos fraccionables para evitar errores de precio.</td>
+            </tr>
+            <tr>
+                <td>Precio y costo</td>
+                <td>Precio de venta y costo.</td>
+                <td>Completar ambos para vender y calcular margen.</td>
+            </tr>
+            <tr>
+                <td>Stock</td>
+                <td>Stock actual y stock mínimo.</td>
+                <td>Definir mínimo realista para que las alertas sean útiles.</td>
+            </tr>
+            <tr>
+                <td>Vencimiento</td>
+                <td>Vida útil, alertas y lotes.</td>
+                <td>Usar lotes en alimentos, medicamentos u otros productos con vencimiento.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Lotes y vencimientos</h3>
+    <p>Cuando un producto maneja lotes, el sistema puede registrar código de lote, cantidad y fecha de vencimiento. En ventas, la lógica puede consumir primero los lotes más próximos a vencer para reducir pérdidas.</p>
+
+    <ul>
+        <li>Al cargar compras, registrar lote y vencimiento si el producto lo requiere.</li>
+        <li>Revisar alertas del dashboard y filtros de productos para actuar antes del vencimiento.</li>
+        <li>Usar correcciones de lote cuando el stock físico no coincide con el sistema.</li>
+    </ul>
+
+    <div class="warning">
+        <strong>Control operativo:</strong> un producto sin precio no debería venderse. Un producto sin costo puede venderse, pero afecta reportes de rentabilidad.
+    </div>
+
+    <h2>6. Clientes</h2>
+    <p>Clientes permite centralizar datos de contacto, historial de ventas y deuda. Es clave para ventas pendientes, cobros parciales y cuenta corriente.</p>
+
+    <h3>Listado y búsqueda</h3>
+    <ul>
+        <li>Buscar clientes por nombre, documento, teléfono, email u otros datos disponibles.</li>
+        <li>Identificar clientes con saldo pendiente o deuda alta.</li>
+        <li>Entrar al detalle para ver ventas recientes, movimientos y recordatorios.</li>
+    </ul>
+
+    <h3>Crear o editar cliente</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Campo</th>
+                <th>Uso recomendado</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Nombre</td>
+                <td>Dato mínimo para identificar al cliente.</td>
+            </tr>
+            <tr>
+                <td>Documento</td>
+                <td>Útil para comprobantes, control interno y búsqueda.</td>
+            </tr>
+            <tr>
+                <td>Teléfono / WhatsApp</td>
+                <td>Necesario para recordatorios de deuda por WhatsApp.</td>
+            </tr>
+            <tr>
+                <td>Email</td>
+                <td>Necesario para recordatorios por correo.</td>
+            </tr>
+            <tr>
+                <td>Dirección / notas</td>
+                <td>Información administrativa opcional.</td>
+            </tr>
+            <tr>
+                <td>Preferencias de recordatorio</td>
+                <td>Permiten definir canal preferido o desactivar avisos para ese cliente.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>7. Cuenta corriente</h2>
+    <p>Cuenta corriente muestra saldos pendientes y movimientos generados por ventas no cobradas totalmente.</p>
+
+    <h3>Cómo se genera deuda</h3>
+    <ul>
+        <li>Una venta <strong>pendiente</strong> genera deuda por el total.</li>
+        <li>Una venta <strong>parcial</strong> genera deuda por el saldo restante.</li>
+        <li>Para ventas pendientes o parciales, el sistema exige cliente asociado.</li>
+    </ul>
+
+    <h3>Registrar pagos</h3>
+    <p>Al registrar un pago, el sistema aplica el importe a las ventas pendientes del cliente, priorizando las más antiguas. Esto mantiene el historial ordenado y evita elegir manualmente cada deuda cuando no hace falta.</p>
+
+    <h3>Recordatorios</h3>
+    <ul>
+        <li>Se pueden preparar avisos por WhatsApp o email según datos del cliente.</li>
+        <li>Conviene revisar el mensaje antes de enviarlo, especialmente si hay acuerdos particulares.</li>
+        <li>Si un cliente pidió no recibir avisos, respetar la configuración de recordatorios.</li>
+    </ul>
+
+    <div class="note">
+        <strong>Impacto:</strong> cuenta corriente no es solo un listado de deudas. Afecta cobranza, historial del cliente y control del flujo de caja.
+    </div>
+
+    <h2>8. Proveedores</h2>
+    <p>Proveedores permite mantener ordenada la información de quienes abastecen al comercio y vincular compras a cada proveedor.</p>
+
+    <h3>Datos habituales</h3>
+    <ul>
+        <li>Nombre o razón social.</li>
+        <li>Contacto responsable.</li>
+        <li>Teléfono y email.</li>
+        <li>Dirección.</li>
+        <li>Notas internas.</li>
+    </ul>
+
+    <h3>Uso en compras</h3>
+    <p>Al registrar una compra, asociar el proveedor mejora el historial, facilita reclamos y permite analizar de dónde proviene la mercadería.</p>
+
+    <h2>9. Ventas y POS</h2>
+    <p>El módulo de ventas está pensado para operaciones de mostrador: búsqueda rápida de productos, carga de ítems, medios de pago, cuenta corriente y, si está habilitada, emisión fiscal.</p>
+
+    <h3>Crear una venta</h3>
+    <ol>
+        <li>Ingresar a <strong>Ventas</strong> y seleccionar <strong>Nueva venta</strong>.</li>
+        <li>Buscar productos por texto, SKU o código de barras. También se pueden cargar ítems manuales si el flujo lo permite.</li>
+        <li>Agregar cantidades. En productos por peso, controlar la unidad usada.</li>
+        <li>Seleccionar cliente si la venta será parcial, pendiente o necesita quedar asociada.</li>
+        <li>Elegir estado de pago: pagada, parcial o pendiente.</li>
+        <li>Elegir medio de pago: efectivo o transferencia. Si es efectivo, registrar importe recibido para calcular vuelto.</li>
+        <li>Si el comercio usa configuración avanzada, seleccionar sector y destino de transferencia cuando corresponda.</li>
+        <li>Confirmar la venta.</li>
+    </ol>
+
+    <h3>Qué ocurre al confirmar</h3>
+    <ul>
+        <li>Se guarda la venta con sus ítems.</li>
+        <li>Se descuenta stock de los productos vendidos.</li>
+        <li>Si hay lotes, se consumen según la lógica configurada para vencimientos.</li>
+        <li>Si la venta queda parcial o pendiente, se registra saldo en cuenta corriente.</li>
+        <li>Si facturación electrónica está habilitada y configurada para emisión automática, se intenta emitir el comprobante fiscal.</li>
+    </ul>
+
+    <h3>Detalle de venta</h3>
+    <p>Desde el detalle se puede revisar cliente, ítems, pagos, estado de deuda, comprobantes, impresión o descarga de documentos disponibles.</p>
+
+    <div class="warning">
+        <strong>Antes de vender:</strong> si el producto no tiene stock suficiente o no tiene precio, corregirlo antes de confirmar. Forzar operaciones sin datos correctos afecta stock, caja y reportes.
+    </div>
+
+    <h2>10. Compras</h2>
+    <p>Compras registra ingreso de mercadería, actualiza stock, costo y lotes. Es recomendable cargar compras antes de vender productos recién recibidos.</p>
+
+    <h3>Crear una compra</h3>
+    <ol>
+        <li>Ingresar a <strong>Compras</strong> y seleccionar <strong>Nueva compra</strong>.</li>
+        <li>Elegir proveedor si corresponde.</li>
+        <li>Definir fecha y notas internas.</li>
+        <li>Agregar productos existentes o crear nuevos productos desde la compra si el flujo lo permite.</li>
+        <li>Completar cantidad y costo unitario.</li>
+        <li>Registrar lote y vencimiento si aplica.</li>
+        <li>Confirmar la compra.</li>
+    </ol>
+
+    <h3>Impacto de la compra</h3>
+    <ul>
+        <li>Aumenta el stock disponible.</li>
+        <li>Actualiza costos del producto según la lógica vigente.</li>
+        <li>Registra lotes recibidos cuando se informan.</li>
+        <li>Deja historial para consultar compras por proveedor y fecha.</li>
+    </ul>
+
+    <h2 class="page-break">11. Facturación electrónica y ARCA</h2>
+    <p>El módulo de facturación electrónica se muestra cuando la funcionalidad está habilitada para el comercio y la configuración fiscal general está activa. La aplicación delega la emisión fiscal en una API fiscal externa y conserva el estado local de los comprobantes.</p>
+
+    <div class="note">
+        <strong>Diseño actual:</strong> el SaaS no guarda certificados, claves privadas ni tokens WSAA. La generación de clave, administración de certificados, autenticación contra ARCA y emisión se delegan en la API fiscal externa configurada.
+    </div>
+
+    <h3>Precondiciones para usar facturación electrónica</h3>
+    <ul>
+        <li>La variable/configuración fiscal general debe estar habilitada.</li>
+        <li>El comercio debe tener habilitada la funcionalidad de facturación electrónica.</li>
+        <li>Debe existir configuración fiscal del comercio: CUIT, ID externo fiscal, punto de venta, tipo de comprobante, concepto, modo de autorización y actividades.</li>
+        <li>La API fiscal externa debe estar accesible y con token válido.</li>
+        <li>El comercio debe tener certificado fiscal activo en el ambiente correspondiente.</li>
+    </ul>
+
+    <h3>Qué se ve en el módulo</h3>
+    <ul>
+        <li>Estado de configuración del comercio.</li>
+        <li>Conexión con la API fiscal.</li>
+        <li>Resumen de comprobantes autorizados, rechazados, con error, inciertos o en proceso.</li>
+        <li>Actividad fiscal reciente.</li>
+        <li>Puntos de venta y datos de configuración cuando están disponibles.</li>
+        <li>Gestión de credenciales para administradores del comercio.</li>
+    </ul>
+
+    <h3>Flujo de credenciales con ARCA</h3>
+    <ol>
+        <li>El administrador verifica que el CUIT y el ambiente fiscal del comercio sean correctos.</li>
+        <li>Desde la app solicita la generación de CSR. La app llama a la API fiscal externa.</li>
+        <li>La API fiscal genera o reutiliza la clave privada y devuelve el CSR. La clave privada queda fuera del SaaS.</li>
+        <li>El administrador usa ese CSR en ARCA para obtener el certificado del ambiente correspondiente.</li>
+        <li>ARCA entrega un certificado <code>.crt</code>.</li>
+        <li>El administrador carga el certificado en la app.</li>
+        <li>La app envía el certificado a la API fiscal, que valida que coincida con la clave privada y activa las credenciales.</li>
+        <li>Con certificado activo, la API fiscal puede autenticar contra WSAA y emitir comprobantes mediante el servicio fiscal correspondiente.</li>
+    </ol>
+
+    <h3>Testing/homologación vs producción</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Aspecto</th>
+                <th>Testing / homologación</th>
+                <th>Producción</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Objetivo</td>
+                <td>Probar integración, emisión, errores y PDF sin impacto fiscal real.</td>
+                <td>Emitir comprobantes válidos para la operación real del comercio.</td>
+            </tr>
+            <tr>
+                <td>Certificado</td>
+                <td>Debe obtenerse para el ambiente de prueba. No sirve para producción.</td>
+                <td>Debe obtenerse para el ambiente productivo. No usar certificados de testing.</td>
+            </tr>
+            <tr>
+                <td>Endpoints WSAA</td>
+                <td>ARCA documenta endpoint de homologación para autenticación.</td>
+                <td>ARCA documenta endpoint productivo separado.</td>
+            </tr>
+            <tr>
+                <td>Datos del comercio</td>
+                <td>Usar configuración fiscal de prueba y punto de venta habilitado para testing.</td>
+                <td>Usar CUIT, punto de venta, actividades y condiciones fiscales reales.</td>
+            </tr>
+            <tr>
+                <td>Validación</td>
+                <td>Permite probar rechazos, reintentos y conciliación.</td>
+                <td>Requiere revisión previa con contador o responsable fiscal.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="warning">
+        <strong>No mezclar ambientes:</strong> testing y producción tienen credenciales, certificados y endpoints distintos. Un certificado de homologación no debe usarse en producción, y una configuración productiva no debe probarse como si fuera testing.
+    </div>
+
+    <h3>Configuración fiscal del comercio</h3>
+    <ul>
+        <li><strong>CUIT:</strong> identificación fiscal del comercio.</li>
+        <li><strong>ID externo fiscal:</strong> identificador usado por la API fiscal externa.</li>
+        <li><strong>Ambiente:</strong> testing u producción.</li>
+        <li><strong>Punto de venta:</strong> punto habilitado para emitir comprobantes.</li>
+        <li><strong>Tipo de documento y comprobante:</strong> por ejemplo factura C si corresponde al régimen del comercio.</li>
+        <li><strong>Concepto:</strong> productos, servicios o mixto.</li>
+        <li><strong>Modo de autorización:</strong> CAE normal, CAEA contingencia o automático.</li>
+        <li><strong>Actividades:</strong> actividades fiscales asociadas al comercio.</li>
+    </ul>
+
+    <h3>Emisión desde ventas</h3>
+    <ol>
+        <li>El usuario confirma la venta.</li>
+        <li>El sistema guarda la venta localmente.</li>
+        <li>Si corresponde, construye el payload fiscal con datos de venta, cliente, comprobante e ítems.</li>
+        <li>La app llama a la API fiscal externa con clave de idempotencia para evitar duplicar comprobantes.</li>
+        <li>La API fiscal solicita autorización a ARCA.</li>
+        <li>El sistema guarda el estado fiscal devuelto: autorizado, rechazado, error, incierto o en proceso.</li>
+        <li>Si el comprobante queda autorizado, se habilita la descarga del PDF fiscal con QR.</li>
+    </ol>
+
+    <h3>Estados fiscales</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Estado</th>
+                <th>Significado</th>
+                <th>Acción recomendada</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="badge">authorized</span></td>
+                <td>Comprobante autorizado por ARCA. Tiene CAE o CAEA y numeración fiscal.</td>
+                <td>Descargar PDF, entregar al cliente y conservar registro.</td>
+            </tr>
+            <tr>
+                <td><span class="badge">rejected</span></td>
+                <td>ARCA rechazó la solicitud por validación fiscal o datos incorrectos.</td>
+                <td>Corregir configuración/datos y reintentar si corresponde.</td>
+            </tr>
+            <tr>
+                <td><span class="badge">error</span></td>
+                <td>Error controlado de integración o validación local/API.</td>
+                <td>Revisar mensaje, configuración y conectividad.</td>
+            </tr>
+            <tr>
+                <td><span class="badge">uncertain</span></td>
+                <td>No se sabe si ARCA autorizó o no, por timeout o respuesta inconclusa.</td>
+                <td>Conciliar antes de reintentar para evitar duplicados.</td>
+            </tr>
+            <tr>
+                <td><span class="badge">processing</span></td>
+                <td>La emisión quedó en proceso.</td>
+                <td>Esperar o ejecutar conciliación según la pantalla disponible.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>CAE, CAEA y PDF fiscal</h3>
+    <ul>
+        <li><strong>CAE:</strong> autorización electrónica habitual para comprobantes.</li>
+        <li><strong>CAEA:</strong> autorización usada para escenarios de contingencia si el comercio está configurado para eso.</li>
+        <li><strong>PDF fiscal:</strong> se descarga solo cuando el comprobante está autorizado y tiene los datos mínimos necesarios.</li>
+        <li><strong>QR:</strong> el PDF incluye QR fiscal con datos del comprobante para validación.</li>
+    </ul>
+
+    <h3>Gestión operativa con ARCA</h3>
+    <ol>
+        <li>Confirmar con contador el tipo de comprobante, punto de venta, condición fiscal y actividades.</li>
+        <li>Crear o habilitar el punto de venta fiscal correspondiente.</li>
+        <li>Generar CSR desde la app para el ambiente correcto.</li>
+        <li>Obtener certificado en ARCA usando ese CSR.</li>
+        <li>Cargar el certificado en la app y verificar que quede activo en la API fiscal.</li>
+        <li>En testing, emitir ventas de prueba y revisar rechazos, PDF y conciliación.</li>
+        <li>En producción, hacer una primera emisión controlada y validar número, CAE/CAEA, vencimiento, QR y datos fiscales.</li>
+    </ol>
+
+    <h2>12. Usuarios</h2>
+    <p>La administración de usuarios está disponible para administradores del comercio.</p>
+
+    <h3>Crear usuario</h3>
+    <ul>
+        <li>Completar nombre y email.</li>
+        <li>Asignar rol: administrador o staff.</li>
+        <li>Definir si queda activo.</li>
+        <li>El sistema puede enviar acceso por email según configuración disponible.</li>
+    </ul>
+
+    <h3>Buenas prácticas</h3>
+    <ul>
+        <li>Dar rol administrador solo a personas que deban cambiar configuración sensible.</li>
+        <li>Desactivar usuarios que ya no trabajan en el comercio.</li>
+        <li>No compartir usuarios entre varias personas: cada operador debería tener su cuenta.</li>
+        <li>El sistema protege acciones críticas como desactivar el propio usuario o dejar el comercio sin administradores activos.</li>
+    </ul>
+
+    <h2>13. Notificaciones</h2>
+    <p>Notificaciones permite definir avisos automáticos del comercio. Está disponible para administradores.</p>
+
+    <h3>Configuración disponible</h3>
+    <ul>
+        <li>Activar o desactivar notificaciones del comercio.</li>
+        <li>Enviar al email del comercio.</li>
+        <li>Enviar a usuarios administradores.</li>
+        <li>Agregar destinatarios extra.</li>
+        <li>Activar alertas de stock bajo.</li>
+        <li>Activar alertas de vencimiento.</li>
+        <li>Activar recordatorios de mantenimiento si el módulo lo usa.</li>
+        <li>Definir horas mínimas entre avisos.</li>
+        <li>Definir ventana horaria de envío.</li>
+    </ul>
+
+    <h3>Vista previa e historial</h3>
+    <p>La pantalla muestra destinatarios previstos, alertas detectadas y envíos recientes para validar que la configuración funcione como se espera.</p>
+
+    <div class="note">
+        <strong>Impacto:</strong> una buena configuración evita que el comercio se quede sin productos críticos o pierda mercadería por vencimientos.
+    </div>
+
+    <h2>14. Mi cuenta</h2>
+    <p>Mi cuenta permite administrar datos personales del usuario autenticado.</p>
+
+    <h3>Opciones habituales</h3>
+    <ul>
+        <li>Actualizar nombre y email.</li>
+        <li>Cambiar contraseña.</li>
+        <li>Eliminar cuenta si el flujo está habilitado.</li>
+    </ul>
+
+    <div class="warning">
+        <strong>Antes de eliminar cuenta:</strong> validar si el usuario es administrador único del comercio o si hay tareas pendientes. La eliminación puede afectar el acceso futuro.
+    </div>
+
+    <h2 class="page-break">15. Checklists operativos</h2>
+
+    <h3>Alta inicial del comercio</h3>
+    <ul class="checklist">
+        <li>Confirmar datos del comercio y usuarios administradores.</li>
+        <li>Cargar categorías principales.</li>
+        <li>Cargar proveedores frecuentes.</li>
+        <li>Cargar productos con precio, costo, stock mínimo y código de barras/SKU si aplica.</li>
+        <li>Configurar lotes y vencimientos para productos sensibles.</li>
+        <li>Cargar clientes con datos de contacto si se usará cuenta corriente.</li>
+        <li>Configurar notificaciones.</li>
+        <li>Si corresponde, configurar facturación electrónica y probar en testing antes de producción.</li>
+    </ul>
+
+    <h3>Inicio del día</h3>
+    <ul class="checklist">
+        <li>Revisar dashboard.</li>
+        <li>Controlar stock bajo y vencimientos.</li>
+        <li>Registrar compras pendientes del día anterior.</li>
+        <li>Verificar comprobantes fiscales pendientes o inciertos.</li>
+    </ul>
+
+    <h3>Venta correcta</h3>
+    <ul class="checklist">
+        <li>Buscar producto por código o nombre.</li>
+        <li>Confirmar precio y cantidad.</li>
+        <li>Seleccionar cliente si hay deuda, factura nominada o venta pendiente/parcial.</li>
+        <li>Elegir medio de pago correcto.</li>
+        <li>Confirmar vuelto si es efectivo.</li>
+        <li>Emitir o revisar comprobante fiscal si aplica.</li>
+    </ul>
+
+    <h3>Compra correcta</h3>
+    <ul class="checklist">
+        <li>Seleccionar proveedor.</li>
+        <li>Cargar productos y cantidades reales.</li>
+        <li>Registrar costo unitario.</li>
+        <li>Informar lote y vencimiento si corresponde.</li>
+        <li>Confirmar que el stock haya aumentado.</li>
+    </ul>
+
+    <h3>Pase a producción de facturación electrónica</h3>
+    <ul class="checklist">
+        <li>Validar datos fiscales con contador.</li>
+        <li>Confirmar que el comercio tenga habilitada la funcionalidad.</li>
+        <li>Configurar ambiente production en la API fiscal y en el comercio.</li>
+        <li>Generar CSR para producción.</li>
+        <li>Obtener certificado productivo en ARCA.</li>
+        <li>Cargar certificado productivo en la app.</li>
+        <li>Validar punto de venta y tipo de comprobante.</li>
+        <li>Emitir una venta controlada y revisar CAE/CAEA, vencimiento, número y QR.</li>
+    </ul>
+
+    <h2>16. Preguntas frecuentes y resolución de problemas</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Problema</th>
+                <th>Causa probable</th>
+                <th>Qué hacer</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>No veo facturación electrónica</td>
+                <td>El módulo no está habilitado o la configuración fiscal general está apagada.</td>
+                <td>Revisar funcionalidades del comercio y configuración fiscal del SaaS.</td>
+            </tr>
+            <tr>
+                <td>No puedo gestionar certificados</td>
+                <td>El usuario no es administrador del comercio.</td>
+                <td>Ingresar con un administrador o solicitar permisos.</td>
+            </tr>
+            <tr>
+                <td>Comprobante rechazado</td>
+                <td>Datos fiscales, punto de venta, tipo de comprobante o datos del receptor incorrectos.</td>
+                <td>Leer el mensaje, corregir datos y reintentar si corresponde.</td>
+            </tr>
+            <tr>
+                <td>Comprobante incierto</td>
+                <td>Timeout o respuesta incompleta de la API fiscal/ARCA.</td>
+                <td>Conciliar antes de reintentar para evitar duplicados.</td>
+            </tr>
+            <tr>
+                <td>No descarga PDF fiscal</td>
+                <td>El comprobante no está autorizado o faltan datos obligatorios.</td>
+                <td>Revisar estado fiscal, CAE/CAEA, número y vencimiento.</td>
+            </tr>
+            <tr>
+                <td>No puedo vender a cuenta corriente</td>
+                <td>Falta seleccionar cliente.</td>
+                <td>Asociar cliente antes de confirmar venta pendiente o parcial.</td>
+            </tr>
+            <tr>
+                <td>Stock incorrecto</td>
+                <td>Compras no cargadas, ventas mal registradas o lote no corregido.</td>
+                <td>Revisar historial, cargar compras faltantes o usar corrección de lote/stock.</td>
+            </tr>
+            <tr>
+                <td>No llegan notificaciones</td>
+                <td>Notificaciones desactivadas, destinatarios incompletos o ventana horaria restrictiva.</td>
+                <td>Revisar configuración, emails y última actividad de envíos.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p class="small">Documento para uso operativo interno. La sección fiscal es orientativa y debe validarse con contador o responsable fiscal antes de operar en producción.</p>
+</body>
+</html>
