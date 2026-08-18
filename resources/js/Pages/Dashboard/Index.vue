@@ -2,13 +2,14 @@
 import AppPanel from '@/Components/AppPanel.vue';
 import MetricCard from '@/Components/MetricCard.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     summary: { type: Object, required: true },
     historical_summary: { type: Object, default: () => ({ periods: [] }) },
+    performance_series: { type: Object, default: () => ({ periods: [] }) },
     daily_totals: { type: Array, default: () => [] },
     low_stock_products: { type: Array, default: () => [] },
     top_sold_products: { type: Array, default: () => [] },
@@ -17,6 +18,9 @@ const props = defineProps({
     expiration_alerts: { type: Array, default: () => [] },
     advanced_sales: { type: Object, default: () => ({ enabled: false, sales_by_sector: [], sales_by_payment_destination: [] }) },
 });
+
+const page = usePage();
+const selectedPeriodKey = ref('last_14_days');
 
 const moneyFormatter = new Intl.NumberFormat('es-AR', {
     style: 'currency',
@@ -49,14 +53,6 @@ const dailyTotals = computed(() => rawDailyTotals.value.map((row) => ({
     purchases_total: Number(row.purchases_total) || 0,
 })));
 
-const maxTrendValue = computed(() => {
-    const max = dailyTotals.value.reduce((carry, row) => Math.max(carry, row.sales_total, row.purchases_total), 0);
-    return max > 0 ? max : 1;
-});
-
-const trendSalesTotal = computed(() => dailyTotals.value.reduce((carry, row) => carry + row.sales_total, 0));
-const trendPurchasesTotal = computed(() => dailyTotals.value.reduce((carry, row) => carry + row.purchases_total, 0));
-
 const topSoldMax = computed(() => {
     const max = props.top_sold_products.reduce((carry, item) => Math.max(carry, Number(item.sold_quantity) || 0), 0);
     return max > 0 ? max : 1;
@@ -64,37 +60,29 @@ const topSoldMax = computed(() => {
 
 const topSoldWidth = (value) => `${Math.max(8, Math.round(((Number(value) || 0) / topSoldMax.value) * 100))}%`;
 
-const trendPoints = (key) => {
-    if (!dailyTotals.value.length) return '';
-
-    if (dailyTotals.value.length === 1) {
-        const onlyValue = Number(dailyTotals.value[0][key]) || 0;
-        const y = 100 - ((onlyValue / maxTrendValue.value) * 100);
-        return `0,${y.toFixed(2)} 100,${y.toFixed(2)}`;
-    }
-
-    return dailyTotals.value.map((row, index) => {
-        const x = (index / (dailyTotals.value.length - 1)) * 100;
-        const y = 100 - ((Number(row[key]) / maxTrendValue.value) * 100);
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-    }).join(' ');
+const periodTabLabels = {
+    last_14_days: '14 dias',
+    current_month: 'Mensual',
+    current_year: 'Anual',
+    all_time: 'Total',
 };
 
-const trendLabelIndexes = computed(() => {
-    const count = dailyTotals.value.length;
+const greeting = computed(() => {
+    const hour = new Date().getHours();
 
-    if (count === 0) return [];
-    if (count <= 6) return dailyTotals.value.map((_, index) => index);
+    if (hour < 13) return 'Buenos dias';
+    if (hour < 20) return 'Buenas tardes';
 
-    return [
-        0,
-        Math.floor((count - 1) * 0.2),
-        Math.floor((count - 1) * 0.4),
-        Math.floor((count - 1) * 0.6),
-        Math.floor((count - 1) * 0.8),
-        count - 1,
-    ];
+    return 'Buenas noches';
 });
+
+const userFirstName = computed(() => {
+    const name = String(page.props.auth?.user?.name || '').trim();
+
+    return name ? name.split(/\s+/)[0] : 'equipo';
+});
+
+const businessName = computed(() => page.props.business?.name || 'Comercio');
 
 const advancedSalesEnabled = computed(() => Boolean(props.advanced_sales?.enabled));
 
@@ -119,6 +107,147 @@ const historicalTone = (period) => {
 
     return period.net_total >= 0 ? 'success' : 'warning';
 };
+
+const selectablePeriods = computed(() => historicalPeriods.value.map((period) => ({
+    ...period,
+    tab_label: periodTabLabels[period.key] || period.label,
+})));
+
+const selectedPeriod = computed(() => (
+    historicalPeriods.value.find((period) => period.key === selectedPeriodKey.value)
+    || historicalPeriods.value[0]
+    || {
+        key: 'last_14_days',
+        label: 'Ultimos 14 dias',
+        range_label: '',
+        sales_total: 0,
+        purchases_total: 0,
+        net_total: 0,
+        sales_count: 0,
+        purchases_count: 0,
+        average_ticket: 0,
+    }
+));
+
+const performancePeriods = computed(() => {
+    const periods = Array.isArray(props.performance_series?.periods)
+        ? props.performance_series.periods
+        : [];
+
+    return periods.map((period) => ({
+        ...period,
+        points: Array.isArray(period.points) ? period.points.map((point) => ({
+            ...point,
+            sales_total: Number(point.sales_total) || 0,
+            purchases_total: Number(point.purchases_total) || 0,
+            net_total: Number(point.net_total) || 0,
+        })) : [],
+    }));
+});
+
+const fallbackSeries = computed(() => ({
+    key: 'last_14_days',
+    label: '14 dias',
+    granularity: 'day',
+    range_label: selectedPeriod.value.range_label,
+    points: dailyTotals.value.map((row) => ({
+        bucket: row.date,
+        label: shortDate(row.date),
+        sales_total: row.sales_total,
+        purchases_total: row.purchases_total,
+        net_total: row.sales_total - row.purchases_total,
+    })),
+}));
+
+const selectedSeries = computed(() => (
+    performancePeriods.value.find((period) => period.key === selectedPeriodKey.value)
+    || fallbackSeries.value
+));
+
+const chartPoints = computed(() => selectedSeries.value.points || []);
+
+const maxChartValue = computed(() => {
+    const max = chartPoints.value.reduce((carry, point) => Math.max(carry, point.sales_total, point.purchases_total), 0);
+
+    return max > 0 ? max : 1;
+});
+
+const chartLabelIndexes = computed(() => {
+    const count = chartPoints.value.length;
+
+    if (count === 0) return [];
+    if (count <= 7) return chartPoints.value.map((_, index) => index);
+
+    return [
+        0,
+        Math.floor((count - 1) * 0.2),
+        Math.floor((count - 1) * 0.4),
+        Math.floor((count - 1) * 0.6),
+        Math.floor((count - 1) * 0.8),
+        count - 1,
+    ];
+});
+
+const chartBarHeight = (value) => {
+    const amount = Number(value) || 0;
+
+    if (amount <= 0) return '0%';
+
+    return `${Math.max(4, Math.round((amount / maxChartValue.value) * 100))}%`;
+};
+
+const chartBars = computed(() => chartPoints.value.map((point, index) => ({
+    ...point,
+    sales_height: chartBarHeight(point.sales_total),
+    purchases_height: chartBarHeight(point.purchases_total),
+    show_label: chartLabelIndexes.value.includes(index),
+})));
+
+const selectedOperationsCount = computed(() => selectedPeriod.value.sales_count + selectedPeriod.value.purchases_count);
+
+const selectedNetTone = computed(() => {
+    if (selectedPeriod.value.sales_count === 0 && selectedPeriod.value.purchases_count === 0) return 'default';
+
+    return selectedPeriod.value.net_total >= 0 ? 'success' : 'warning';
+});
+
+const selectedSeriesMode = computed(() => (
+    selectedSeries.value.granularity === 'month' ? 'Agrupado por mes' : 'Agrupado por dia'
+));
+
+const donutStyle = computed(() => {
+    const sales = Math.max(0, selectedPeriod.value.sales_total);
+    const purchases = Math.max(0, selectedPeriod.value.purchases_total);
+    const total = sales + purchases;
+
+    if (total <= 0) {
+        return {
+            background: 'conic-gradient(rgba(51, 65, 85, 0.75) 0deg 360deg)',
+        };
+    }
+
+    const salesDegrees = (sales / total) * 360;
+
+    return {
+        background: `conic-gradient(rgb(99, 102, 241) 0deg ${salesDegrees.toFixed(2)}deg, rgb(245, 158, 11) ${salesDegrees.toFixed(2)}deg 360deg)`,
+    };
+});
+
+const salesShare = computed(() => {
+    const sales = Math.max(0, selectedPeriod.value.sales_total);
+    const purchases = Math.max(0, selectedPeriod.value.purchases_total);
+    const total = sales + purchases;
+
+    return total > 0 ? Math.round((sales / total) * 100) : 0;
+});
+
+const purchasesShare = computed(() => {
+    const sales = Math.max(0, selectedPeriod.value.sales_total);
+    const purchases = Math.max(0, selectedPeriod.value.purchases_total);
+    const total = sales + purchases;
+
+    return total > 0 ? Math.round((purchases / total) * 100) : 0;
+});
 
 const expirationAlerts = computed(() => {
     const items = Array.isArray(props.expiration_alerts) ? props.expiration_alerts : [];
@@ -201,7 +330,7 @@ const expirationSummary = computed(() => ({
     urgent: expirationAlerts.value.filter((item) => item.urgency === 'upcoming_urgent').length,
 }));
 
-const netFlow = computed(() => trendSalesTotal.value - trendPurchasesTotal.value);
+const netFlow = computed(() => selectedPeriod.value.net_total);
 const operationPulse = computed(() => {
     if (expirationSummary.value.expired > 0 || lowStockSummary.value.out_of_stock > 0) {
         return {
@@ -254,7 +383,7 @@ const priorityCards = computed(() => ([
     {
         key: 'flow',
         title: netFlow.value >= 0 ? 'Caja comercial positiva' : 'Compras por encima de ventas',
-        description: `En los ultimos 14 dias la diferencia fue ${money(Math.abs(netFlow.value))}.`,
+        description: `En ${selectedPeriod.value.label.toLowerCase()} la diferencia fue ${money(Math.abs(netFlow.value))}.`,
         tone: netFlow.value >= 0 ? 'success' : 'warning',
         href: route('sales.index'),
         action: 'Ver ventas',
@@ -269,8 +398,9 @@ const priorityCards = computed(() => ([
         <template #header>
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-100">Dashboard</h2>
-                    <p class="mt-1 text-sm text-slate-300">Resumen general del comercio.</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Resumen general</p>
+                    <h2 class="mt-2 text-3xl font-bold text-slate-100">{{ greeting }}, {{ userFirstName }}</h2>
+                    <p class="mt-1 text-sm text-slate-300">{{ businessName }} - Periodo {{ selectedPeriod.range_label || 'sin movimientos' }}</p>
                 </div>
                 <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                     <Link :href="route('sales.create')" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Nueva venta</Link>
@@ -280,21 +410,137 @@ const priorityCards = computed(() => ([
         </template>
 
         <div class="grid gap-6">
+            <AppPanel padding="sm">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Periodo</p>
+                        <p class="mt-1 text-sm font-semibold text-slate-100">{{ selectedPeriod.range_label || selectedSeries.range_label }}</p>
+                    </div>
+
+                    <div class="grid gap-2 sm:grid-cols-4 xl:min-w-[34rem]">
+                        <button
+                            v-for="period in selectablePeriods"
+                            :key="period.key"
+                            type="button"
+                            class="rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
+                            :class="selectedPeriodKey === period.key
+                                ? 'border-cyan-200/60 bg-cyan-300/18 text-white shadow-[0_0_24px_rgba(34,211,238,0.16)]'
+                                : 'border-cyan-100/15 bg-slate-950/35 text-slate-300 hover:border-cyan-200/35 hover:bg-slate-900/70'"
+                            @click="selectedPeriodKey = period.key"
+                        >
+                            {{ period.tab_label }}
+                        </button>
+                    </div>
+                </div>
+            </AppPanel>
+
             <section class="app-kpi-grid">
-                <MetricCard label="Ventas de hoy" :value="money(summary.today_sales)" hint="Importe acumulado del dia." tone="accent" />
-                <MetricCard label="Ventas del mes" :value="money(summary.month_sales)" hint="Referencia comercial para la gestion del mes." />
                 <MetricCard
-                    label="Alertas de stock"
-                    :value="lowStockSummary.total"
-                    :hint="lowStockSummary.total > 0 ? `${lowStockSummary.out_of_stock} agotados y ${lowStockSummary.low_only} en minimo.` : 'Sin alertas visibles.'"
-                    :tone="lowStockSummary.out_of_stock > 0 ? 'danger' : (lowStockSummary.total > 0 ? 'warning' : 'success')"
+                    label="Ingresos del periodo"
+                    :value="money(selectedPeriod.sales_total)"
+                    :hint="`${selectedPeriod.sales_count} ventas registradas.`"
+                    tone="accent"
                 />
                 <MetricCard
-                    label="Lotes a revisar"
-                    :value="expirationSummary.total"
-                    :hint="expirationSummary.total > 0 ? `${expirationSummary.expired} vencidos y ${expirationSummary.urgent} urgentes.` : 'Sin vencimientos urgentes.'"
-                    :tone="expirationSummary.expired > 0 ? 'danger' : (expirationSummary.total > 0 ? 'warning' : 'success')"
+                    label="Compras del periodo"
+                    :value="money(selectedPeriod.purchases_total)"
+                    :hint="`${selectedPeriod.purchases_count} compras registradas.`"
+                    tone="warning"
                 />
+                <MetricCard
+                    label="Balance neto"
+                    :value="money(selectedPeriod.net_total)"
+                    :hint="selectedPeriod.net_total >= 0 ? 'Ingresos por encima de compras.' : 'Compras por encima de ingresos.'"
+                    :tone="selectedNetTone"
+                />
+                <MetricCard
+                    label="Operaciones"
+                    :value="selectedOperationsCount"
+                    :hint="`Ticket promedio ${money(selectedPeriod.average_ticket)}.`"
+                />
+            </section>
+
+            <section class="grid gap-4 lg:grid-cols-3">
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 class="text-base font-semibold text-slate-100">Evolucion de ventas y compras</h3>
+                            <p class="mt-1 text-sm text-slate-300/80">{{ selectedSeriesMode }} - {{ selectedSeries.range_label }}</p>
+                        </div>
+                        <div class="flex items-center gap-4 text-xs text-slate-300">
+                            <span class="inline-flex items-center gap-1">
+                                <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
+                                Ventas
+                            </span>
+                            <span class="inline-flex items-center gap-1">
+                                <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                                Compras
+                            </span>
+                        </div>
+                    </div>
+
+                    <div v-if="chartBars.length" class="mt-5 rounded-xl border border-cyan-100/20 bg-slate-950/45 p-4">
+                        <div class="relative h-64 overflow-hidden">
+                            <div class="absolute inset-x-0 bottom-8 top-0 grid grid-rows-4">
+                                <span class="border-t border-slate-700/70"></span>
+                                <span class="border-t border-slate-700/55"></span>
+                                <span class="border-t border-slate-700/45"></span>
+                                <span class="border-t border-slate-700/35"></span>
+                            </div>
+
+                            <div class="relative z-10 flex h-full items-end gap-2 overflow-x-auto pb-8">
+                                <div
+                                    v-for="point in chartBars"
+                                    :key="point.bucket"
+                                    class="flex h-full min-w-9 flex-1 flex-col justify-end gap-2"
+                                >
+                                    <div class="flex h-[calc(100%-1.75rem)] items-end justify-center gap-1">
+                                        <div class="w-3 rounded-t bg-indigo-500 shadow-[0_0_14px_rgba(99,102,241,0.28)]" :style="{ height: point.sales_height }"></div>
+                                        <div class="w-3 rounded-t bg-amber-500 shadow-[0_0_14px_rgba(245,158,11,0.22)]" :style="{ height: point.purchases_height }"></div>
+                                    </div>
+                                    <p class="h-5 truncate text-center text-[11px] text-slate-400">
+                                        {{ point.show_label ? point.label : '' }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p v-else class="mt-3 text-sm text-slate-300">Sin datos para graficar.</p>
+                </article>
+
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <h3 class="text-base font-semibold text-slate-100">Composicion del periodo</h3>
+                    <p class="mt-1 text-sm text-slate-300/80">{{ selectedPeriod.label }}</p>
+
+                    <div class="mt-6 flex justify-center">
+                        <div class="grid h-44 w-44 place-items-center rounded-full p-4" :style="donutStyle">
+                            <div class="grid h-full w-full place-items-center rounded-full border border-cyan-100/10 bg-slate-950">
+                                <div class="text-center">
+                                    <p class="text-3xl font-bold text-slate-100">{{ selectedOperationsCount }}</p>
+                                    <p class="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">movimientos</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <dl class="mt-6 grid gap-3 text-sm">
+                        <div class="flex items-center justify-between gap-3 rounded-lg border border-cyan-100/10 bg-slate-950/35 px-3 py-2">
+                            <dt class="inline-flex items-center gap-2 text-slate-300">
+                                <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
+                                Ventas
+                            </dt>
+                            <dd class="font-semibold text-slate-100">{{ salesShare }}%</dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 rounded-lg border border-cyan-100/10 bg-slate-950/35 px-3 py-2">
+                            <dt class="inline-flex items-center gap-2 text-slate-300">
+                                <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                                Compras
+                            </dt>
+                            <dd class="font-semibold text-slate-100">{{ purchasesShare }}%</dd>
+                        </div>
+                    </dl>
+                </article>
             </section>
 
             <AppPanel :title="operationPulse.label" :subtitle="operationPulse.message" :tone="operationPulse.tone">
@@ -317,12 +563,18 @@ const priorityCards = computed(() => ([
                 </div>
             </AppPanel>
 
-            <AppPanel title="Historico comercial" subtitle="Acumulados para no perder contexto entre dias, meses y anos.">
+            <AppPanel title="Periodos comparados" subtitle="Resumen historico de ventas, compras y balance.">
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <article
                         v-for="period in historicalPeriods"
                         :key="period.key"
-                        class="app-subsection"
+                        role="button"
+                        tabindex="0"
+                        class="app-subsection cursor-pointer text-left transition hover:border-cyan-200/35 hover:bg-slate-900/55"
+                        :class="selectedPeriodKey === period.key ? 'border-cyan-200/50 bg-cyan-400/10' : ''"
+                        @click="selectedPeriodKey = period.key"
+                        @keydown.enter.prevent="selectedPeriodKey = period.key"
+                        @keydown.space.prevent="selectedPeriodKey = period.key"
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div>
@@ -362,62 +614,6 @@ const priorityCards = computed(() => ([
                 </div>
             </AppPanel>
 
-            <section class="grid gap-4 lg:grid-cols-3">
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
-                    <h3 class="text-base font-semibold text-slate-100">Tendencia diaria (14 dias)</h3>
-                    <div class="mt-2 flex items-center gap-4 text-xs text-slate-300">
-                        <span class="inline-flex items-center gap-1">
-                            <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
-                            Ventas
-                        </span>
-                        <span class="inline-flex items-center gap-1">
-                            <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-                            Compras
-                        </span>
-                    </div>
-                    <p class="mt-2 text-xs text-slate-300">
-                        Totales 14 dias: ventas {{ money(trendSalesTotal) }} | compras {{ money(trendPurchasesTotal) }}
-                    </p>
-
-                    <div v-if="dailyTotals.length" class="mt-4">
-                        <div class="rounded-xl border border-cyan-100/20 bg-slate-950/45 p-3">
-                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="h-52 w-full">
-                                <line x1="0" y1="0" x2="100" y2="0" class="stroke-slate-700" stroke-width="0.6" />
-                                <line x1="0" y1="25" x2="100" y2="25" class="stroke-slate-700" stroke-width="0.6" />
-                                <line x1="0" y1="50" x2="100" y2="50" class="stroke-slate-700" stroke-width="0.6" />
-                                <line x1="0" y1="75" x2="100" y2="75" class="stroke-slate-700" stroke-width="0.6" />
-                                <line x1="0" y1="100" x2="100" y2="100" class="stroke-slate-700" stroke-width="0.6" />
-                                <polyline :points="trendPoints('purchases_total')" fill="none" class="stroke-emerald-500" stroke-width="1.8" />
-                                <polyline :points="trendPoints('sales_total')" fill="none" class="stroke-indigo-500" stroke-width="1.8" />
-                            </svg>
-                        </div>
-                        <div class="mt-2 grid grid-cols-6 text-[11px] text-slate-300">
-                            <span v-for="index in trendLabelIndexes" :key="`label-${index}`" class="text-center">
-                                {{ shortDate(dailyTotals[index].date) }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <p v-else class="mt-3 text-sm text-slate-300">Sin datos diarios para graficar.</p>
-                </article>
-
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
-                    <h3 class="text-base font-semibold text-slate-100">Productos mas vendidos</h3>
-                    <ul v-if="top_sold_products.length" class="mt-3 space-y-3 text-sm">
-                        <li v-for="item in top_sold_products" :key="`${item.product_id}-${item.product_name}`">
-                            <div class="mb-1 flex items-center justify-between gap-2">
-                                <span class="truncate font-medium text-slate-100">{{ item.product_name }}</span>
-                                <span class="text-xs text-slate-300">{{ item.sold_quantity }} {{ item.sold_quantity_label }}</span>
-                            </div>
-                            <div class="h-2.5 rounded-full bg-slate-800">
-                                <div class="h-2.5 rounded-full bg-indigo-500" :style="{ width: topSoldWidth(item.sold_quantity) }"></div>
-                            </div>
-                        </li>
-                    </ul>
-                    <p v-else class="mt-3 text-sm text-slate-300">Sin ventas registradas aun.</p>
-                </article>
-            </section>
-
             <section v-if="advancedSalesEnabled" class="grid gap-4 lg:grid-cols-2">
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                     <h3 class="text-base font-semibold text-slate-100">Ventas del mes por sector</h3>
@@ -448,8 +644,8 @@ const priorityCards = computed(() => ([
                 </article>
             </section>
 
-            <section class="grid gap-4 lg:grid-cols-2">
-                <article class="rounded-2xl border border-amber-200/40 bg-amber-300/12 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
+            <section class="grid gap-4 lg:grid-cols-3">
+                <article class="rounded-2xl border border-amber-200/40 bg-amber-300/12 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-3">
                     <h3 class="text-base font-semibold text-amber-100">Alertas de vencimiento</h3>
                     <div v-if="expirationGroups.length" class="mt-4 grid gap-4 xl:grid-cols-3">
                         <section v-for="group in expirationGroups" :key="group.key" class="rounded-xl border border-amber-200/20 bg-slate-950/30 p-3">
@@ -488,6 +684,22 @@ const priorityCards = computed(() => ([
                         </section>
                     </div>
                     <p v-else class="mt-3 text-sm text-slate-300">No hay productos proximos a vencer.</p>
+                </article>
+
+                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                    <h3 class="text-base font-semibold text-slate-100">Productos mas vendidos</h3>
+                    <ul v-if="top_sold_products.length" class="mt-3 space-y-3 text-sm">
+                        <li v-for="item in top_sold_products" :key="`${item.product_id}-${item.product_name}`">
+                            <div class="mb-1 flex items-center justify-between gap-2">
+                                <span class="truncate font-medium text-slate-100">{{ item.product_name }}</span>
+                                <span class="text-xs text-slate-300">{{ item.sold_quantity }} {{ item.sold_quantity_label }}</span>
+                            </div>
+                            <div class="h-2.5 rounded-full bg-slate-800">
+                                <div class="h-2.5 rounded-full bg-indigo-500" :style="{ width: topSoldWidth(item.sold_quantity) }"></div>
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-3 text-sm text-slate-300">Sin ventas registradas aun.</p>
                 </article>
 
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">

@@ -179,6 +179,20 @@ test('dashboard exposes historical sales and purchase periods for the active bus
             ->where('historical_summary.periods.3.key', 'all_time')
             ->where('historical_summary.periods.3.sales_total', 1000)
             ->where('historical_summary.periods.3.purchases_total', 125)
+            ->where('performance_series.periods.0.key', 'last_14_days')
+            ->where('performance_series.periods.0.granularity', 'day')
+            ->has('performance_series.periods.0.points', 14)
+            ->where('performance_series.periods.0.points.13.sales_total', 100)
+            ->where('performance_series.periods.0.points.13.purchases_total', 50)
+            ->where('performance_series.periods.1.key', 'current_month')
+            ->has('performance_series.periods.1.points', 17)
+            ->where('performance_series.periods.2.key', 'current_year')
+            ->where('performance_series.periods.2.granularity', 'month')
+            ->has('performance_series.periods.2.points', 8)
+            ->where('performance_series.periods.2.points.7.sales_total', 300)
+            ->where('performance_series.periods.3.key', 'all_time')
+            ->where('performance_series.periods.3.granularity', 'month')
+            ->has('performance_series.periods.3.points', 13)
         );
 });
 

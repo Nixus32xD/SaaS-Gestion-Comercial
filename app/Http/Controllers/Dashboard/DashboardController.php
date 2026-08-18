@@ -13,6 +13,8 @@ use App\Models\SaleItem;
 use App\Models\Supplier;
 use App\Services\ProductExpirationAlertService;
 use App\Support\CurrentBusiness;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -34,7 +36,6 @@ class DashboardController extends Controller
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
         $yearStart = now()->startOfYear();
-        $yearEnd = now()->endOfYear();
 
         $salesSummary = Sale::query()
             ->forBusiness($business->id)
@@ -127,6 +128,8 @@ class DashboardController extends Controller
             ];
         });
 
+        $allTimeStart = $this->firstActivityStart($business->id);
+
         return Inertia::render('Dashboard/Index', [
             'summary' => [
                 'today_sales' => $todaySales,
@@ -148,20 +151,28 @@ class DashboardController extends Controller
                         'current_month',
                         'Mes actual',
                         $monthStart,
-                        $monthEnd
+                        $todayEnd
                     ),
                     $this->periodSummary(
                         $business->id,
                         'current_year',
-                        'Anio actual',
+                        'Anio en curso',
                         $yearStart,
-                        $yearEnd
+                        $todayEnd
                     ),
                     $this->periodSummary(
                         $business->id,
                         'all_time',
                         'Historico total'
                     ),
+                ],
+            ],
+            'performance_series' => [
+                'periods' => [
+                    $this->periodSeries($business->id, 'last_14_days', '14 dias', $trendStart, $trendEnd, 'day'),
+                    $this->periodSeries($business->id, 'current_month', 'Mes', $monthStart, $todayEnd, 'day'),
+                    $this->periodSeries($business->id, 'current_year', 'Anio', $yearStart, $todayEnd, 'month'),
+                    $this->periodSeries($business->id, 'all_time', 'Total', $allTimeStart, $todayEnd, 'month'),
                 ],
             ],
             'daily_totals' => $dailyTotals->all(),
@@ -249,6 +260,120 @@ class DashboardController extends Controller
             'net_total' => round($salesTotal - $purchasesTotal, 2),
             'average_ticket' => round((float) ($sales?->average_ticket ?? 0), 2),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function periodSeries(
+        int $businessId,
+        string $key,
+        string $label,
+        Carbon $start,
+        Carbon $end,
+        string $granularity,
+    ): array {
+        $salesTotals = $this->totalsByBucket(Sale::class, $businessId, 'sold_at', $start, $end, $granularity);
+        $purchaseTotals = $this->totalsByBucket(Purchase::class, $businessId, 'purchased_at', $start, $end, $granularity);
+
+        $points = $this->seriesBuckets($start, $end, $granularity)
+            ->map(function (Carbon $bucket) use ($granularity, $salesTotals, $purchaseTotals): array {
+                $bucketKey = $granularity === 'month'
+                    ? $bucket->format('Y-m-01')
+                    : $bucket->toDateString();
+
+                $salesTotal = (float) ($salesTotals->get($bucketKey) ?? 0);
+                $purchasesTotal = (float) ($purchaseTotals->get($bucketKey) ?? 0);
+
+                return [
+                    'bucket' => $bucketKey,
+                    'label' => $granularity === 'month'
+                        ? $bucket->format('m/Y')
+                        : $bucket->format('d/m'),
+                    'sales_total' => $salesTotal,
+                    'purchases_total' => $purchasesTotal,
+                    'net_total' => round($salesTotal - $purchasesTotal, 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'key' => $key,
+            'label' => $label,
+            'granularity' => $granularity,
+            'range_label' => $start->format('d/m/Y').' - '.$end->format('d/m/Y'),
+            'points' => $points,
+        ];
+    }
+
+    /**
+     * @param  class-string  $model
+     * @return Collection<string, float>
+     */
+    private function totalsByBucket(
+        string $model,
+        int $businessId,
+        string $dateColumn,
+        Carbon $start,
+        Carbon $end,
+        string $granularity,
+    ): Collection {
+        $bucketExpression = $granularity === 'month'
+            ? $this->monthBucketExpression($dateColumn)
+            : "DATE({$dateColumn})";
+
+        return $model::query()
+            ->forBusiness($businessId)
+            ->selectRaw("{$bucketExpression} as bucket, COALESCE(SUM(total), 0) as total")
+            ->whereBetween($dateColumn, [$start, $end])
+            ->groupBy(DB::raw($bucketExpression))
+            ->pluck('total', 'bucket')
+            ->map(fn ($total): float => (float) $total);
+    }
+
+    /**
+     * @return Collection<int, Carbon>
+     */
+    private function seriesBuckets(Carbon $start, Carbon $end, string $granularity): Collection
+    {
+        $buckets = collect();
+        $cursor = $granularity === 'month'
+            ? $start->copy()->startOfMonth()
+            : $start->copy()->startOfDay();
+        $last = $granularity === 'month'
+            ? $end->copy()->startOfMonth()
+            : $end->copy()->startOfDay();
+
+        while ($cursor->lessThanOrEqualTo($last)) {
+            $buckets->push($cursor->copy());
+            $granularity === 'month' ? $cursor->addMonth() : $cursor->addDay();
+        }
+
+        return $buckets;
+    }
+
+    private function monthBucketExpression(string $dateColumn): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "strftime('%Y-%m-01', {$dateColumn})",
+            'pgsql' => "TO_CHAR({$dateColumn}, 'YYYY-MM-01')",
+            default => "DATE_FORMAT({$dateColumn}, '%Y-%m-01')",
+        };
+    }
+
+    private function firstActivityStart(int $businessId): Carbon
+    {
+        $firstDate = collect([
+            Sale::query()->forBusiness($businessId)->min('sold_at'),
+            Purchase::query()->forBusiness($businessId)->min('purchased_at'),
+        ])
+            ->filter()
+            ->map(fn ($date): Carbon => Carbon::parse($date))
+            ->sortBy(fn (Carbon $date): int => $date->timestamp)
+            ->first();
+
+        return $firstDate?->copy()->startOfMonth() ?? now()->startOfMonth();
     }
 
     /**
