@@ -21,11 +21,14 @@ use App\Http\Controllers\Purchases\PurchaseController;
 use App\Http\Controllers\Sales\QuickSaleOptionController;
 use App\Http\Controllers\Sales\SaleController;
 use App\Http\Controllers\Sales\SaleFiscalDocumentController;
+use App\Http\Controllers\SeoController;
 use App\Http\Controllers\Suppliers\SupplierController;
 use App\Http\Controllers\Users\BusinessUserController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
 Route::get('/', WelcomeController::class);
 
 Route::post('/webhooks/mercadopago/orders', [MercadoPagoWebhookController::class, 'orders'])
