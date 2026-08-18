@@ -6,7 +6,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'Gestor Comercial SaaS';
 const pageModules = import.meta.glob([
     './Pages/**/*.vue',
     '!./Pages/Auth/Register.vue',
@@ -19,7 +19,15 @@ const pageModules = import.meta.glob([
 ]);
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => {
+        const pageTitle = title?.trim();
+
+        if (!pageTitle) {
+            return appName;
+        }
+
+        return pageTitle.includes(appName) ? pageTitle : `${pageTitle} - ${appName}`;
+    },
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.vue`,

@@ -3,6 +3,7 @@ import { Head, Link } from '@inertiajs/vue3';
 
 const props = defineProps({
     canLogin: { type: Boolean, default: false },
+    seo: { type: Object, default: () => ({}) },
     whatsappUrl: { type: String, default: '' },
     heroHighlights: { type: Array, default: () => [] },
     coreFeatures: { type: Array, default: () => [] },
@@ -12,7 +13,7 @@ const props = defineProps({
 </script>
 
 <template>
-    <Head title="Gestor Comercial SaaS" />
+    <Head :title="props.seo.title || 'Gestor Comercial SaaS'" />
 
     <div class="landing text-slate-100">
         <div class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 md:px-10">
