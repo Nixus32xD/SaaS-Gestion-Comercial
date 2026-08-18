@@ -14,6 +14,8 @@ use App\Services\Fiscal\FiscalPointOfSaleOptionsService;
 use App\Services\UserAccessMailService;
 use App\Support\CommercialPlanCatalog;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -23,6 +25,8 @@ use Inertia\Response;
 
 class BusinessController extends Controller
 {
+    private const INDEX_PER_PAGE = 10;
+
     public function __construct(
         private readonly UserAccessMailService $userAccessMailService,
         private readonly BusinessBillingService $billingService,
@@ -30,8 +34,10 @@ class BusinessController extends Controller
         private readonly FiscalPointOfSaleOptionsService $fiscalPointOfSaleOptions,
     ) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $search = trim((string) $request->query('search', ''));
+
         $businesses = Business::query()
             ->withCount([
                 'users',
@@ -97,9 +103,18 @@ class BusinessController extends Controller
             ->values()
             ->map(fn (array $row): array => collect($row)->except('_sort_priority')->all());
 
+        if ($search !== '') {
+            $businessRows = $businessRows
+                ->filter(fn (array $row): bool => $this->businessRowMatchesSearch($row, $search))
+                ->values();
+        }
+
         return Inertia::render('Admin/Businesses/Index', [
-            'businesses' => $businessRows,
+            'businesses' => $this->paginateBusinessRows($businessRows, $request),
             'billing_overview' => $this->billingOverview($businessRows),
+            'filters' => [
+                'search' => $search,
+            ],
         ]);
     }
 
@@ -289,6 +304,18 @@ class BusinessController extends Controller
             ->with('success', 'Comercio actualizado correctamente.');
     }
 
+    public function archive(Business $business): RedirectResponse
+    {
+        DB::transaction(function () use ($business): void {
+            $business->forceFill(['is_active' => false])->save();
+            $business->delete();
+        });
+
+        return redirect()
+            ->route('admin.businesses.index')
+            ->with('success', 'Comercio archivado correctamente.');
+    }
+
     private function buildUniqueSlug(string $value, ?int $ignoreBusinessId = null): string
     {
         $baseSlug = Str::slug($value);
@@ -306,13 +333,61 @@ class BusinessController extends Controller
 
     private function slugExists(string $slug, ?int $ignoreBusinessId = null): bool
     {
-        return Business::query()
+        return Business::withTrashed()
             ->when(
                 $ignoreBusinessId !== null,
                 fn ($query) => $query->where('id', '!=', $ignoreBusinessId)
             )
             ->where('slug', $slug)
             ->exists();
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $businessRows
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    private function paginateBusinessRows(Collection $businessRows, Request $request): LengthAwarePaginator
+    {
+        $total = $businessRows->count();
+        $lastPage = max(1, (int) ceil($total / self::INDEX_PER_PAGE));
+        $page = min(
+            max(1, (int) $request->query('page', 1)),
+            $lastPage
+        );
+
+        return new LengthAwarePaginator(
+            $businessRows
+                ->slice(($page - 1) * self::INDEX_PER_PAGE, self::INDEX_PER_PAGE)
+                ->values(),
+            $total,
+            self::INDEX_PER_PAGE,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function businessRowMatchesSearch(array $row, string $search): bool
+    {
+        $term = Str::lower($search);
+        $adminUser = is_array($row['admin_user'] ?? null) ? $row['admin_user'] : [];
+        $maintenance = is_array($row['billing']['maintenance'] ?? null) ? $row['billing']['maintenance'] : [];
+
+        return collect([
+            $row['name'] ?? '',
+            $row['slug'] ?? '',
+            $row['email'] ?? '',
+            $row['owner_name'] ?? '',
+            $adminUser['name'] ?? '',
+            $adminUser['email'] ?? '',
+            $maintenance['plan_title'] ?? '',
+            $maintenance['status_label'] ?? '',
+        ])->contains(fn (mixed $value): bool => str_contains(Str::lower((string) $value), $term));
     }
 
     /**

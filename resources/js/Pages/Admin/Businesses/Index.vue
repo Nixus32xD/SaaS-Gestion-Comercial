@@ -1,36 +1,65 @@
 <script setup>
 import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 
 const props = defineProps({
     businesses: {
-        type: Array,
-        default: () => [],
+        type: [Array, Object],
+        default: () => ({ data: [] }),
     },
     billing_overview: {
         type: Array,
         default: () => [],
     },
+    filters: {
+        type: Object,
+        default: () => ({ search: '' }),
+    },
 });
 
-const search = ref('');
+const search = ref(props.filters.search || '');
 
-const filteredBusinesses = computed(() => {
-    const term = search.value.trim().toLowerCase();
+const businessRows = computed(() => (
+    Array.isArray(props.businesses?.data) ? props.businesses.data : props.businesses
+));
 
-    if (term === '') {
-        return props.businesses;
+const paginationLinks = computed(() => (
+    Array.isArray(props.businesses?.links) ? props.businesses.links : []
+));
+
+const hasPagination = computed(() => Number(props.businesses?.last_page || 1) > 1);
+
+const submitSearch = () => {
+    const term = search.value.trim();
+
+    router.get(
+        route('admin.businesses.index'),
+        term ? { search: term } : {},
+        { preserveState: true, replace: true },
+    );
+};
+
+const clearSearch = () => {
+    search.value = '';
+
+    router.get(route('admin.businesses.index'), {}, { preserveState: true, replace: true });
+};
+
+const archiveBusiness = (business) => {
+    const products = Number(business.products_count) || 0;
+    const message = products > 0
+        ? `Archivar "${business.name}"? Se ocultara del listado y se bloqueara el acceso, pero se conservan ${products} productos y su historial.`
+        : `Archivar "${business.name}"? Se ocultara del listado y se bloqueara el acceso.`;
+
+    if (!window.confirm(message)) {
+        return;
     }
 
-    return props.businesses.filter((business) => (
-        (business.name || '').toLowerCase().includes(term)
-        || (business.slug || '').toLowerCase().includes(term)
-        || (business.email || '').toLowerCase().includes(term)
-        || (business.billing?.maintenance?.plan_title || '').toLowerCase().includes(term)
-        || (business.billing?.maintenance?.status_label || '').toLowerCase().includes(term)
-    ));
-});
+    router.delete(route('admin.businesses.archive', business.id), {
+        preserveScroll: true,
+    });
+};
 
 const statusBadgeClass = (tone) => {
     if (tone === 'emerald') return 'bg-emerald-100 text-emerald-700';
@@ -74,12 +103,30 @@ const statusBadgeClass = (tone) => {
 
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <h3 class="text-base font-semibold text-slate-100">Listado</h3>
-                <input
-                    v-model="search"
-                    type="text"
-                    class="rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400"
-                    placeholder="Buscar por nombre, slug, email o plan"
-                >
+                <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <input
+                        v-model="search"
+                        type="text"
+                        class="rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400"
+                        placeholder="Buscar por nombre, slug, email o plan"
+                        @keydown.enter.prevent="submitSearch"
+                    >
+                    <button
+                        type="button"
+                        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                        @click="submitSearch"
+                    >
+                        Buscar
+                    </button>
+                    <button
+                        v-if="search"
+                        type="button"
+                        class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                        @click="clearSearch"
+                    >
+                        Limpiar
+                    </button>
+                </div>
             </div>
 
             <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
@@ -96,8 +143,8 @@ const statusBadgeClass = (tone) => {
                             <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
                         </tr>
                     </thead>
-                    <tbody v-if="filteredBusinesses.length" class="divide-y divide-slate-100">
-                        <tr v-for="business in filteredBusinesses" :key="business.id">
+                    <tbody v-if="businessRows.length" class="divide-y divide-slate-100">
+                        <tr v-for="business in businessRows" :key="business.id">
                             <td class="px-3 py-2">
                                 <p class="font-semibold text-slate-100">{{ business.name }}</p>
                                 <p class="text-xs text-slate-300/80">{{ business.slug }}</p>
@@ -140,12 +187,21 @@ const statusBadgeClass = (tone) => {
                             <td class="px-3 py-2 text-slate-200">{{ business.products_count }}</td>
                             <td class="px-3 py-2 text-slate-200">{{ business.suppliers_count }}</td>
                             <td class="px-3 py-2 text-right">
-                                <Link
-                                    :href="route('admin.businesses.edit', business.id)"
-                                    class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70"
-                                >
-                                    Editar
-                                </Link>
+                                <div class="flex justify-end gap-2">
+                                    <Link
+                                        :href="route('admin.businesses.edit', business.id)"
+                                        class="rounded-lg border border-cyan-100/25 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800/70"
+                                    >
+                                        Editar
+                                    </Link>
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border border-rose-200/35 px-3 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/15"
+                                        @click="archiveBusiness(business)"
+                                    >
+                                        Archivar
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
@@ -155,6 +211,32 @@ const statusBadgeClass = (tone) => {
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="mt-4 flex flex-col gap-3 border-t border-cyan-100/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm text-slate-300">
+                    Mostrando {{ props.businesses?.from || 0 }}-{{ props.businesses?.to || 0 }} de {{ props.businesses?.total || businessRows.length }} comercios
+                </p>
+
+                <nav v-if="hasPagination" class="flex flex-wrap gap-2">
+                    <template v-for="link in paginationLinks" :key="`${link.label}-${link.url}`">
+                        <Link
+                            v-if="link.url"
+                            :href="link.url"
+                            preserve-scroll
+                            class="rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                            :class="link.active
+                                ? 'border-cyan-200/50 bg-cyan-400/15 text-cyan-100'
+                                : 'border-cyan-100/20 text-slate-300 hover:bg-slate-800/70'"
+                            v-html="link.label"
+                        />
+                        <span
+                            v-else
+                            class="rounded-lg border border-cyan-100/10 px-3 py-1.5 text-xs font-semibold text-slate-500"
+                            v-html="link.label"
+                        />
+                    </template>
+                </nav>
             </div>
         </section>
     </AuthenticatedLayout>

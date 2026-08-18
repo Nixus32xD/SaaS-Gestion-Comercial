@@ -40,6 +40,7 @@ Route::middleware(['auth', 'superadmin'])
         Route::post('/businesses', [BusinessController::class, 'store'])->name('businesses.store');
         Route::get('/businesses/{business}/edit', [BusinessController::class, 'edit'])->name('businesses.edit');
         Route::put('/businesses/{business}', [BusinessController::class, 'update'])->name('businesses.update');
+        Route::delete('/businesses/{business}', [BusinessController::class, 'archive'])->name('businesses.archive');
         Route::put('/businesses/{business}/billing', [BusinessBillingController::class, 'update'])->name('businesses.billing.update');
         Route::post('/businesses/{business}/payments', [BusinessBillingController::class, 'storePayment'])->name('businesses.payments.store');
         Route::put('/businesses/{business}/sales-settings', [BusinessSalesSettingsController::class, 'update'])->name('businesses.sales-settings.update');
