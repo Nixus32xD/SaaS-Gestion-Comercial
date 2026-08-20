@@ -394,7 +394,7 @@ const priorityCards = computed(() => ([
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Resumen general</p>
                     <h2 class="mt-2 text-3xl font-bold text-slate-100">{{ greeting }}, {{ userFirstName }}</h2>
-                    <p class="mt-1 text-sm text-slate-300">{{ businessName }} - Periodo {{ selectedPeriod.range_label || 'sin movimientos' }}</p>
+                    <p class="mt-1 break-words text-sm text-slate-300">{{ businessName }} - Periodo {{ selectedPeriod.range_label || 'sin movimientos' }}</p>
                 </div>
                 <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                     <Link :href="route('sales.create')" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Nueva venta</Link>
@@ -411,7 +411,7 @@ const priorityCards = computed(() => ([
                         <p class="mt-1 text-sm font-semibold text-slate-100">{{ selectedPeriod.range_label || selectedSeries.range_label }}</p>
                     </div>
 
-                    <div class="grid gap-2 sm:grid-cols-4 xl:min-w-[34rem]">
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[34rem]">
                         <button
                             v-for="period in selectablePeriods"
                             :key="period.key"
@@ -457,11 +457,11 @@ const priorityCards = computed(() => ([
             <section class="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
+                        <div class="min-w-0">
                             <h3 class="text-base font-semibold text-slate-100">Evolucion de ventas y compras</h3>
                             <p class="mt-1 text-sm text-slate-300/80">{{ selectedSeriesMode }} - {{ selectedSeries.range_label }}</p>
                         </div>
-                        <div class="flex items-center gap-4 text-xs text-slate-300">
+                        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-300">
                             <span class="inline-flex items-center gap-1">
                                 <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
                                 Ventas
@@ -542,8 +542,8 @@ const priorityCards = computed(() => ([
                     <ul v-if="top_sold_products.length" class="mt-4 space-y-3 text-sm">
                         <li v-for="item in top_sold_products" :key="`${item.product_id}-${item.product_name}`">
                             <div class="mb-1 flex items-center justify-between gap-2">
-                                <span class="truncate font-medium text-slate-100">{{ item.product_name }}</span>
-                                <span class="text-xs text-slate-300">{{ item.sold_quantity }} {{ item.sold_quantity_label }}</span>
+                                <span class="min-w-0 flex-1 truncate font-medium text-slate-100">{{ item.product_name }}</span>
+                                <span class="shrink-0 text-right text-xs text-slate-300">{{ item.sold_quantity }} {{ item.sold_quantity_label }}</span>
                             </div>
                             <div class="h-2.5 rounded-full bg-slate-800">
                                 <div class="h-2.5 rounded-full bg-indigo-500" :style="{ width: topSoldWidth(item.sold_quantity) }"></div>
@@ -581,9 +581,9 @@ const priorityCards = computed(() => ([
                     <h3 class="text-base font-semibold text-slate-100">Ventas del mes por sector</h3>
                     <ul v-if="advanced_sales.sales_by_sector?.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="sector in advanced_sales.sales_by_sector" :key="sector.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
-                            <div class="flex items-center justify-between gap-3">
-                                <p class="font-medium text-slate-100">{{ sector.name }}</p>
-                                <p class="text-slate-200">{{ money(sector.total) }}</p>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <p class="min-w-0 break-words font-medium text-slate-100">{{ sector.name }}</p>
+                                <p class="shrink-0 text-right text-slate-200">{{ money(sector.total) }}</p>
                             </div>
                             <p class="mt-1 text-xs text-slate-300">{{ sector.sales_count }} ventas</p>
                         </li>
@@ -595,9 +595,9 @@ const priorityCards = computed(() => ([
                     <h3 class="text-base font-semibold text-slate-100">Cobros del mes por destino</h3>
                     <ul v-if="advanced_sales.sales_by_payment_destination?.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="destination in advanced_sales.sales_by_payment_destination" :key="destination.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
-                            <div class="flex items-center justify-between gap-3">
-                                <p class="font-medium text-slate-100">{{ destination.name }}</p>
-                                <p class="text-slate-200">{{ money(destination.total) }}</p>
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <p class="min-w-0 break-words font-medium text-slate-100">{{ destination.name }}</p>
+                                <p class="shrink-0 text-right text-slate-200">{{ money(destination.total) }}</p>
                             </div>
                             <p class="mt-1 text-xs text-slate-300">{{ destination.sales_count }} ventas</p>
                         </li>

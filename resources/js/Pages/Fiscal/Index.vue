@@ -422,12 +422,12 @@ const reconcileDocument = (document) => {
 
             <section class="grid gap-6 xl:grid-cols-2">
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
+                    <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0">
                             <h3 class="text-base font-semibold text-slate-100">Conexion fiscal</h3>
-                            <p class="mt-1 text-sm text-slate-300/80">{{ connection.message || 'API fiscal configurada para este comercio.' }}</p>
+                            <p class="mt-1 break-words text-sm text-slate-300/80">{{ connection.message || 'API fiscal configurada para este comercio.' }}</p>
                         </div>
-                        <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(connectionTone)">
+                        <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(connectionTone)">
                             {{ connection.status_label }}
                         </span>
                     </div>
@@ -435,11 +435,11 @@ const reconcileDocument = (document) => {
                     <dl class="mt-4 grid gap-3 text-sm text-slate-300">
                         <div>
                             <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Empresa fiscal</dt>
-                            <dd class="mt-1 font-semibold text-slate-100">{{ configuration.external_business_id }}</dd>
+                            <dd class="mt-1 break-words font-semibold text-slate-100">{{ configuration.external_business_id }}</dd>
                         </div>
                         <div>
                             <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">CUIT fiscal</dt>
-                            <dd class="mt-1 font-semibold text-slate-100">{{ fiscalCuitLabel }}</dd>
+                            <dd class="mt-1 break-words font-semibold text-slate-100">{{ fiscalCuitLabel }}</dd>
                         </div>
                         <div>
                             <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Puntos de venta API</dt>
@@ -489,12 +489,12 @@ const reconcileDocument = (document) => {
                 </article>
 
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
+                    <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0">
                             <h3 class="text-base font-semibold text-slate-100">Setup fiscal</h3>
                             <p class="mt-1 text-sm text-slate-300/80">Estado operativo informado por la API fiscal externa.</p>
                         </div>
-                        <span class="rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(setupTone)">
+                        <span class="shrink-0 rounded-full border px-3 py-1 text-xs font-semibold" :class="toneClass(setupTone)">
                             {{ setup.status_label }}
                         </span>
                     </div>
@@ -510,7 +510,7 @@ const reconcileDocument = (document) => {
                         </div>
                         <div v-if="setup.message">
                             <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Detalle</dt>
-                            <dd class="mt-1 font-semibold text-slate-100">{{ setup.message }}</dd>
+                            <dd class="mt-1 break-words font-semibold text-slate-100">{{ setup.message }}</dd>
                         </div>
                     </dl>
 
@@ -705,7 +705,7 @@ const reconcileDocument = (document) => {
                             <input
                                 type="file"
                                 accept=".crt,.cer,.pem,text/plain,application/x-x509-ca-cert"
-                                class="rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyan-100"
+                                class="min-w-0 w-full rounded-lg border border-cyan-100/20 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-cyan-400/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-cyan-100"
                                 @change="loadCertificateFile"
                                 :disabled="hasLoadedCertificate"
                             >
@@ -754,23 +754,23 @@ const reconcileDocument = (document) => {
                     </div>
                     <div>
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Punto de venta</dt>
-                        <dd class="mt-1 font-semibold text-slate-100">{{ configuration.point_of_sale }}</dd>
+                        <dd class="mt-1 break-words font-semibold text-slate-100">{{ configuration.point_of_sale }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Documento</dt>
-                        <dd class="mt-1 font-semibold text-slate-100">{{ configuration.document_type }}</dd>
+                        <dd class="mt-1 break-words font-semibold text-slate-100">{{ configuration.document_type }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Tipo fiscal</dt>
-                        <dd class="mt-1 font-semibold text-slate-100">{{ configuration.cbte_type }}</dd>
+                        <dd class="mt-1 break-words font-semibold text-slate-100">{{ configuration.cbte_type }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Concepto</dt>
-                        <dd class="mt-1 font-semibold text-slate-100">{{ conceptLabel }}</dd>
+                        <dd class="mt-1 break-words font-semibold text-slate-100">{{ conceptLabel }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Modo autorizacion</dt>
-                        <dd class="mt-1 font-semibold text-slate-100">{{ authorizationModeLabel }}</dd>
+                        <dd class="mt-1 break-words font-semibold text-slate-100">{{ authorizationModeLabel }}</dd>
                     </div>
                     <div v-if="configuration.authorization_mode === 'caea'">
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">CAEA vigente</dt>
@@ -781,7 +781,7 @@ const reconcileDocument = (document) => {
                     </div>
                     <div class="md:col-span-2">
                         <dt class="text-xs uppercase tracking-[0.18em] text-slate-400">Actividades configuradas</dt>
-                        <dd class="mt-1 font-semibold text-slate-100">{{ compactList(configuration.activities || []) }}</dd>
+                        <dd class="mt-1 break-words font-semibold text-slate-100">{{ compactList(configuration.activities || []) }}</dd>
                     </div>
                 </dl>
             </section>
@@ -857,7 +857,7 @@ const reconcileDocument = (document) => {
                         </span>
                     </div>
 
-                    <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                    <div class="mt-4 hidden overscroll-x-contain overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">
                             <thead class="bg-slate-950/35">
                                 <tr>
@@ -898,6 +898,44 @@ const reconcileDocument = (document) => {
                             </tbody>
                         </table>
                     </div>
+
+                    <div class="mt-4 grid gap-3 md:hidden">
+                        <article
+                            v-for="record in ivaRecords"
+                            :key="record.id || `${record.cbte_type}-${record.point_of_sale}-${record.number}`"
+                            class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm"
+                        >
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-xs uppercase tracking-[0.16em] text-slate-400">{{ record.voucher_date || '-' }}</p>
+                                    <p class="mt-1 break-words font-semibold text-slate-100">{{ voucherLabel(record) }}</p>
+                                    <p class="mt-1 break-words text-slate-300">{{ record.counterparty_name || 'Consumidor final' }}</p>
+                                    <p v-if="record.counterparty_cuit" class="mt-1 text-xs text-slate-400">{{ formatCuit(record.counterparty_cuit) }}</p>
+                                </div>
+                                <p class="shrink-0 text-right font-semibold text-slate-100">{{ money(record.amounts?.imp_total) }}</p>
+                            </div>
+
+                            <dl class="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
+                                <div class="rounded-lg border border-cyan-100/10 bg-slate-900/35 px-3 py-2">
+                                    <dt class="uppercase tracking-wide text-slate-500">Neto</dt>
+                                    <dd class="mt-1 font-semibold text-slate-100">{{ money(record.amounts?.imp_neto) }}</dd>
+                                </div>
+                                <div class="rounded-lg border border-cyan-100/10 bg-slate-900/35 px-3 py-2">
+                                    <dt class="uppercase tracking-wide text-slate-500">IVA</dt>
+                                    <dd class="mt-1 font-semibold text-slate-100">{{ money(record.amounts?.imp_iva) }}</dd>
+                                </div>
+                            </dl>
+
+                            <div v-if="record.iva_items?.length" class="mt-3 flex flex-wrap gap-2">
+                                <span v-for="item in record.iva_items" :key="item.id" class="rounded-lg border border-cyan-100/15 px-2 py-1 text-xs text-slate-300">
+                                    IVA {{ ivaRateLabel(item.rate) }}: {{ money(item.importe) }}
+                                </span>
+                            </div>
+                        </article>
+                        <div v-if="!ivaRecords.length" class="rounded-xl border border-cyan-100/15 bg-slate-950/35 px-4 py-6 text-center text-sm text-slate-400">
+                            Sin comprobantes autorizados para el periodo.
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -912,7 +950,7 @@ const reconcileDocument = (document) => {
                     </Link>
                 </div>
 
-                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                <div class="mt-4 hidden overscroll-x-contain overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>
@@ -976,7 +1014,74 @@ const reconcileDocument = (document) => {
                                 <td colspan="6" class="px-3 py-6 text-center text-slate-400">Todavia no hay comprobantes fiscales emitidos.</td>
                             </tr>
                         </tbody>
-                    </table>
+                        </table>
+                    </div>
+
+                <div class="mt-4 grid gap-3 md:hidden">
+                    <article
+                        v-for="document in documents"
+                        :key="document.id"
+                        class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm"
+                    >
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <Link :href="route('sales.show', document.sale_id)" class="break-words font-semibold text-cyan-100 hover:text-cyan-50">
+                                    {{ document.sale_number || `Venta #${document.sale_id}` }}
+                                </Link>
+                                <p class="mt-1 text-xs text-slate-400">{{ document.sold_at || '-' }} - intento {{ document.attempt_number }}</p>
+                            </div>
+                            <span class="shrink-0 rounded-full border px-2 py-1 text-xs font-semibold" :class="statusClass(document.status)">
+                                {{ statusLabel(document.status) }}
+                            </span>
+                        </div>
+
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
+                            <div class="rounded-lg border border-cyan-100/10 bg-slate-900/35 px-3 py-2">
+                                <p class="uppercase tracking-wide text-slate-500">Comprobante</p>
+                                <p class="mt-1 break-words text-slate-100">{{ voucherLabel(document) }}</p>
+                            </div>
+                            <div class="rounded-lg border border-cyan-100/10 bg-slate-900/35 px-3 py-2">
+                                <p class="uppercase tracking-wide text-slate-500">Total</p>
+                                <p class="mt-1 font-semibold text-slate-100">{{ money(document.sale_total) }}</p>
+                            </div>
+                            <div class="col-span-2 rounded-lg border border-cyan-100/10 bg-slate-900/35 px-3 py-2">
+                                <p class="uppercase tracking-wide text-slate-500">Autorizacion</p>
+                                <p class="mt-1 break-words text-slate-100">{{ authorizationTypeLabel(document) }} {{ authorizationCode(document) }}</p>
+                                <p v-if="authorizationExpiresAt(document)" class="mt-1 text-slate-400">Vence {{ authorizationExpiresAt(document) }}</p>
+                                <p v-if="document.caea_report_status" class="mt-1 text-amber-100">Reporte CAEA: {{ document.caea_report_status }}</p>
+                            </div>
+                        </div>
+
+                        <div v-if="document.error_message || document.error_action" class="mt-3 rounded-lg border border-rose-200/20 bg-rose-400/10 px-3 py-2 text-xs">
+                            <p v-if="document.error_message" class="break-words text-rose-200">{{ document.error_message }}</p>
+                            <p v-if="document.error_action" class="mt-1 break-words text-slate-400">Accion: {{ document.error_action }}</p>
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <button
+                                v-if="document.can_reconcile"
+                                type="button"
+                                class="rounded-lg border border-amber-200/45 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-400/10"
+                                @click="reconcileDocument(document)"
+                            >
+                                Conciliar
+                            </button>
+                            <button
+                                v-if="document.can_retry"
+                                type="button"
+                                class="rounded-lg border border-emerald-200/45 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/10"
+                                @click="retryDocument(document)"
+                            >
+                                Reintentar
+                            </button>
+                            <Link :href="route('sales.show', document.sale_id)" class="rounded-lg border border-cyan-100/25 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800/70">
+                                Ver venta
+                            </Link>
+                        </div>
+                    </article>
+                    <div v-if="!documents.length" class="rounded-xl border border-cyan-100/15 bg-slate-950/35 px-4 py-6 text-center text-sm text-slate-400">
+                        Todavia no hay comprobantes fiscales emitidos.
+                    </div>
                 </div>
             </section>
         </div>
