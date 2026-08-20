@@ -102,7 +102,7 @@ const closePage = () => window.close();
                     </div>
                 </div>
 
-                <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+                <div class="mt-6 overflow-x-auto rounded-2xl border border-slate-200 print:overflow-visible">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50">
                             <tr>

@@ -1846,7 +1846,7 @@ onBeforeUnmount(() => {
                                     {{ form.errors.amount_received }}
                                 </p>
                             </div>
-                            <div class="grid grid-cols-4 gap-2">
+                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 <button type="button" class="rounded-lg border border-cyan-100/25 px-2 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('exact')">Exacto</button>
                                 <button type="button" class="rounded-lg border border-cyan-100/25 px-2 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 500)">+500</button>
                                 <button type="button" class="rounded-lg border border-cyan-100/25 px-2 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/70" @click="applyQuickAmount('add', 1000)">+1000</button>
