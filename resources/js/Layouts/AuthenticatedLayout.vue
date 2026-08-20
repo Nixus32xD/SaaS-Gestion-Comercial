@@ -143,7 +143,7 @@ const closeSidebar = () => {
                 </div>
             </header>
 
-            <main class="px-4 py-6 sm:px-6 lg:px-8">
+            <main class="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
                 <header
                     v-if="$slots.header"
                     class="mb-6 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-4 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur sm:p-5"

@@ -18,7 +18,7 @@ const cardClass = computed(() => {
     };
 
     return [
-        'rounded-2xl border p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur',
+        'min-w-0 rounded-2xl border p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur',
         toneClasses[props.tone] || toneClasses.default,
     ];
 });
@@ -35,9 +35,9 @@ const valueClass = computed(() => ({
 <template>
     <article :class="cardClass">
         <div class="flex items-start justify-between gap-3">
-            <div>
+            <div class="min-w-0">
                 <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">{{ label }}</p>
-                <p class="mt-2 text-3xl font-bold" :class="valueClass">{{ value }}</p>
+                <p class="mt-2 break-words text-3xl font-bold" :class="valueClass">{{ value }}</p>
             </div>
             <slot name="badge" />
         </div>

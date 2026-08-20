@@ -27,7 +27,7 @@ const panelClass = computed(() => {
     };
 
     return [
-        'rounded-2xl border shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur',
+        'min-w-0 rounded-2xl border shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur',
         toneClasses[props.tone] || toneClasses.default,
         paddingClasses[props.padding] || paddingClasses.md,
     ];

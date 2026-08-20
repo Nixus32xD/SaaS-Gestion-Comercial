@@ -393,7 +393,7 @@ const priorityCards = computed(() => ([
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Resumen general</p>
-                    <h2 class="mt-2 text-3xl font-bold text-slate-100">{{ greeting }}, {{ userFirstName }}</h2>
+                    <h2 class="mt-2 break-words text-3xl font-bold text-slate-100">{{ greeting }}, {{ userFirstName }}</h2>
                     <p class="mt-1 break-words text-sm text-slate-300">{{ businessName }} - Periodo {{ selectedPeriod.range_label || 'sin movimientos' }}</p>
                 </div>
                 <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -403,7 +403,7 @@ const priorityCards = computed(() => ([
             </div>
         </template>
 
-        <div class="grid gap-6">
+        <div class="min-w-0 grid gap-6">
             <AppPanel padding="sm">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
@@ -455,7 +455,7 @@ const priorityCards = computed(() => ([
             </section>
 
             <section class="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
+                <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div class="min-w-0">
                             <h3 class="text-base font-semibold text-slate-100">Evolucion de ventas y compras</h3>
@@ -503,7 +503,7 @@ const priorityCards = computed(() => ([
                     <p v-else class="mt-3 text-sm text-slate-300">Sin datos para graficar.</p>
                 </article>
 
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                     <h3 class="text-base font-semibold text-slate-100">Composicion del periodo</h3>
                     <p class="mt-1 text-sm text-slate-300/80">{{ selectedPeriod.label }}</p>
 
@@ -536,7 +536,7 @@ const priorityCards = computed(() => ([
                     </dl>
                 </article>
 
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                     <h3 class="text-base font-semibold text-slate-100">Productos mas vendidos</h3>
                     <p class="mt-1 text-sm text-slate-300/80">Referencia para reposicion y compras.</p>
                     <ul v-if="top_sold_products.length" class="mt-4 space-y-3 text-sm">
@@ -561,7 +561,7 @@ const priorityCards = computed(() => ([
                 </template>
 
                 <div class="grid gap-2 xl:grid-cols-3">
-                    <article v-for="card in priorityCards" :key="card.key" class="rounded-xl border border-cyan-100/15 bg-slate-950/30 p-3">
+                    <article v-for="card in priorityCards" :key="card.key" class="min-w-0 rounded-xl border border-cyan-100/15 bg-slate-950/30 p-3">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <h3 class="truncate text-sm font-semibold text-slate-100">{{ card.title }}</h3>
@@ -577,7 +577,7 @@ const priorityCards = computed(() => ([
             </AppPanel>
 
             <section v-if="advancedSalesEnabled" class="grid gap-4 lg:grid-cols-2">
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                     <h3 class="text-base font-semibold text-slate-100">Ventas del mes por sector</h3>
                     <ul v-if="advanced_sales.sales_by_sector?.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="sector in advanced_sales.sales_by_sector" :key="sector.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
@@ -591,7 +591,7 @@ const priorityCards = computed(() => ([
                     <p v-else class="mt-3 text-sm text-slate-300">Sin ventas sectorizadas este mes.</p>
                 </article>
 
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                     <h3 class="text-base font-semibold text-slate-100">Cobros del mes por destino</h3>
                     <ul v-if="advanced_sales.sales_by_payment_destination?.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="destination in advanced_sales.sales_by_payment_destination" :key="destination.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
@@ -607,10 +607,10 @@ const priorityCards = computed(() => ([
             </section>
 
             <section class="grid gap-4 lg:grid-cols-3">
-                <article class="rounded-2xl border border-amber-200/40 bg-amber-300/12 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-3">
+                <article class="min-w-0 rounded-2xl border border-amber-200/40 bg-amber-300/12 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-3">
                     <h3 class="text-base font-semibold text-amber-100">Alertas de vencimiento</h3>
                     <div v-if="expirationGroups.length" class="mt-4 grid gap-4 xl:grid-cols-3">
-                        <section v-for="group in expirationGroups" :key="group.key" class="rounded-xl border border-amber-200/20 bg-slate-950/30 p-3">
+                        <section v-for="group in expirationGroups" :key="group.key" class="min-w-0 rounded-xl border border-amber-200/20 bg-slate-950/30 p-3">
                             <div class="flex items-center justify-between gap-2">
                                 <h4 class="text-sm font-semibold text-slate-100">{{ group.title }}</h4>
                                 <span class="rounded-full border border-slate-600/70 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
@@ -627,8 +627,8 @@ const priorityCards = computed(() => ([
                                 >
                                     <div class="flex flex-wrap items-start justify-between gap-2">
                                         <div class="min-w-0">
-                                            <p class="font-medium text-slate-100">{{ item.product_name }}</p>
-                                            <p class="mt-1 text-xs text-slate-300">
+                                            <p class="break-words font-medium text-slate-100">{{ item.product_name }}</p>
+                                            <p class="mt-1 break-words text-xs text-slate-300">
                                                 <span v-if="item.batch_code">Lote {{ item.batch_code }}</span>
                                                 <span v-if="item.quantity" class="ml-2">Stock {{ item.quantity }}</span>
                                                 <span class="ml-2">Vence {{ item.expires_at }}</span>
@@ -648,22 +648,22 @@ const priorityCards = computed(() => ([
                     <p v-else class="mt-3 text-sm text-slate-300">No hay productos proximos a vencer.</p>
                 </article>
 
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                     <h3 class="text-base font-semibold text-slate-100">Productos con stock bajo</h3>
                     <ul v-if="low_stock_products.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="product in low_stock_products" :key="product.id" class="rounded-lg border border-rose-300/40 bg-rose-400/12 px-3 py-2 text-rose-100">
-                            {{ product.name }} - actual {{ product.stock }} / minimo {{ product.min_stock }}
+                            <span class="break-words">{{ product.name }} - actual {{ product.stock }} / minimo {{ product.min_stock }}</span>
                         </li>
                     </ul>
                     <p v-else class="mt-3 text-sm text-slate-300">No hay alertas de stock bajo.</p>
                 </article>
 
-                <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+                <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                     <h3 class="text-base font-semibold text-slate-100">Ultimas ventas</h3>
                     <ul v-if="latest_sales.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="sale in latest_sales" :key="sale.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
-                            <p class="font-medium text-slate-100">{{ sale.sale_number || `Venta #${sale.id}` }} - {{ money(sale.total) }}</p>
-                            <p class="text-xs text-slate-300">{{ sale.sold_at }} - {{ sale.user || '-' }}</p>
+                            <p class="break-words font-medium text-slate-100">{{ sale.sale_number || `Venta #${sale.id}` }} - {{ money(sale.total) }}</p>
+                            <p class="break-words text-xs text-slate-300">{{ sale.sold_at }} - {{ sale.user || '-' }}</p>
                             <p v-if="advancedSalesEnabled" class="mt-1 text-xs text-slate-400">
                                 {{ sale.sale_sector || 'Sin sector' }} | {{ sale.payment_destination || 'Sin destino' }}
                             </p>
@@ -673,12 +673,12 @@ const priorityCards = computed(() => ([
                 </article>
             </section>
 
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
+            <section class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur">
                 <h3 class="text-base font-semibold text-slate-100">Ultimas compras</h3>
                 <ul v-if="latest_purchases.length" class="mt-3 space-y-2 text-sm">
                     <li v-for="purchase in latest_purchases" :key="purchase.id" class="rounded-lg border border-cyan-100/20 bg-slate-950/40 px-3 py-2">
-                        <p class="font-medium text-slate-100">{{ purchase.purchase_number || `Compra #${purchase.id}` }} - {{ money(purchase.total) }}</p>
-                        <p class="text-xs text-slate-300">{{ purchase.purchased_at }} - {{ purchase.supplier || 'Sin proveedor' }}</p>
+                        <p class="break-words font-medium text-slate-100">{{ purchase.purchase_number || `Compra #${purchase.id}` }} - {{ money(purchase.total) }}</p>
+                        <p class="break-words text-xs text-slate-300">{{ purchase.purchased_at }} - {{ purchase.supplier || 'Sin proveedor' }}</p>
                     </li>
                 </ul>
                 <p v-else class="mt-3 text-sm text-slate-300">Sin compras recientes.</p>
