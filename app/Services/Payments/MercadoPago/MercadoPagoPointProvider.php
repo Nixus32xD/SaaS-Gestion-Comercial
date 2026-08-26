@@ -10,6 +10,7 @@ use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\User;
 use App\Services\Payments\PaymentService;
+use App\Services\SaleStockReservationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -20,12 +21,18 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
         private readonly MercadoPagoOrdersClient $client,
         private readonly PaymentService $paymentService,
         private readonly MercadoPagoSettingsResolver $settingsResolver,
+        private readonly SaleStockReservationService $stockReservationService,
     ) {}
 
     public function createOrder(Business $business, Sale $sale, User $user, string $method): Payment
     {
         $settings = $this->settingsResolver->forBusiness($business);
         $this->assertConfigured($settings);
+        $sale->refresh();
+
+        if ($sale->stock_reservation_status !== null) {
+            $this->stockReservationService->reserve($sale);
+        }
 
         $payment = DB::transaction(function () use ($business, $sale, $user, $method): Payment {
             $lockedSale = Sale::query()

@@ -19,6 +19,12 @@ class FiscalSaleDocumentService
     {
         $sale->loadMissing(['business', 'items.product', 'latestFiscalDocument']);
 
+        if ($sale->stock_reservation_status === Sale::STOCK_RESERVATION_RESERVED) {
+            throw ValidationException::withMessages([
+                'fiscal' => 'La venta Point todavia espera la aprobacion del pago.',
+            ]);
+        }
+
         $business = $sale->business;
         if (! (bool) config('fiscal.enabled') || ! $business->hasElectronicBilling()) {
             throw ValidationException::withMessages([

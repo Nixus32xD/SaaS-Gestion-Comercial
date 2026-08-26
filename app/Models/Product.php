@@ -46,6 +46,7 @@ class Product extends Model
         'vat_treatment',
         'vat_rate',
         'stock',
+        'reserved_stock',
         'min_stock',
         'shelf_life_days',
         'expiry_alert_days',
@@ -64,6 +65,7 @@ class Product extends Model
             'vat_rate' => 'decimal:2',
             'weight_unit' => 'string',
             'stock' => 'decimal:3',
+            'reserved_stock' => 'decimal:3',
             'min_stock' => 'decimal:3',
             'shelf_life_days' => 'int',
             'expiry_alert_days' => 'int',
@@ -117,6 +119,11 @@ class Product extends Model
     public function batchCorrections(): HasMany
     {
         return $this->hasMany(ProductBatchCorrection::class);
+    }
+
+    public function availableStock(): float
+    {
+        return max(0, round((float) $this->stock - (float) $this->reserved_stock, 3));
     }
 
     /**

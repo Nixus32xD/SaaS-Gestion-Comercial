@@ -5,6 +5,7 @@ namespace App\Services\Payments\MercadoPago;
 use App\Enums\Payments\PaymentStatus;
 use App\Models\Payment;
 use App\Models\SaleFiscalDocument;
+use App\Services\SaleStockReservationService;
 use App\Services\Fiscal\FiscalSaleDocumentService;
 use Throwable;
 
@@ -12,14 +13,11 @@ class MercadoPagoPaymentCompletionService
 {
     public function __construct(
         private readonly FiscalSaleDocumentService $fiscalSaleDocumentService,
+        private readonly SaleStockReservationService $stockReservationService,
     ) {}
 
     public function complete(Payment $payment): void
     {
-        if ($payment->status !== PaymentStatus::Approved->value) {
-            return;
-        }
-
         $payment->loadMissing(['sale.business', 'sale.latestFiscalDocument']);
         $sale = $payment->sale;
         $business = $sale?->business;
@@ -28,6 +26,22 @@ class MercadoPagoPaymentCompletionService
             return;
         }
 
+        $sale->refresh()->loadMissing(['business', 'latestFiscalDocument']);
+
+        if (in_array($payment->status, [
+            PaymentStatus::Rejected->value,
+            PaymentStatus::Cancelled->value,
+        ], true)) {
+            $this->stockReservationService->release($sale);
+
+            return;
+        }
+
+        if ($payment->status !== PaymentStatus::Approved->value) {
+            return;
+        }
+
+        $this->stockReservationService->consume($sale);
         $sale->refresh()->loadMissing(['business', 'latestFiscalDocument']);
 
         if (round((float) $sale->pending_amount, 2) > 0) {

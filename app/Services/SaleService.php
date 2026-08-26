@@ -28,6 +28,7 @@ class SaleService
         private readonly CustomerAccountService $customerAccountService,
         private readonly FiscalVatCalculator $vatCalculator,
         private readonly PaymentService $paymentService,
+        private readonly SaleStockReservationService $stockReservationService,
     ) {}
 
     /**
@@ -120,7 +121,7 @@ class SaleService
                     continue;
                 }
 
-                if ((float) $product->stock < $requestedQty) {
+                if ($product->availableStock() < $requestedQty) {
                     throw ValidationException::withMessages([
                         'items' => "Stock insuficiente para {$product->name}.",
                     ]);
@@ -207,6 +208,10 @@ class SaleService
                     continue;
                 }
 
+                if ($usesMercadoPagoPoint) {
+                    continue;
+                }
+
                 $productId = (int) $lineItem['product_id'];
                 $before = (float) $stocks->get($productId, 0);
                 $after = round($before - (float) $lineItem['quantity'], 3);
@@ -241,9 +246,13 @@ class SaleService
                 ]);
             }
 
-            foreach ($products as $product) {
-                $product->stock = (float) $stocks->get($product->id, 0);
-                $product->save();
+            if ($usesMercadoPagoPoint) {
+                $this->stockReservationService->reserve($sale);
+            } else {
+                foreach ($products as $product) {
+                    $product->stock = (float) $stocks->get($product->id, 0);
+                    $product->save();
+                }
             }
 
             if (! $usesMercadoPagoPoint && $paidAmount > 0 && $paymentMethod !== null) {
@@ -276,7 +285,7 @@ class SaleService
                 );
             }
 
-            return $sale->load(['items', 'user', 'saleSector', 'paymentDestination', 'customer']);
+            return $sale->refresh()->load(['items', 'user', 'saleSector', 'paymentDestination', 'customer']);
         });
     }
 

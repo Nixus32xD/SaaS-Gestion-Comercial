@@ -7,8 +7,10 @@ use App\Models\PaymentEvent;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\Fiscal\FiscalSaleDocumentService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 
 test('authenticated business user can create a Mercado Pago Point order for a pending sale', function () {
     $business = Business::factory()->create();
@@ -114,6 +116,115 @@ test('business user can create a sale and send a QR order to Mercado Pago Point 
             && $payload['config']['payment_method']['default_type'] === 'qr'
             && $payload['transactions']['payments'][0]['amount'] === '2100.00';
     });
+});
+
+test('Mercado Pago Point reserves stock and consumes it only once after approval', function () {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+
+    Http::fake([
+        'https://api.mercadopago.com/v1/orders' => Http::response([
+            'id' => 'ORD01RESERVED',
+            'status' => 'created',
+            'transactions' => ['payments' => [['id' => 'PAY01RESERVED']]],
+        ], 201),
+    ]);
+
+    $this->actingAs($admin)->post(route('sales.store'), [
+        'payment_status' => Sale::PAYMENT_STATUS_PAID,
+        'payment_provider' => 'mercadopago_point',
+        'payment_method' => Payment::METHOD_QR,
+        'items' => [[
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 1000,
+        ]],
+    ])->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+    $payment = Payment::query()->firstOrFail();
+
+    expect($sale->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_RESERVED);
+    expect((float) $product->fresh()->stock)->toBe(5.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(1.0);
+    expect(fn () => app(FiscalSaleDocumentService::class)->issue($sale))
+        ->toThrow(ValidationException::class);
+
+    $payload = [
+        'id' => 'notification-reserved-approved',
+        'action' => 'order.processed',
+        'type' => 'order',
+        'data' => [
+            'id' => 'ORD01RESERVED',
+            'external_reference' => $payment->external_reference,
+            'status' => 'processed',
+            'transactions' => ['payments' => [['id' => 'PAY01RESERVED', 'status' => 'processed']]],
+        ],
+    ];
+
+    $headers = signedMercadoPagoHeaders('ORD01RESERVED', 'request-reserved-approved');
+
+    $this->postJson(route('webhooks.mercadopago.orders', ['data.id' => 'ORD01RESERVED']), $payload, $headers)->assertOk();
+    $this->postJson(route('webhooks.mercadopago.orders', ['data.id' => 'ORD01RESERVED']), $payload, $headers)->assertOk();
+
+    expect($sale->fresh()->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_CONSUMED);
+    expect((float) $product->fresh()->stock)->toBe(4.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+    expect(\App\Models\StockMovement::query()->count())->toBe(1);
+});
+
+test('Mercado Pago Point releases reserved stock when the order is rejected', function () {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+
+    Http::fake([
+        'https://api.mercadopago.com/v1/orders' => Http::response([
+            'id' => 'ORD01REJECTED',
+            'status' => 'created',
+            'transactions' => ['payments' => [['id' => 'PAY01REJECTED']]],
+        ], 201),
+    ]);
+
+    $this->actingAs($admin)->post(route('sales.store'), [
+        'payment_status' => Sale::PAYMENT_STATUS_PAID,
+        'payment_provider' => 'mercadopago_point',
+        'payment_method' => Payment::METHOD_DEBIT_CARD,
+        'items' => [[
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 1000,
+        ]],
+    ])->assertRedirect();
+
+    $payment = Payment::query()->firstOrFail();
+    $payload = [
+        'id' => 'notification-reserved-rejected',
+        'action' => 'order.failed',
+        'type' => 'order',
+        'data' => [
+            'id' => 'ORD01REJECTED',
+            'external_reference' => $payment->external_reference,
+            'status' => 'failed',
+            'transactions' => ['payments' => [['id' => 'PAY01REJECTED', 'status' => 'failed']]],
+        ],
+    ];
+
+    $this->postJson(
+        route('webhooks.mercadopago.orders', ['data.id' => 'ORD01REJECTED']),
+        $payload,
+        signedMercadoPagoHeaders('ORD01REJECTED', 'request-reserved-rejected')
+    )->assertOk();
+
+    expect(Sale::query()->firstOrFail()->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_RELEASED);
+    expect((float) $product->fresh()->stock)->toBe(5.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+    expect(\App\Models\StockMovement::query()->count())->toBe(0);
 });
 
 test('Mercado Pago Point uses enabled business credentials before global config', function () {

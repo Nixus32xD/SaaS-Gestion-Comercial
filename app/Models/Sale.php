@@ -20,6 +20,12 @@ class Sale extends Model
 
     public const PAYMENT_STATUS_PENDING = 'pending';
 
+    public const STOCK_RESERVATION_RESERVED = 'reserved';
+
+    public const STOCK_RESERVATION_CONSUMED = 'consumed';
+
+    public const STOCK_RESERVATION_RELEASED = 'released';
+
     public const PAYMENT_METHOD_CASH = 'cash';
 
     public const PAYMENT_METHOD_TRANSFER = 'transfer';
@@ -63,6 +69,7 @@ class Sale extends Model
         'sale_number',
         'payment_method',
         'payment_status',
+        'stock_reservation_status',
         'payment_destination_id',
         'amount_received',
         'change_amount',
@@ -90,6 +97,7 @@ class Sale extends Model
         return [
             'payment_method' => 'string',
             'payment_status' => 'string',
+            'stock_reservation_status' => 'string',
             'fiscal_customer' => 'array',
             'amount_received' => 'decimal:2',
             'change_amount' => 'decimal:2',

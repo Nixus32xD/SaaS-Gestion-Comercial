@@ -325,8 +325,7 @@ class ProductController extends Controller
         $categoryId = $this->resolveCategoryId($business->id, $data['category_id'] ?? null);
         $supplierId = $this->resolveSupplierId($business->id, $data['supplier_id'] ?? null);
 
-        $beforeStock = round((float) $product->stock, 3);
-        $newStock = round((float) ($data['stock'] ?? $beforeStock), 3);
+        $newStock = round((float) ($data['stock'] ?? $product->stock), 3);
 
         DB::transaction(function () use (
             $product,
@@ -335,10 +334,22 @@ class ProductController extends Controller
             $data,
             $business,
             $newStock,
-            $beforeStock,
             $request,
             $productBatchService
         ): void {
+            $product = Product::query()
+                ->forBusiness($business->id)
+                ->whereKey($product->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $beforeStock = round((float) $product->stock, 3);
+
+            if ($newStock < (float) $product->reserved_stock) {
+                throw ValidationException::withMessages([
+                    'stock' => 'El stock no puede ser menor que las unidades reservadas para cobros Point pendientes.',
+                ]);
+            }
+
             $product->update([
                 'category_id' => $categoryId,
                 'supplier_id' => $supplierId,

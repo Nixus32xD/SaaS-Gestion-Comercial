@@ -1065,7 +1065,7 @@ class SaleController extends Controller
             'vat_treatment' => $product->vat_treatment,
             'vat_rate' => (float) $product->vat_rate,
             'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
-            'stock' => (float) $product->stock,
+            'stock' => $product->availableStock(),
         ];
     }
 }
