@@ -101,6 +101,7 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
     Route::post('/sales/{sale}/payments/mercadopago-point', [MercadoPagoPointController::class, 'store'])->name('sales.payments.mercadopago-point.store');
     Route::get('/sales/{sale}/payments/{payment}/mercadopago-point', [MercadoPagoPointController::class, 'show'])->name('sales.payments.mercadopago-point.show');
+    Route::post('/sales/{sale}/payments/{payment}/mercadopago-point/cancel', [MercadoPagoPointController::class, 'cancel'])->name('sales.payments.mercadopago-point.cancel');
     Route::post('/sales/{sale}/fiscal-documents', [SaleFiscalDocumentController::class, 'store'])->name('sales.fiscal-documents.store');
     Route::get('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/pdf', [SaleFiscalDocumentController::class, 'downloadPdf'])->name('sales.fiscal-documents.pdf');
     Route::post('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/reconcile', [SaleFiscalDocumentController::class, 'reconcile'])->name('sales.fiscal-documents.reconcile');

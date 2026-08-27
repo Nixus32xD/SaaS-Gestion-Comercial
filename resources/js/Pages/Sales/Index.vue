@@ -30,12 +30,31 @@ const moneyFormatter = new Intl.NumberFormat('es-AR', {
 
 const money = (value) => moneyFormatter.format(Number(value) || 0);
 
-const paymentStatusLabel = (value) => {
+const paymentStatusLabel = (sale) => {
+    const pointLabels = {
+        pending: 'Pendiente Point',
+        approved: 'Pagada Point',
+        rejected: 'Rechazada Point',
+        cancelled: 'Cancelada Point',
+        expired: 'Expirada Point',
+    };
+
+    if (sale.point_status && pointLabels[sale.point_status]) return pointLabels[sale.point_status];
+
+    const value = sale.payment_status;
+
     if (value === 'partial') return 'Parcial';
     if (value === 'pending') return 'Fiada';
     return 'Pagada';
 };
-const paymentStatusTone = (value) => {
+const paymentStatusTone = (sale) => {
+    if (sale.point_status === 'pending') return 'warning';
+    if (sale.point_status === 'approved') return 'success';
+    if (sale.point_status === 'rejected') return 'danger';
+    if (sale.point_status === 'cancelled' || sale.point_status === 'expired') return 'neutral';
+
+    const value = sale.payment_status;
+
     if (value === 'partial') return 'warning';
     if (value === 'pending') return 'danger';
     return 'success';
@@ -46,8 +65,14 @@ const saleSectors = computed(() => (props.advanced_sale_settings?.sale_sectors |
 const paymentDestinations = computed(() => (props.advanced_sale_settings?.payment_destinations || []).filter((item) => item.is_active));
 const visibleSales = computed(() => props.sales.data || []);
 const visibleTotal = computed(() => visibleSales.value.reduce((carry, sale) => carry + (Number(sale.total) || 0), 0));
-const visiblePendingTotal = computed(() => visibleSales.value.reduce((carry, sale) => carry + (Number(sale.pending_amount) || 0), 0));
-const pendingSalesCount = computed(() => visibleSales.value.filter((sale) => Number(sale.pending_amount) > 0).length);
+const visiblePendingTotal = computed(() => visibleSales.value.reduce((carry, sale) => (
+    ['rejected', 'cancelled', 'expired'].includes(sale.point_status)
+        ? carry
+        : carry + (Number(sale.pending_amount) || 0)
+), 0));
+const pendingSalesCount = computed(() => visibleSales.value.filter((sale) => (
+    Number(sale.pending_amount) > 0 && !['rejected', 'cancelled', 'expired'].includes(sale.point_status)
+)).length);
 const averageTicket = computed(() => (
     visibleSales.value.length ? visibleTotal.value / visibleSales.value.length : 0
 ));
@@ -252,7 +277,7 @@ const clearSingleFilter = (key) => {
                         </div>
 
                         <div class="mt-3 app-chip-row">
-                            <StatusBadge :tone="paymentStatusTone(sale.payment_status)" :label="paymentStatusLabel(sale.payment_status)" size="sm" />
+                            <StatusBadge :tone="paymentStatusTone(sale)" :label="paymentStatusLabel(sale)" size="sm" />
                             <StatusBadge tone="neutral" size="sm" :label="sale.payment_method ? paymentMethodLabel(sale.payment_method) : 'Sin cobro inicial'" />
                             <StatusBadge v-if="receipt_feature_available && sale.has_receipt" tone="highlight" size="sm" label="Con comprobante" />
                         </div>
@@ -303,7 +328,7 @@ const clearSingleFilter = (key) => {
                                 </td>
                                 <td class="px-3 py-2 align-top">
                                     <div class="app-chip-row">
-                                        <StatusBadge :tone="paymentStatusTone(sale.payment_status)" :label="paymentStatusLabel(sale.payment_status)" size="sm" />
+                                        <StatusBadge :tone="paymentStatusTone(sale)" :label="paymentStatusLabel(sale)" size="sm" />
                                         <StatusBadge tone="neutral" size="sm" :label="sale.payment_method ? paymentMethodLabel(sale.payment_method) : 'Sin cobro inicial'" />
                                         <StatusBadge v-if="receipt_feature_available && sale.has_receipt" tone="highlight" size="sm" label="Comprobante" />
                                     </div>

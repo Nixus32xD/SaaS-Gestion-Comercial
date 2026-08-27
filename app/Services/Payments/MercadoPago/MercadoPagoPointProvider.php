@@ -28,12 +28,6 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
     {
         $settings = $this->settingsResolver->forBusiness($business);
         $this->assertConfigured($settings);
-        $sale->refresh();
-
-        if ($sale->stock_reservation_status !== null) {
-            $this->stockReservationService->reserve($sale);
-        }
-
         $payment = DB::transaction(function () use ($business, $sale, $user, $method): Payment {
             $lockedSale = Sale::query()
                 ->forBusiness($business->id)
@@ -51,6 +45,15 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
 
             if ($existing !== null) {
                 return $existing;
+            }
+
+            if ($lockedSale->point_status !== null) {
+                $lockedSale->forceFill([
+                    'point_status' => Sale::POINT_STATUS_PENDING,
+                    'point_status_reason' => null,
+                    'point_status_changed_at' => now(),
+                ])->save();
+                $this->stockReservationService->reserve($lockedSale);
             }
 
             $amount = $this->remainingAmount($lockedSale);
@@ -81,7 +84,6 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
                 'status' => PaymentStatus::Pending->value,
                 'amount' => $amount,
                 'currency' => 'ARS',
-                'idempotency_key' => 'mp-point-sale-'.$business->id.'-'.$lockedSale->id,
                 'requested_at' => now(),
                 'metadata' => [
                     'source' => 'mercadopago_point_order',
@@ -91,6 +93,7 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
 
             $payment->forceFill([
                 'external_reference' => $this->externalReference($business, $lockedSale, $payment),
+                'idempotency_key' => $this->idempotencyKey($business, $lockedSale, $payment),
             ])->save();
 
             return $payment;
@@ -142,6 +145,12 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             ]);
         }
 
+        $payment->refresh();
+
+        if ($payment->status !== PaymentStatus::Pending->value) {
+            return $payment;
+        }
+
         $payment->loadMissing('sale.business');
         $business = $payment->sale?->business;
         $settings = $business instanceof Business
@@ -176,10 +185,64 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             default => null,
         };
 
-        $payment->forceFill($updates)->save();
-        $this->paymentService->syncSalePaymentSummary($payment->sale);
+        return DB::transaction(function () use ($payment, $updates): Payment {
+            $lockedPayment = Payment::query()
+                ->whereKey($payment->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        return $payment->refresh();
+            if ($lockedPayment->status !== PaymentStatus::Pending->value) {
+                return $lockedPayment;
+            }
+
+            $lockedPayment->forceFill($updates)->save();
+            $this->paymentService->syncSalePaymentSummary($lockedPayment->sale);
+
+            return $lockedPayment->refresh();
+        });
+    }
+
+    public function cancelOrder(Payment $payment): void
+    {
+        if ($payment->provider !== PaymentProvider::MercadoPago->value || ! filled($payment->provider_order_id)) {
+            return;
+        }
+
+        $payment->loadMissing('sale.business');
+        $business = $payment->sale?->business;
+
+        if (! $business instanceof Business) {
+            return;
+        }
+
+        $settings = $this->settingsResolver->forBusiness($business);
+        $idempotencyKey = 'mp-point-cancel-p'.$payment->id;
+
+        try {
+            $response = $this->client->cancelOrder(
+                (string) $payment->provider_order_id,
+                $idempotencyKey,
+                (string) $settings['access_token']
+            );
+        } catch (MercadoPagoApiException $exception) {
+            $payment->forceFill([
+                'metadata' => [
+                    ...((array) $payment->metadata),
+                    'provider_cancel_error' => $exception->getMessage(),
+                    'provider_cancel_attempted_at' => now()->toIso8601String(),
+                ],
+            ])->save();
+
+            throw $exception;
+        }
+
+        $payment->forceFill([
+            'metadata' => [
+                ...((array) $payment->metadata),
+                'provider_cancel_response' => $response,
+                'provider_cancelled_at' => now()->toIso8601String(),
+            ],
+        ])->save();
     }
 
     private function remainingAmount(Sale $sale): float
@@ -270,6 +333,11 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
     private function externalReference(Business $business, Sale $sale, Payment $payment): string
     {
         return Str::limit("b{$business->id}-s{$sale->id}-p{$payment->id}", 64, '');
+    }
+
+    private function idempotencyKey(Business $business, Sale $sale, Payment $payment): string
+    {
+        return "mp-point-b{$business->id}-s{$sale->id}-p{$payment->id}";
     }
 
     private function internalStatus(string $providerStatus): string

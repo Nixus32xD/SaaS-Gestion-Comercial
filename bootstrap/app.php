@@ -22,6 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->hourly()
             ->onOneServer()
             ->withoutOverlapping();
+
+        $schedule->command('payments:expire-mercadopago-point-reservations')
+            ->everyMinute()
+            ->onOneServer()
+            ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

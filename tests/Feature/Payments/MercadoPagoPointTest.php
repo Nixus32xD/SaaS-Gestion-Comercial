@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
 use App\Services\Fiscal\FiscalSaleDocumentService;
+use App\Services\SaleService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -56,7 +57,7 @@ test('authenticated business user can create a Mercado Pago Point order for a pe
         return $request->method() === 'POST'
             && $request->url() === 'https://api.mercadopago.com/v1/orders'
             && $request->hasHeader('Authorization', 'Bearer APP_USR-testing-token')
-            && $request->hasHeader('X-Idempotency-Key', "mp-point-sale-{$business->id}-{$sale->id}")
+            && $request->hasHeader('X-Idempotency-Key', "mp-point-b{$business->id}-s{$sale->id}-p{$payment->id}")
             && $payload['type'] === 'point'
             && $payload['external_reference'] === $payment->external_reference
             && $payload['transactions']['payments'][0]['amount'] === '1250.00'
@@ -222,6 +223,180 @@ test('Mercado Pago Point releases reserved stock when the order is rejected', fu
     )->assertOk();
 
     expect(Sale::query()->firstOrFail()->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_RELEASED);
+    expect((float) $product->fresh()->stock)->toBe(5.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+    expect(\App\Models\StockMovement::query()->count())->toBe(0);
+});
+
+test('Mercado Pago Point creates a new idempotent attempt after a terminal payment status', function (string $status, string $providerStatus) {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $sale = createMercadoPagoPointSale($business, $admin, 500);
+    $sale->update(['point_status' => $status === Payment::STATUS_REJECTED
+        ? Sale::POINT_STATUS_REJECTED
+        : ($providerStatus === 'expired' ? Sale::POINT_STATUS_EXPIRED : Sale::POINT_STATUS_CANCELLED)]);
+
+    $previous = Payment::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'created_by' => $admin->id,
+        'method' => Payment::METHOD_DEBIT_CARD,
+        'provider' => Payment::PROVIDER_MERCADOPAGO,
+        'status' => $status,
+        'amount' => 500,
+        'currency' => 'ARS',
+        'idempotency_key' => 'previous-point-attempt-'.$status,
+        'provider_status' => $providerStatus,
+        'requested_at' => now()->subMinute(),
+        'rejected_at' => $status === Payment::STATUS_REJECTED ? now() : null,
+        'cancelled_at' => $status === Payment::STATUS_CANCELLED ? now() : null,
+    ]);
+
+    Http::fake([
+        'https://api.mercadopago.com/v1/orders' => Http::response([
+            'id' => 'ORD01RETRY'.strtoupper(substr($status, 0, 3)),
+            'status' => 'created',
+            'transactions' => ['payments' => [['id' => 'PAY01RETRY']]],
+        ], 201),
+    ]);
+
+    $this->actingAs($admin)->post(route('sales.payments.mercadopago-point.store', $sale), [
+        'payment_method' => Payment::METHOD_DEBIT_CARD,
+    ])->assertRedirect(route('sales.show', $sale));
+
+    $retry = Payment::query()->latest('id')->firstOrFail();
+
+    expect(Payment::query()->count())->toBe(2);
+    expect($retry->id)->not->toBe($previous->id);
+    expect($retry->status)->toBe(Payment::STATUS_PENDING);
+    expect($retry->idempotency_key)->toBe("mp-point-b{$business->id}-s{$sale->id}-p{$retry->id}");
+    expect($retry->idempotency_key)->not->toBe($previous->idempotency_key);
+})->with([
+    'rejected' => [Payment::STATUS_REJECTED, 'failed'],
+    'cancelled' => [Payment::STATUS_CANCELLED, 'canceled'],
+    'expired' => [Payment::STATUS_CANCELLED, 'expired'],
+]);
+
+test('manual cancellation releases a Point reservation only once', function () {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+
+    Http::fake([
+        'https://api.mercadopago.com/v1/orders' => Http::response([
+            'id' => 'ORD01MANUALCANCEL',
+            'status' => 'created',
+            'transactions' => ['payments' => [['id' => 'PAY01MANUALCANCEL']]],
+        ], 201),
+        'https://api.mercadopago.com/v1/orders/ORD01MANUALCANCEL/cancel' => Http::response([
+            'id' => 'ORD01MANUALCANCEL',
+            'status' => 'canceled',
+        ]),
+    ]);
+
+    $this->actingAs($admin)->post(route('sales.store'), pointSalePayload($product))->assertRedirect();
+
+    $sale = Sale::query()->firstOrFail();
+    $payment = Payment::query()->firstOrFail();
+
+    $this->actingAs($admin)->post(route('sales.payments.mercadopago-point.cancel', [
+        'sale' => $sale,
+        'payment' => $payment,
+    ]))->assertRedirect(route('sales.create'));
+
+    $this->actingAs($admin)->post(route('sales.payments.mercadopago-point.cancel', [
+        'sale' => $sale,
+        'payment' => $payment,
+    ]))->assertRedirect(route('sales.create'));
+
+    expect($payment->fresh()->status)->toBe(Payment::STATUS_CANCELLED);
+    expect($payment->fresh()->cancelled_at)->not->toBeNull();
+    expect(data_get($payment->fresh()->metadata, 'cancellation_reason'))->toBe('user_cancelled');
+    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_CANCELLED);
+    expect($sale->fresh()->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_RELEASED);
+    expect((float) $product->fresh()->stock)->toBe(5.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+    Http::assertSentCount(2);
+});
+
+test('Point timeout releases an order creation reservation without an external order', function () {
+    $business = Business::factory()->create();
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+    $sale = createReservedPointSale($business, $admin, $product);
+    $payment = createPendingPointPayment($business, $admin, $sale, [
+        'requested_at' => now()->subMinutes(11),
+    ]);
+
+    $this->artisan('payments:expire-mercadopago-point-reservations')->assertSuccessful();
+
+    expect($payment->fresh()->status)->toBe(Payment::STATUS_CANCELLED);
+    expect(data_get($payment->fresh()->metadata, 'cancellation_reason'))->toBe('order_creation_failed_timeout');
+    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_EXPIRED);
+    expect($sale->fresh()->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_RELEASED);
+    expect((float) $product->fresh()->stock)->toBe(5.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+    expect(fn () => app(FiscalSaleDocumentService::class)->issue($sale->fresh()))
+        ->toThrow(ValidationException::class);
+});
+
+test('Point timeout confirms an approved remote order instead of releasing it', function () {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+    $sale = createReservedPointSale($business, $admin, $product);
+    $payment = createPendingPointPayment($business, $admin, $sale, [
+        'provider_order_id' => 'ORD01TIMEOUTAPPROVED',
+        'requested_at' => now()->subMinutes(11),
+    ]);
+
+    Http::fake([
+        'https://api.mercadopago.com/v1/orders/ORD01TIMEOUTAPPROVED' => Http::response([
+            'id' => 'ORD01TIMEOUTAPPROVED',
+            'status' => 'processed',
+            'transactions' => ['payments' => [['id' => 'PAY01TIMEOUTAPPROVED', 'status' => 'processed']]],
+        ]),
+    ]);
+
+    $this->artisan('payments:expire-mercadopago-point-reservations')->assertSuccessful();
+
+    expect($payment->fresh()->status)->toBe(Payment::STATUS_APPROVED);
+    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_APPROVED);
+    expect($sale->fresh()->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_CONSUMED);
+    expect((float) $product->fresh()->stock)->toBe(4.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+});
+
+test('an old webhook cannot consume a manually cancelled Point sale', function () {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+    $sale = createReservedPointSale($business, $admin, $product);
+    $payment = createPendingPointPayment($business, $admin, $sale, [
+        'provider_order_id' => 'ORD01OLDCANCELLED',
+        'external_reference' => "b{$business->id}-s{$sale->id}-p1",
+    ]);
+
+    app(\App\Services\Payments\MercadoPago\MercadoPagoPaymentCompletionService::class)
+        ->cancel($payment, 'user_cancelled');
+
+    $this->postJson(route('webhooks.mercadopago.orders', ['data.id' => 'ORD01OLDCANCELLED']), [
+        'id' => 'notification-old-cancelled',
+        'action' => 'order.processed',
+        'type' => 'order',
+        'data' => [
+            'id' => 'ORD01OLDCANCELLED',
+            'external_reference' => $payment->external_reference,
+            'status' => 'processed',
+        ],
+    ], signedMercadoPagoHeaders('ORD01OLDCANCELLED', 'request-old-cancelled'))->assertOk();
+
+    expect($payment->fresh()->status)->toBe(Payment::STATUS_CANCELLED);
+    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_CANCELLED);
     expect((float) $product->fresh()->stock)->toBe(5.0);
     expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
     expect(\App\Models\StockMovement::query()->count())->toBe(0);
@@ -612,6 +787,47 @@ function createPointProduct(Business $business, array $overrides = []): Product
         'stock' => 10,
         'min_stock' => 0,
         'is_active' => true,
+        ...$overrides,
+    ]);
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function pointSalePayload(Product $product): array
+{
+    return [
+        'payment_status' => Sale::PAYMENT_STATUS_PAID,
+        'payment_provider' => 'mercadopago_point',
+        'payment_method' => Payment::METHOD_DEBIT_CARD,
+        'items' => [[
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => $product->sale_price,
+        ]],
+    ];
+}
+
+function createReservedPointSale(Business $business, User $user, Product $product): Sale
+{
+    return app(SaleService::class)->createSale($business, $user, pointSalePayload($product));
+}
+
+/**
+ * @param  array<string, mixed>  $overrides
+ */
+function createPendingPointPayment(Business $business, User $user, Sale $sale, array $overrides = []): Payment
+{
+    return Payment::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'created_by' => $user->id,
+        'method' => Payment::METHOD_DEBIT_CARD,
+        'provider' => Payment::PROVIDER_MERCADOPAGO,
+        'status' => Payment::STATUS_PENDING,
+        'amount' => $sale->total,
+        'currency' => 'ARS',
+        'requested_at' => now(),
         ...$overrides,
     ]);
 }

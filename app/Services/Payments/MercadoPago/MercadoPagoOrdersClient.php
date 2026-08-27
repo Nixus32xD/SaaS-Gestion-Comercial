@@ -42,6 +42,20 @@ class MercadoPagoOrdersClient
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function cancelOrder(string $orderId, string $idempotencyKey, ?string $accessToken = null): array
+    {
+        return $this->post(
+            '/v1/orders/'.$this->pathSegment($orderId).'/cancel',
+            [],
+            $idempotencyKey,
+            200,
+            $accessToken
+        );
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */

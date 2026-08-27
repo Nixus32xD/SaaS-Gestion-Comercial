@@ -26,6 +26,16 @@ class Sale extends Model
 
     public const STOCK_RESERVATION_RELEASED = 'released';
 
+    public const POINT_STATUS_PENDING = 'pending';
+
+    public const POINT_STATUS_APPROVED = 'approved';
+
+    public const POINT_STATUS_REJECTED = 'rejected';
+
+    public const POINT_STATUS_CANCELLED = 'cancelled';
+
+    public const POINT_STATUS_EXPIRED = 'expired';
+
     public const PAYMENT_METHOD_CASH = 'cash';
 
     public const PAYMENT_METHOD_TRANSFER = 'transfer';
@@ -70,6 +80,9 @@ class Sale extends Model
         'payment_method',
         'payment_status',
         'stock_reservation_status',
+        'point_status',
+        'point_status_reason',
+        'point_status_changed_at',
         'payment_destination_id',
         'amount_received',
         'change_amount',
@@ -98,6 +111,9 @@ class Sale extends Model
             'payment_method' => 'string',
             'payment_status' => 'string',
             'stock_reservation_status' => 'string',
+            'point_status' => 'string',
+            'point_status_reason' => 'string',
+            'point_status_changed_at' => 'datetime',
             'fiscal_customer' => 'array',
             'amount_received' => 'decimal:2',
             'change_amount' => 'decimal:2',

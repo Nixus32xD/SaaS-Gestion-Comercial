@@ -139,6 +139,18 @@ const hasPendingMercadoPagoPointPayment = () => (props.sale.payments || []).some
 ));
 
 const paymentStatusLabel = computed(() => {
+    const pointLabels = {
+        pending: 'Pendiente Point',
+        approved: 'Pagada Point',
+        rejected: 'Rechazada Point',
+        cancelled: 'Cancelada Point',
+        expired: 'Expirada Point',
+    };
+
+    if (props.sale.point_status && pointLabels[props.sale.point_status]) {
+        return pointLabels[props.sale.point_status];
+    }
+
     if (props.sale.payment_status === 'pending' && hasPendingMercadoPagoPointPayment()) return 'Pendiente Point';
     if (props.sale.payment_status === 'partial') return 'Pago parcial';
     if (props.sale.payment_status === 'pending') return 'Fiada';
@@ -146,6 +158,11 @@ const paymentStatusLabel = computed(() => {
 });
 
 const paymentStatusTone = computed(() => {
+    if (props.sale.point_status === 'pending') return 'warning';
+    if (props.sale.point_status === 'approved') return 'success';
+    if (props.sale.point_status === 'rejected') return 'danger';
+    if (props.sale.point_status === 'cancelled' || props.sale.point_status === 'expired') return 'neutral';
+
     if (props.sale.payment_status === 'partial') return 'warning';
     if (props.sale.payment_status === 'pending') return 'danger';
     return 'success';
@@ -194,6 +211,14 @@ let redirectTimeout = null;
 let countdownInterval = null;
 let paymentPollInterval = null;
 
+const queuePointPaymentNotification = () => {
+    window.sessionStorage.setItem('gestor-comercial:flash-notification', JSON.stringify({
+        tone: 'success',
+        title: 'Venta completada',
+        message: `Mercado Pago confirmó el cobro de ${money(props.sale.total)}.`,
+    }));
+};
+
 const setReceipt = (event) => {
     const [receipt] = event.target?.files || [];
 
@@ -221,6 +246,19 @@ const createMercadoPagoPointOrder = (paymentMethod) => {
     mercadoPagoPointForm.post(route('sales.payments.mercadopago-point.store', props.sale.id), {
         preserveScroll: true,
     });
+};
+
+const cancelMercadoPagoPointPayment = () => {
+    if (!pendingMercadoPagoPayment.value || !props.sale.can_cancel_point_payment) return;
+
+    if (!window.confirm('¿Cancelar este cobro Point? Se liberará el stock reservado y la venta quedará registrada como cancelada.')) {
+        return;
+    }
+
+    router.post(route('sales.payments.mercadopago-point.cancel', {
+        sale: props.sale.id,
+        payment: pendingMercadoPagoPayment.value.id,
+    }));
 };
 
 const syncMercadoPagoPointPayment = async (payment, options = {}) => {
@@ -257,6 +295,8 @@ const syncMercadoPagoPointPayment = async (payment, options = {}) => {
                 window.clearInterval(paymentPollInterval);
                 paymentPollInterval = null;
             }
+
+            queuePointPaymentNotification();
 
             window.setTimeout(() => {
                 router.visit(route('sales.create'));
@@ -617,6 +657,14 @@ onBeforeUnmount(() => {
                                 <p v-if="pendingMercadoPagoPayment" class="text-xs text-amber-100">
                                     Ya hay una orden pendiente en Point.
                                 </p>
+                                <button
+                                    v-if="pendingMercadoPagoPayment && sale.can_cancel_point_payment"
+                                    type="button"
+                                    class="inline-flex w-full items-center justify-center rounded-xl border border-rose-300/40 px-3 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-400/15"
+                                    @click="cancelMercadoPagoPointPayment"
+                                >
+                                    Cancelar cobro Point
+                                </button>
                                 <p v-else-if="!hasSalePendingAmount" class="text-xs text-emerald-100">
                                     La venta no tiene saldo pendiente.
                                 </p>

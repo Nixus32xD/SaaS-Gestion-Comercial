@@ -164,6 +164,8 @@ class SaleService
                 'sale_number' => $this->documentNumberService->nextSaleNumber($business->id),
                 'payment_method' => $paymentMethod,
                 'payment_status' => $paymentStatus,
+                'point_status' => $usesMercadoPagoPoint ? Sale::POINT_STATUS_PENDING : null,
+                'point_status_changed_at' => $usesMercadoPagoPoint ? now() : null,
                 'payment_destination_id' => $paymentDestinationId,
                 'amount_received' => $amountReceived,
                 'change_amount' => $changeAmount,

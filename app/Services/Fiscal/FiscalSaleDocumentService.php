@@ -19,9 +19,9 @@ class FiscalSaleDocumentService
     {
         $sale->loadMissing(['business', 'items.product', 'latestFiscalDocument']);
 
-        if ($sale->stock_reservation_status === Sale::STOCK_RESERVATION_RESERVED) {
+        if ($sale->point_status !== null && $sale->point_status !== Sale::POINT_STATUS_APPROVED) {
             throw ValidationException::withMessages([
-                'fiscal' => 'La venta Point todavia espera la aprobacion del pago.',
+                'fiscal' => 'La venta Point no tiene un pago aprobado para emitir el comprobante fiscal.',
             ]);
         }
 

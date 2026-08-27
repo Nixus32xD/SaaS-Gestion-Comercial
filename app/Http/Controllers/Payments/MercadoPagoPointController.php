@@ -90,4 +90,39 @@ class MercadoPagoPointController extends Controller
             ] : null,
         ]);
     }
+
+    public function cancel(CurrentBusiness $currentBusiness, Sale $sale, Payment $payment): RedirectResponse
+    {
+        $business = $currentBusiness->get();
+
+        abort_if($business === null, 404);
+        abort_if($sale->business_id !== $business->id || $payment->business_id !== $business->id, 403);
+        abort_if($payment->sale_id !== $sale->id || $payment->provider !== Payment::PROVIDER_MERCADOPAGO, 404);
+
+        $wasPending = $payment->status === Payment::STATUS_PENDING;
+        $payment = $this->completionService->cancel($payment, 'user_cancelled');
+        $warning = null;
+
+        if ($wasPending) {
+            try {
+                $this->provider->cancelOrder($payment);
+            } catch (MercadoPagoApiException $exception) {
+                report($exception);
+                $warning = 'La reserva fue liberada localmente, pero Mercado Pago no pudo cancelar la orden: '
+                    .$exception->getMessage();
+            }
+        }
+
+        $redirect = redirect()
+            ->route('sales.create')
+            ->with('success', $wasPending
+                ? 'Cobro Point cancelado y stock reservado liberado.'
+                : 'El cobro Point ya estaba cancelado.');
+
+        if ($warning !== null) {
+            $redirect->with('warning', $warning);
+        }
+
+        return $redirect;
+    }
 }

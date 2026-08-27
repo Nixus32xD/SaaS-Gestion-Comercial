@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import FlashNotifications from '@/Components/FlashNotifications.vue';
 import SidebarLink from '@/Components/SidebarLink.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
@@ -64,6 +65,8 @@ const closeSidebar = () => {
             radial-gradient(circle at 10% 70%, rgba(15, 23, 42, 0.45), transparent 38%),
             linear-gradient(120deg, #05264e 0%, #0f172a 45%, #101f4d 100%);"
     >
+        <FlashNotifications />
+
         <div
             v-if="sidebarOpen"
             class="fixed inset-0 z-30 bg-slate-950/70 2xl:hidden"
@@ -157,17 +160,6 @@ const closeSidebar = () => {
                 >
                     <p class="font-semibold">{{ subscriptionNotice.status_label }}</p>
                     <p class="mt-1">{{ subscriptionNotice.client_notice || subscriptionNotice.status_message }}</p>
-                </section>
-                <section
-                    v-if="$page.props.flash?.success || $page.props.flash?.warning || $page.props.flash?.error"
-                    class="mb-6 rounded-2xl border p-4 text-sm"
-                    :class="$page.props.flash?.error
-                        ? 'border-rose-200/45 bg-rose-400/15 text-rose-100'
-                        : ($page.props.flash?.warning
-                            ? 'border-amber-200/45 bg-amber-400/15 text-amber-50'
-                            : 'border-emerald-200/45 bg-emerald-400/15 text-emerald-100')"
-                >
-                    {{ $page.props.flash?.error || $page.props.flash?.warning || $page.props.flash?.success }}
                 </section>
                 <section
                     v-if="$page.props.errors && Object.keys($page.props.errors).length"

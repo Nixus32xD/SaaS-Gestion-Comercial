@@ -293,7 +293,7 @@ class SaleController extends Controller
                 'environment' => (string) config('fiscal.environment', app()->environment()),
                 'production_confirmation_required' => app()->environment('production')
                     || config('fiscal.environment') === 'production',
-                'can_issue' => $this->canIssueFiscalDocument($fiscalEnabled, $fiscalDocument),
+                'can_issue' => $this->canIssueFiscalDocument($sale, $fiscalEnabled, $fiscalDocument),
                 'can_reconcile' => $this->canReconcileFiscalDocument($fiscalEnabled, $fiscalDocument),
                 'document' => $this->mapFiscalDocument($fiscalDocument),
             ],
@@ -306,6 +306,8 @@ class SaleController extends Controller
                 'sale_number' => $sale->sale_number,
                 'payment_method' => $sale->payment_method,
                 'payment_status' => $sale->payment_status,
+                'point_status' => $sale->point_status,
+                'point_status_reason' => $sale->point_status_reason,
                 'sale_sector' => $sale->saleSector?->name,
                 'payment_destination' => $sale->paymentDestination?->name,
                 'customer' => $sale->customer?->name,
@@ -333,6 +335,9 @@ class SaleController extends Controller
                 'payments' => $sale->payments
                     ->map(fn (Payment $payment): array => $this->mapSalePayment($payment))
                     ->values(),
+                'can_cancel_point_payment' => $sale->point_status === Sale::POINT_STATUS_PENDING
+                    && $sale->payments->contains(fn (Payment $payment): bool => $payment->provider === Payment::PROVIDER_MERCADOPAGO
+                        && $payment->status === Payment::STATUS_PENDING),
                 'items' => $sale->items->map(fn ($item) => [
                     'id' => $item->id,
                     'product_name' => $item->product_name,
@@ -481,9 +486,9 @@ class SaleController extends Controller
         ]);
     }
 
-    private function canIssueFiscalDocument(bool $fiscalEnabled, ?SaleFiscalDocument $fiscalDocument): bool
+    private function canIssueFiscalDocument(Sale $sale, bool $fiscalEnabled, ?SaleFiscalDocument $fiscalDocument): bool
     {
-        if (! $fiscalEnabled) {
+        if (! $fiscalEnabled || ($sale->point_status !== null && $sale->point_status !== Sale::POINT_STATUS_APPROVED)) {
             return false;
         }
 
@@ -859,6 +864,8 @@ class SaleController extends Controller
             'sale_number',
             'payment_method',
             'payment_status',
+            'point_status',
+            'point_status_reason',
             'payment_destination_id',
             'paid_amount',
             'pending_amount',
@@ -920,6 +927,8 @@ class SaleController extends Controller
             'sale_number' => $sale->sale_number,
             'payment_method' => $sale->payment_method,
             'payment_status' => $sale->payment_status,
+            'point_status' => $sale->point_status,
+            'point_status_reason' => $sale->point_status_reason,
             'sale_sector' => $sale->saleSector?->name,
             'payment_destination' => $sale->paymentDestination?->name,
             'customer' => $sale->customer?->name,
