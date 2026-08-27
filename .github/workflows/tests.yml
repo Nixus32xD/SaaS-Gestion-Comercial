@@ -1,0 +1,63 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: gestor_comercial_saas_test
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, dom, xml, zip, pdo_mysql
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run Laravel tests
+        env:
+          APP_ENV: testing
+          APP_KEY: base64:8pvGzaIS4bCGzWMWEIBGW/BuZEGCS0W8HlhaJkJwF24=
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: gestor_comercial_saas_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: php artisan test
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build

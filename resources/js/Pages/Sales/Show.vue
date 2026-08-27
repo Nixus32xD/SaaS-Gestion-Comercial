@@ -145,6 +145,7 @@ const paymentStatusLabel = computed(() => {
         rejected: 'Rechazada Point',
         cancelled: 'Cancelada Point',
         expired: 'Expirada Point',
+        reconciliation_required: 'Conciliación requerida',
     };
 
     if (props.sale.point_status && pointLabels[props.sale.point_status]) {
@@ -161,6 +162,7 @@ const paymentStatusTone = computed(() => {
     if (props.sale.point_status === 'pending') return 'warning';
     if (props.sale.point_status === 'approved') return 'success';
     if (props.sale.point_status === 'rejected') return 'danger';
+    if (props.sale.point_status === 'reconciliation_required') return 'danger';
     if (props.sale.point_status === 'cancelled' || props.sale.point_status === 'expired') return 'neutral';
 
     if (props.sale.payment_status === 'partial') return 'warning';
@@ -172,6 +174,9 @@ const itemsCount = computed(() => props.sale.items?.length || 0);
 const manualItemsCount = computed(() => (props.sale.items || []).filter((item) => item.is_manual).length);
 const pendingTone = computed(() => (Number(props.sale.pending_amount) > 0 ? 'warning' : 'success'));
 const salePayments = computed(() => props.sale.payments || []);
+const pointReconciliation = computed(() => salePayments.value.find((payment) => (
+    payment.provider === 'mercadopago' && payment.reconciliation?.status === 'required'
+))?.reconciliation || null);
 const hasSalePendingAmount = computed(() => Number(props.sale.pending_amount) > 0);
 const pendingMercadoPagoPayment = computed(() => salePayments.value.find((payment) => (
     payment.provider === 'mercadopago' && payment.status === 'pending'
@@ -417,6 +422,23 @@ onBeforeUnmount(() => {
             </section>
 
             <AppPanel v-if="showAutoBackMessage" tone="success" title="Venta registrada" :subtitle="`Volviendo a nueva venta en ${redirectSeconds}s.`" />
+
+            <section v-if="sale.point_status === 'reconciliation_required' && pointReconciliation" class="rounded-2xl border border-rose-300/50 bg-rose-500/10 p-5 text-rose-50 shadow-lg shadow-rose-950/20">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-base font-bold">Atención: conciliación manual requerida</p>
+                        <p class="mt-1 text-sm text-rose-100">Mercado Pago confirmó este cobro después de que la operación fuera cancelada, rechazada o expirada localmente. Revisá el cobro y decidí si corresponde devolver el dinero o reconciliar manualmente la venta.</p>
+                    </div>
+                    <StatusBadge tone="danger" label="Revisar cobro" />
+                </div>
+                <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div class="rounded-xl bg-slate-950/30 px-3 py-2"><dt class="text-rose-100/75">Estado local previo</dt><dd class="mt-1 font-semibold">{{ pointReconciliation.local_point_status || '-' }}</dd></div>
+                    <div class="rounded-xl bg-slate-950/30 px-3 py-2"><dt class="text-rose-100/75">Estado Mercado Pago</dt><dd class="mt-1 font-semibold">{{ pointReconciliation.remote_status || '-' }}</dd></div>
+                    <div class="rounded-xl bg-slate-950/30 px-3 py-2"><dt class="text-rose-100/75">Motivo</dt><dd class="mt-1 break-words font-semibold">{{ pointReconciliation.reason || sale.point_status_reason || '-' }}</dd></div>
+                    <div class="rounded-xl bg-slate-950/30 px-3 py-2"><dt class="text-rose-100/75">Detectado</dt><dd class="mt-1 font-semibold">{{ pointReconciliation.detected_at || '-' }}</dd></div>
+                </dl>
+                <p class="mt-3 text-xs text-rose-100/80">Orden: {{ pointReconciliation.provider_order_id || '-' }} · Pago Mercado Pago: {{ pointReconciliation.provider_payment_id || '-' }}</p>
+            </section>
 
             <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div class="grid gap-6">

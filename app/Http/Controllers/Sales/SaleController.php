@@ -598,6 +598,9 @@ class SaleController extends Controller
             'provider_order_id' => $payment->provider_order_id,
             'provider_payment_id' => $payment->provider_payment_id,
             'provider_status' => $payment->provider_status,
+            'reconciliation' => data_get($payment->metadata, 'reconciliation.status') === Sale::POINT_RECONCILIATION_REQUIRED
+                ? data_get($payment->metadata, 'reconciliation')
+                : null,
             'requested_at' => $payment->requested_at?->format('Y-m-d H:i'),
             'approved_at' => $payment->approved_at?->format('Y-m-d H:i'),
             'rejected_at' => $payment->rejected_at?->format('Y-m-d H:i'),

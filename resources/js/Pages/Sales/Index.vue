@@ -37,6 +37,7 @@ const paymentStatusLabel = (sale) => {
         rejected: 'Rechazada Point',
         cancelled: 'Cancelada Point',
         expired: 'Expirada Point',
+        reconciliation_required: 'Conciliación requerida',
     };
 
     if (sale.point_status && pointLabels[sale.point_status]) return pointLabels[sale.point_status];
@@ -51,6 +52,7 @@ const paymentStatusTone = (sale) => {
     if (sale.point_status === 'pending') return 'warning';
     if (sale.point_status === 'approved') return 'success';
     if (sale.point_status === 'rejected') return 'danger';
+    if (sale.point_status === 'reconciliation_required') return 'danger';
     if (sale.point_status === 'cancelled' || sale.point_status === 'expired') return 'neutral';
 
     const value = sale.payment_status;

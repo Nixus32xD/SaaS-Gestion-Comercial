@@ -145,12 +145,6 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             ]);
         }
 
-        $payment->refresh();
-
-        if ($payment->status !== PaymentStatus::Pending->value) {
-            return $payment;
-        }
-
         $payment->loadMissing('sale.business');
         $business = $payment->sale?->business;
         $settings = $business instanceof Business
@@ -165,38 +159,86 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
         $internalStatus = $this->internalStatus($providerStatus);
         $providerPayment = collect((array) data_get($payload, 'transactions.payments', data_get($payload, 'data.transactions.payments', [])))->first();
 
-        $updates = [
-            'status' => $internalStatus,
-            'provider_status' => $providerStatus,
-            'provider_payment_id' => is_array($providerPayment)
-                ? (data_get($providerPayment, 'id') ?? $payment->provider_payment_id)
-                : $payment->provider_payment_id,
-            'metadata' => [
-                ...((array) $payment->metadata),
-                'last_order_payload' => $payload,
-            ],
-        ];
+        $providerPaymentId = is_array($providerPayment)
+            ? data_get($providerPayment, 'id')
+            : null;
 
-        match ($internalStatus) {
-            PaymentStatus::Approved->value => $updates['approved_at'] = $payment->approved_at ?? now(),
-            PaymentStatus::Rejected->value => $updates['rejected_at'] = $payment->rejected_at ?? now(),
-            PaymentStatus::Cancelled->value => $updates['cancelled_at'] = $payment->cancelled_at ?? now(),
-            PaymentStatus::Refunded->value => $updates['refunded_at'] = $payment->refunded_at ?? now(),
-            default => null,
-        };
-
-        return DB::transaction(function () use ($payment, $updates): Payment {
+        return DB::transaction(function () use ($payment, $payload, $providerStatus, $internalStatus, $providerPaymentId): Payment {
             $lockedPayment = Payment::query()
                 ->whereKey($payment->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+            $lockedSale = Sale::query()
+                ->whereKey($lockedPayment->sale_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $metadata = [
+                ...((array) $lockedPayment->metadata),
+                'last_order_payload' => $payload,
+            ];
+
+            if ($this->requiresReconciliation($lockedSale, $lockedPayment, $internalStatus)) {
+                $reason = $this->lateApprovalReason((string) $lockedSale->point_status);
+
+                $metadata['reconciliation'] = [
+                    'status' => Sale::POINT_RECONCILIATION_REQUIRED,
+                    'reason' => $reason,
+                    'detected_at' => now()->toIso8601String(),
+                    'local_payment_status' => $lockedPayment->status,
+                    'local_point_status' => $lockedSale->point_status,
+                    'remote_status' => $providerStatus,
+                    'provider_order_id' => $lockedPayment->provider_order_id,
+                    'provider_payment_id' => $providerPaymentId ?? $lockedPayment->provider_payment_id,
+                    'remote_payload' => $payload,
+                ];
+
+                $lockedPayment->forceFill([
+                    'status' => PaymentStatus::Approved->value,
+                    'provider_status' => $providerStatus,
+                    'provider_payment_id' => $providerPaymentId ?? $lockedPayment->provider_payment_id,
+                    'approved_at' => $lockedPayment->approved_at ?? now(),
+                    'metadata' => $metadata,
+                ])->save();
+
+                $lockedSale->forceFill([
+                    'point_status' => Sale::POINT_STATUS_RECONCILIATION_REQUIRED,
+                    'point_status_reason' => $reason,
+                    'point_status_changed_at' => now(),
+                ])->save();
+
+                $this->paymentService->syncSalePaymentSummary($lockedSale);
+
+                return $lockedPayment->refresh();
+            }
 
             if ($lockedPayment->status !== PaymentStatus::Pending->value) {
+                $lockedPayment->forceFill([
+                    'provider_status' => $providerStatus,
+                    'provider_payment_id' => $providerPaymentId ?? $lockedPayment->provider_payment_id,
+                    'metadata' => $metadata,
+                ])->save();
+
                 return $lockedPayment;
             }
 
+            $updates = [
+                'status' => $internalStatus,
+                'provider_status' => $providerStatus,
+                'provider_payment_id' => $providerPaymentId ?? $lockedPayment->provider_payment_id,
+                'metadata' => $metadata,
+            ];
+
+            match ($internalStatus) {
+                PaymentStatus::Approved->value => $updates['approved_at'] = $lockedPayment->approved_at ?? now(),
+                PaymentStatus::Rejected->value => $updates['rejected_at'] = $lockedPayment->rejected_at ?? now(),
+                PaymentStatus::Cancelled->value => $updates['cancelled_at'] = $lockedPayment->cancelled_at ?? now(),
+                PaymentStatus::Refunded->value => $updates['refunded_at'] = $lockedPayment->refunded_at ?? now(),
+                default => null,
+            };
+
             $lockedPayment->forceFill($updates)->save();
-            $this->paymentService->syncSalePaymentSummary($lockedPayment->sale);
+            $this->paymentService->syncSalePaymentSummary($lockedSale);
 
             return $lockedPayment->refresh();
         });
@@ -348,6 +390,26 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             'canceled', 'expired' => PaymentStatus::Cancelled->value,
             'refunded' => PaymentStatus::Refunded->value,
             default => PaymentStatus::Pending->value,
+        };
+    }
+
+    private function requiresReconciliation(Sale $sale, Payment $payment, string $remoteStatus): bool
+    {
+        return $remoteStatus === PaymentStatus::Approved->value
+            && $payment->status !== PaymentStatus::Approved->value
+            && in_array($sale->point_status, [
+                Sale::POINT_STATUS_CANCELLED,
+                Sale::POINT_STATUS_EXPIRED,
+                Sale::POINT_STATUS_REJECTED,
+            ], true);
+    }
+
+    private function lateApprovalReason(string $pointStatus): string
+    {
+        return match ($pointStatus) {
+            Sale::POINT_STATUS_EXPIRED => 'remote_approved_after_expiration',
+            Sale::POINT_STATUS_REJECTED => 'remote_approved_after_rejection',
+            default => 'remote_approved_after_local_cancellation',
         };
     }
 

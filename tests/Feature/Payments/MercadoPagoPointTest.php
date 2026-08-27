@@ -370,7 +370,7 @@ test('Point timeout confirms an approved remote order instead of releasing it', 
     expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
 });
 
-test('an old webhook cannot consume a manually cancelled Point sale', function () {
+test('late remote approval after manual Point cancellation requires reconciliation without consuming stock', function () {
     $business = Business::factory()->create();
     createMercadoPagoCredential($business);
     $admin = User::factory()->businessAdmin($business->id)->create();
@@ -392,13 +392,88 @@ test('an old webhook cannot consume a manually cancelled Point sale', function (
             'id' => 'ORD01OLDCANCELLED',
             'external_reference' => $payment->external_reference,
             'status' => 'processed',
+            'transactions' => ['payments' => [['id' => 'PAY01OLDCANCELLED', 'status' => 'processed']]],
         ],
     ], signedMercadoPagoHeaders('ORD01OLDCANCELLED', 'request-old-cancelled'))->assertOk();
 
-    expect($payment->fresh()->status)->toBe(Payment::STATUS_CANCELLED);
-    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_CANCELLED);
+    expect($payment->fresh()->status)->toBe(Payment::STATUS_APPROVED);
+    expect($payment->fresh()->provider_payment_id)->toBe('PAY01OLDCANCELLED');
+    expect(data_get($payment->fresh()->metadata, 'reconciliation.reason'))->toBe('remote_approved_after_local_cancellation');
+    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_RECONCILIATION_REQUIRED);
+    expect($sale->fresh()->point_status_reason)->toBe('remote_approved_after_local_cancellation');
     expect((float) $product->fresh()->stock)->toBe(5.0);
     expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+    expect(\App\Models\StockMovement::query()->count())->toBe(0);
+    expect(fn () => app(FiscalSaleDocumentService::class)->issue($sale->fresh()))
+        ->toThrow(ValidationException::class);
+});
+
+test('late remote approval after Point expiration requires reconciliation without consuming stock', function () {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+    $sale = createReservedPointSale($business, $admin, $product);
+    $payment = createPendingPointPayment($business, $admin, $sale, [
+        'provider_order_id' => 'ORD01OLDEXPIRED',
+        'external_reference' => "b{$business->id}-s{$sale->id}-p1",
+    ]);
+
+    app(\App\Services\Payments\MercadoPago\MercadoPagoPaymentCompletionService::class)
+        ->cancel($payment, 'point_timeout', Sale::POINT_STATUS_EXPIRED);
+
+    $this->postJson(route('webhooks.mercadopago.orders', ['data.id' => 'ORD01OLDEXPIRED']), [
+        'id' => 'notification-old-expired',
+        'action' => 'order.processed',
+        'type' => 'order',
+        'data' => [
+            'id' => 'ORD01OLDEXPIRED',
+            'external_reference' => $payment->external_reference,
+            'status' => 'processed',
+            'transactions' => ['payments' => [['id' => 'PAY01OLDEXPIRED', 'status' => 'processed']]],
+        ],
+    ], signedMercadoPagoHeaders('ORD01OLDEXPIRED', 'request-old-expired'))->assertOk();
+
+    expect($payment->fresh()->status)->toBe(Payment::STATUS_APPROVED);
+    expect(data_get($payment->fresh()->metadata, 'reconciliation.reason'))->toBe('remote_approved_after_expiration');
+    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_RECONCILIATION_REQUIRED);
+    expect($sale->fresh()->stock_reservation_status)->toBe(Sale::STOCK_RESERVATION_RELEASED);
+    expect((float) $product->fresh()->stock)->toBe(5.0);
+    expect((float) $product->fresh()->reserved_stock)->toBe(0.0);
+    expect(\App\Models\StockMovement::query()->count())->toBe(0);
+});
+
+test('late rejected webhook over a locally cancelled Point payment stays terminal without a reconciliation conflict', function () {
+    $business = Business::factory()->create();
+    createMercadoPagoCredential($business);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    $product = createPointProduct($business, ['stock' => 5]);
+    $sale = createReservedPointSale($business, $admin, $product);
+    $payment = createPendingPointPayment($business, $admin, $sale, [
+        'provider_order_id' => 'ORD01LATEFAILED',
+        'external_reference' => "b{$business->id}-s{$sale->id}-p1",
+    ]);
+
+    app(\App\Services\Payments\MercadoPago\MercadoPagoPaymentCompletionService::class)
+        ->cancel($payment, 'user_cancelled');
+
+    $this->postJson(route('webhooks.mercadopago.orders', ['data.id' => 'ORD01LATEFAILED']), [
+        'id' => 'notification-late-failed',
+        'action' => 'order.failed',
+        'type' => 'order',
+        'data' => [
+            'id' => 'ORD01LATEFAILED',
+            'external_reference' => $payment->external_reference,
+            'status' => 'failed',
+            'transactions' => ['payments' => [['id' => 'PAY01LATEFAILED', 'status' => 'failed']]],
+        ],
+    ], signedMercadoPagoHeaders('ORD01LATEFAILED', 'request-late-failed'))->assertOk();
+
+    expect($payment->fresh()->status)->toBe(Payment::STATUS_CANCELLED);
+    expect($payment->fresh()->provider_status)->toBe('failed');
+    expect(data_get($payment->fresh()->metadata, 'reconciliation'))->toBeNull();
+    expect($sale->fresh()->point_status)->toBe(Sale::POINT_STATUS_CANCELLED);
+    expect((float) $product->fresh()->stock)->toBe(5.0);
     expect(\App\Models\StockMovement::query()->count())->toBe(0);
 });
 

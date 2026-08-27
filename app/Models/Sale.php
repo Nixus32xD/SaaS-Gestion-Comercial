@@ -36,6 +36,14 @@ class Sale extends Model
 
     public const POINT_STATUS_EXPIRED = 'expired';
 
+    public const POINT_STATUS_RECONCILIATION_REQUIRED = 'reconciliation_required';
+
+    public const POINT_RECONCILIATION_REQUIRED = 'required';
+
+    public const POINT_RECONCILIATION_ACCEPTED = 'accepted';
+
+    public const POINT_RECONCILIATION_REFUNDED = 'refunded';
+
     public const PAYMENT_METHOD_CASH = 'cash';
 
     public const PAYMENT_METHOD_TRANSFER = 'transfer';
