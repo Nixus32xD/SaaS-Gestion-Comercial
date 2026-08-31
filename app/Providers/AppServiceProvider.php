@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Fiscal\FiscalSaleDocumentService;
+use App\Services\Fiscal\LockedFiscalSaleDocumentService;
 use App\Support\CurrentBusiness;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(CurrentBusiness::class, fn (): CurrentBusiness => new CurrentBusiness);
+        $this->app->bind(FiscalSaleDocumentService::class, LockedFiscalSaleDocumentService::class);
     }
 
     /**
