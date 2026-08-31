@@ -41,41 +41,31 @@ class FiscalApiClient
         ], $this->defaultTimeout());
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function companyStatus(string $company): array
     {
         return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/status');
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function companyActivities(string $company): array
     {
         return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/activities');
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function companyPointsOfSale(string $company): array
     {
         return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/points-of-sale');
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function companyDiagnostics(string $company): array
     {
         return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/diagnostics');
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function requestCaea(string $company, string $period, int $order): array
     {
         return $this->post('/fiscal/companies/'.$this->pathSegment($company).'/caea/request', [
@@ -84,9 +74,7 @@ class FiscalApiClient
         ]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function consultCaea(string $company, string $period, int $order): array
     {
         return $this->get('/fiscal/companies/'.$this->pathSegment($company).'/caea/consult', [
@@ -95,12 +83,13 @@ class FiscalApiClient
         ]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function reportCaeaDocument(string|int $documentId): array
+    /** @return array<string, mixed> */
+    public function reportCaeaDocument(string|int $documentId, ?string $businessId = null): array
     {
-        return $this->post('/fiscal/documents/'.$this->pathSegment($documentId).'/caea/report', []);
+        return $this->post(
+            '/fiscal/documents/'.$this->pathSegment($documentId).'/caea/report',
+            $this->businessScope($businessId),
+        );
     }
 
     /**
@@ -133,17 +122,16 @@ class FiscalApiClient
         return $this->post('/fiscal/documents', $payload);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function document(string|int $documentId): array
+    /** @return array<string, mixed> */
+    public function document(string|int $documentId, ?string $businessId = null): array
     {
-        return $this->get('/fiscal/documents/'.$this->pathSegment($documentId));
+        return $this->get(
+            '/fiscal/documents/'.$this->pathSegment($documentId),
+            $this->businessScope($businessId),
+        );
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function documentByOrigin(string $businessId, string $originType, string|int $originId): array
     {
         return $this->get('/fiscal/documents/by-origin', [
@@ -153,9 +141,7 @@ class FiscalApiClient
         ]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function ivaSalesBook(string $businessId, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         return $this->get('/fiscal/documents/iva-sales', array_filter([
@@ -165,9 +151,7 @@ class FiscalApiClient
         ], fn (mixed $value): bool => $value !== null && $value !== ''));
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function ivaPurchasesBook(string $businessId, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         return $this->get('/fiscal/purchases/iva-book', array_filter([
@@ -177,20 +161,22 @@ class FiscalApiClient
         ], fn (mixed $value): bool => $value !== null && $value !== ''));
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function retryDocument(string|int $documentId): array
+    /** @return array<string, mixed> */
+    public function retryDocument(string|int $documentId, ?string $businessId = null): array
     {
-        return $this->post('/fiscal/documents/'.$this->pathSegment($documentId).'/retry', []);
+        return $this->post(
+            '/fiscal/documents/'.$this->pathSegment($documentId).'/retry',
+            $this->businessScope($businessId),
+        );
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function reconcileDocument(string|int $documentId): array
+    /** @return array<string, mixed> */
+    public function reconcileDocument(string|int $documentId, ?string $businessId = null): array
     {
-        return $this->post('/fiscal/documents/'.$this->pathSegment($documentId).'/reconcile', []);
+        return $this->post(
+            '/fiscal/documents/'.$this->pathSegment($documentId).'/reconcile',
+            $this->businessScope($businessId),
+        );
     }
 
     /**
@@ -305,6 +291,14 @@ class FiscalApiClient
         ];
     }
 
+    /** @return array<string, string> */
+    private function businessScope(?string $businessId): array
+    {
+        $businessId = trim((string) $businessId);
+
+        return $businessId === '' ? [] : ['business_id' => $businessId];
+    }
+
     private function pathSegment(string|int $value): string
     {
         return rawurlencode((string) $value);
@@ -332,9 +326,7 @@ class FiscalApiClient
         return $token;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     private function normalizePooledResponse(Response|Throwable $response): array
     {
         if ($response instanceof ConnectionException) {
