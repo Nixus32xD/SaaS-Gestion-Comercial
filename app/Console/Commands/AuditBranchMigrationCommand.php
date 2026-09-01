@@ -45,11 +45,13 @@ class AuditBranchMigrationCommand extends Command
         $this->auditOperationalTable('sales', 'Ventas sin sucursal');
         $this->auditOperationalTable('purchases', 'Compras sin sucursal');
         $this->auditOperationalTable('stock_movements', 'Movimientos de stock sin sucursal');
+        $this->auditOperationalTable('inventory_adjustments', 'Ajustes de inventario sin sucursal');
         $this->auditOperationalTable('product_batches', 'Lotes sin sucursal');
         $this->auditOperationalTable('product_batch_movements', 'Movimientos de lote sin sucursal');
         $this->auditOperationalTable('product_batch_corrections', 'Correcciones de lote sin sucursal');
         $this->auditBatchChildTable('product_batch_movements', 'Movimientos de lote con sucursal distinta al lote');
         $this->auditBatchChildTable('product_batch_corrections', 'Correcciones de lote con sucursal distinta al lote');
+        $this->auditInventoryAdjustments();
 
         if (! Schema::hasTable('branch_fiscal_settings')) {
             $this->components->twoColumnDetail('Configuración ARCA por sucursal', 'Pendiente de configuración por sucursal');
@@ -187,6 +189,25 @@ class AuditBranchMigrationCommand extends Command
                     ->whereColumn('stock.product_id', 'product.id');
             })
             ->count();
+    }
+
+    private function auditInventoryAdjustments(): void
+    {
+        if (! Schema::hasTable('inventory_adjustments')) {
+            return;
+        }
+
+        $inconsistent = DB::table('inventory_adjustments as adjustment')
+            ->leftJoin('branch_product_stocks as stock', 'stock.id', '=', 'adjustment.branch_product_stock_id')
+            ->where(function ($query): void {
+                $query->whereNull('stock.id')
+                    ->orWhereColumn('stock.business_id', '!=', 'adjustment.business_id')
+                    ->orWhereColumn('stock.branch_id', '!=', 'adjustment.branch_id')
+                    ->orWhereColumn('stock.product_id', '!=', 'adjustment.product_id');
+            })
+            ->count();
+
+        $this->components->twoColumnDetail('Ajustes de inventario con stock inconsistente', (string) $inconsistent);
     }
 
     private function branchesWithoutFiscalSettings(): int

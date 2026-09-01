@@ -97,6 +97,7 @@ class PurchaseService
                 $unitCost = round((float) $item['unit_cost'], 2);
                 $productId = data_get($item, 'product_id');
 
+                $initialMinStock = null;
                 if ($productId !== null && $productId !== '') {
                     $product = $products->get((int) $productId);
 
@@ -106,6 +107,7 @@ class PurchaseService
                         ]);
                     }
                 } else {
+                    $initialMinStock = round((float) data_get($item, 'product.min_stock', 0), 3);
                     $this->ensureNewProductIdentityIsAvailable(
                         $business->id,
                         $item,
@@ -158,7 +160,7 @@ class PurchaseService
                         'vat_treatment' => $this->vatCalculator->normalizeTreatment(data_get($item, 'product.vat_treatment')),
                         'vat_rate' => $this->productVatRate($item),
                         'stock' => 0,
-                        'min_stock' => round((float) data_get($item, 'product.min_stock', 0), 3),
+                        'min_stock' => 0,
                         'shelf_life_days' => data_get($item, 'product.shelf_life_days'),
                         'expiry_alert_days' => data_get($item, 'product.expiry_alert_days', 15),
                         'is_active' => true,
@@ -184,6 +186,7 @@ class PurchaseService
                         $product->weight_unit
                     ),
                     'expires_at' => $expiresAt?->toDateString(),
+                    'initial_min_stock' => $initialMinStock,
                 ];
             });
 
@@ -237,7 +240,7 @@ class PurchaseService
                     $branch,
                     $product,
                     (float) $line['quantity'],
-                    $branchStock === null ? (float) $product->min_stock : null,
+                    $branchStock === null ? (float) ($line['initial_min_stock'] ?? $product->min_stock) : null,
                 );
 
                 StockMovement::query()->create([

@@ -121,6 +121,33 @@ test('adjustment respects kilogram and gram precision', function () {
         ->and(inventoryAdjustmentStock($branch, $grams)->stock)->toBe('25.000');
 });
 
+test('product creation initializes stock and minimum only in the active branch', function () {
+    $business = Business::factory()->create();
+    $branchA = $business->defaultBranch;
+    $branchB = inventoryAdjustmentBranch($business, 'centro');
+    $user = User::factory()->businessAdmin($business->id)->create();
+
+    $this->actingAs($user)->withSession(['business_id' => $business->id, 'branch_id' => $branchB->id])
+        ->post(route('products.store'), [
+            'name' => 'Producto de Centro',
+            'unit_type' => 'unit',
+            'sale_price' => 100,
+            'cost_price' => 50,
+            'stock' => 4,
+            'min_stock' => 2,
+            'is_active' => true,
+        ])
+        ->assertRedirect(route('products.index'));
+
+    $product = Product::query()->where('name', 'Producto de Centro')->firstOrFail();
+
+    expect(inventoryAdjustmentStock($branchA, $product)->stock)->toBe('0.000')
+        ->and(inventoryAdjustmentStock($branchA, $product)->min_stock)->toBe('0.000')
+        ->and(inventoryAdjustmentStock($branchB, $product)->stock)->toBe('4.000')
+        ->and(inventoryAdjustmentStock($branchB, $product)->min_stock)->toBe('2.000')
+        ->and($product->stock)->toBe('4.000');
+});
+
 function inventoryAdjustmentBranch(Business $business, string $code): Branch
 {
     return Branch::query()->create(['business_id' => $business->id, 'name' => 'Sucursal '.ucfirst($code), 'code' => $code, 'is_active' => true, 'is_default' => false]);

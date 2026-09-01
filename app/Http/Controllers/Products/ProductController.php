@@ -230,7 +230,7 @@ class ProductController extends Controller
                 'vat_treatment' => $this->vatCalculator->normalizeTreatment($data['vat_treatment'] ?? null),
                 'vat_rate' => $this->resolvedVatRate($data),
                 'stock' => 0,
-                'min_stock' => $data['min_stock'] ?? 0,
+                'min_stock' => 0,
                 'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
                 'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
                 'is_active' => (bool) ($data['is_active'] ?? true),
