@@ -26,6 +26,13 @@ class Product extends Model
         'no_expiration_batches' => 'no_expiration',
     ];
 
+    /** @var list<string> */
+    private const VERSIONED_CATALOG_ATTRIBUTES = [
+        'category_id', 'supplier_id', 'name', 'slug', 'description', 'barcode', 'sku',
+        'unit_type', 'weight_unit', 'sale_price', 'cost_price', 'vat_treatment', 'vat_rate',
+        'shelf_life_days', 'expiry_alert_days', 'is_active',
+    ];
+
     /**
      * @var list<string>
      */
@@ -70,11 +77,18 @@ class Product extends Model
             'shelf_life_days' => 'int',
             'expiry_alert_days' => 'int',
             'is_active' => 'bool',
+            'edit_version' => 'int',
         ];
     }
 
     protected static function booted(): void
     {
+        static::updating(function (Product $product): void {
+            if ($product->isDirty(self::VERSIONED_CATALOG_ATTRIBUTES)) {
+                $product->edit_version = ((int) $product->getOriginal('edit_version')) + 1;
+            }
+        });
+
         static::created(function (Product $product): void {
             $defaultBranch = Branch::query()
                 ->forBusiness($product->business_id)
@@ -156,9 +170,21 @@ class Product extends Model
         return $this->hasMany(ProductBatchCorrection::class);
     }
 
+    /** @return HasMany<InventoryAdjustment, $this> */
+    public function inventoryAdjustments(): HasMany
+    {
+        return $this->hasMany(InventoryAdjustment::class);
+    }
+
     public function availableStock(): float
     {
         return max(0, round((float) $this->stock - (float) $this->reserved_stock, 3));
+    }
+
+    /** @return list<string> */
+    public static function versionedCatalogAttributes(): array
+    {
+        return self::VERSIONED_CATALOG_ATTRIBUTES;
     }
 
     /**

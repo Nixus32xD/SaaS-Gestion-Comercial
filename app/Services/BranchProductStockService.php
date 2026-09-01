@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Branch;
 use App\Models\BranchProductStock;
 use App\Models\Product;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -31,7 +32,7 @@ class BranchProductStockService
     public function reserve(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
-            $stock = $this->lockedStock($branch, $product);
+            $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
             if ($normalizedQuantity <= 0) {
@@ -55,7 +56,7 @@ class BranchProductStockService
     public function consume(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
-            $stock = $this->lockedStock($branch, $product);
+            $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
             if ($normalizedQuantity <= 0) {
@@ -79,7 +80,7 @@ class BranchProductStockService
     public function consumeReserved(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
-            $stock = $this->lockedStock($branch, $product);
+            $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
             if ($normalizedQuantity <= 0) {
@@ -104,7 +105,7 @@ class BranchProductStockService
     public function release(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
-            $stock = $this->lockedStock($branch, $product);
+            $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
             if ($normalizedQuantity <= 0) {
@@ -122,22 +123,12 @@ class BranchProductStockService
     public function adjust(Branch $branch, Product $product, float $quantity, ?float $minStock = null): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity, $minStock): BranchProductStock {
-            $stock = $this->lockedStock($branch, $product, $minStock);
-            $normalizedQuantity = $this->normalizedQuantity($quantity);
-            $nextStock = round((float) $stock->stock + $normalizedQuantity, 3);
+            $stock = $this->lockStock($branch, $product, $minStock);
+            $stock = $this->adjustLockedStock($stock, $product, $quantity);
 
-            if ($nextStock < (float) $stock->reserved_stock) {
-                throw ValidationException::withMessages([
-                    'stock' => "El ajuste no puede dejar stock por debajo de las reservas en {$branch->name}.",
-                ]);
-            }
-
-            $stock->stock = $nextStock;
             if ($minStock !== null) {
-                $stock->min_stock = max(0, $this->normalizedQuantity($minStock));
+                $stock = $this->setLockedMinStock($stock, $minStock);
             }
-            $stock->save();
-            $this->syncLegacyProductStock($product);
 
             return $stock->fresh();
         });
@@ -145,7 +136,11 @@ class BranchProductStockService
 
     public function setMinStock(Branch $branch, Product $product, float $minStock): BranchProductStock
     {
-        return $this->adjust($branch, $product, 0, $minStock);
+        return $this->withinTransaction(function () use ($branch, $product, $minStock): BranchProductStock {
+            $stock = $this->lockStock($branch, $product, $minStock);
+
+            return $this->setLockedMinStock($stock, $minStock)->fresh();
+        });
     }
 
     public function transfer(Branch $fromBranch, Branch $toBranch, Product $product, float $quantity): void
@@ -162,7 +157,7 @@ class BranchProductStockService
         $this->withinTransaction(function () use ($fromBranch, $toBranch, $product, $quantity): void {
             $orderedBranches = collect([$fromBranch, $toBranch])->sortBy('id')->values();
             $stocks = $orderedBranches->mapWithKeys(fn (Branch $branch): array => [
-                $branch->id => $this->lockedStock($branch, $product),
+                $branch->id => $this->lockStock($branch, $product),
             ]);
             $fromStock = $stocks->get($fromBranch->id);
             $toStock = $stocks->get($toBranch->id);
@@ -186,7 +181,7 @@ class BranchProductStockService
         });
     }
 
-    private function lockedStock(Branch $branch, Product $product, ?float $minStock = null): BranchProductStock
+    public function lockStock(Branch $branch, Product $product, ?float $minStock = null): BranchProductStock
     {
         $this->ensureSameBusiness($branch, $product);
 
@@ -201,17 +196,63 @@ class BranchProductStockService
             return $stock;
         }
 
-        return BranchProductStock::query()->create([
-            'business_id' => $product->business_id,
-            'branch_id' => $branch->id,
-            'product_id' => $product->id,
-            'stock' => 0,
-            'reserved_stock' => 0,
-            'min_stock' => $minStock ?? 0,
-        ]);
+        try {
+            return BranchProductStock::query()->create([
+                'business_id' => $product->business_id,
+                'branch_id' => $branch->id,
+                'product_id' => $product->id,
+                'stock' => 0,
+                'reserved_stock' => 0,
+                'min_stock' => $minStock ?? 0,
+            ]);
+        } catch (QueryException $exception) {
+            $stock = BranchProductStock::query()
+                ->forBusiness($product->business_id)
+                ->where('branch_id', $branch->id)
+                ->where('product_id', $product->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($stock === null) {
+                throw $exception;
+            }
+
+            return $stock;
+        }
     }
 
-    private function syncLegacyProductStock(Product $product): void
+    public function adjustLockedStock(BranchProductStock $stock, Product $product, float $quantity): BranchProductStock
+    {
+        if ((int) $stock->business_id !== (int) $product->business_id || (int) $stock->product_id !== (int) $product->id) {
+            throw ValidationException::withMessages([
+                'stock' => 'El stock por sucursal no pertenece al producto.',
+            ]);
+        }
+
+        $nextStock = round((float) $stock->stock + $this->normalizedQuantity($quantity), 3);
+
+        if ($nextStock < (float) $stock->reserved_stock) {
+            throw ValidationException::withMessages([
+                'stock' => "El ajuste no puede dejar stock por debajo de las reservas en {$stock->branch->name}.",
+            ]);
+        }
+
+        $stock->stock = $nextStock;
+        $stock->save();
+        $this->syncLegacyProductStock($product);
+
+        return $stock;
+    }
+
+    public function setLockedMinStock(BranchProductStock $stock, float $minStock): BranchProductStock
+    {
+        $stock->min_stock = max(0, $this->normalizedQuantity($minStock));
+        $stock->save();
+
+        return $stock;
+    }
+
+    public function syncLegacyProductStock(Product $product): void
     {
         $totals = BranchProductStock::query()
             ->forBusiness($product->business_id)

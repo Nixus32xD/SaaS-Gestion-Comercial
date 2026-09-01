@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Controllers\Admin\BusinessBillingController;
+use App\Http\Controllers\Admin\BusinessBranchCommercialSettingController;
 use App\Http\Controllers\Admin\BusinessBranchController;
 use App\Http\Controllers\Admin\BusinessBranchFiscalSettingController;
-use App\Http\Controllers\Admin\BusinessBranchCommercialSettingController;
 use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\CommercialGuideController;
@@ -19,6 +19,7 @@ use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Payments\MercadoPagoPointController;
 use App\Http\Controllers\Payments\MercadoPagoSettingsController;
 use App\Http\Controllers\Payments\MercadoPagoWebhookController;
+use App\Http\Controllers\Products\InventoryAdjustmentController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Purchases\PurchaseController;
@@ -77,6 +78,8 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/products/catalog/lookup', [ProductController::class, 'lookupCatalog'])->name('products.catalog.lookup');
     Route::post('/products', [ProductController::class, 'store'])->name('products.store');
     Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
+    Route::get('/products/{product}/inventory-adjustments/create', [InventoryAdjustmentController::class, 'create'])->name('products.inventory-adjustments.create');
+    Route::post('/products/{product}/inventory-adjustments', [InventoryAdjustmentController::class, 'store'])->name('products.inventory-adjustments.store');
     Route::get('/products/{product}/batch-corrections', [ProductController::class, 'batchCorrections'])->name('products.batch-corrections.index');
     Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
     Route::put('/products/{product}/batches/{batch}', [ProductController::class, 'updateBatch'])->name('products.batches.update');

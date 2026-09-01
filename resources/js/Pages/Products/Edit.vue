@@ -26,13 +26,12 @@ const form = useForm({
     cost_price: Number(props.product.cost_price),
     vat_treatment: props.product.vat_treatment || props.vat_options?.defaults?.treatment || 'gravado',
     vat_rate: Number(props.product.vat_rate || props.vat_options?.defaults?.rate || 21),
-    stock: Number(props.product.stock),
-    batch_code: '',
-    batch_expires_at: '',
     min_stock: Number(props.product.min_stock),
     shelf_life_days: props.product.shelf_life_days ? Number(props.product.shelf_life_days) : '',
     expiry_alert_days: Number(props.product.expiry_alert_days || 15),
     is_active: Boolean(props.product.is_active),
+    edit_version: Number(props.product.edit_version),
+    branch_stock_edit_version: props.product.branch_stock_edit_version === null ? null : Number(props.product.branch_stock_edit_version),
 });
 const batchForm = useForm({
     batch_code: '',
@@ -88,16 +87,13 @@ const costLabel = computed(() => {
     if (!isWeightProduct.value) return 'Precio de costo';
     return form.weight_unit === 'g' ? 'Costo por 100 g' : 'Costo por kg';
 });
-const stockLabel = computed(() => (
-    isWeightProduct.value ? `Stock actual (${measurementUnitLabel.value})` : 'Stock actual'
-));
 const minStockLabel = computed(() => (
     isWeightProduct.value ? `Stock minimo (${measurementUnitLabel.value})` : 'Stock minimo'
 ));
 const quantityStep = computed(() => (isWeightProduct.value && form.weight_unit === 'kg' ? '0.001' : '1'));
 const salePrice = computed(() => Number(form.sale_price || 0));
 const costPrice = computed(() => Number(form.cost_price || 0));
-const stockValue = computed(() => Number(form.stock || 0));
+const stockValue = computed(() => Number(props.product.stock || 0));
 const minStockValue = computed(() => Number(form.min_stock || 0));
 const marginAmount = computed(() => Number((salePrice.value - costPrice.value).toFixed(2)));
 const marginPercent = computed(() => {
@@ -178,7 +174,7 @@ const submitBatchEdit = () => {
             <div class="flex items-center justify-between gap-3">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Editar producto</h2>
-                    <p class="mt-1 text-sm text-slate-300/80">Actualiza catalogo y stock.</p>
+                    <p class="mt-1 text-sm text-slate-300/80">Actualiza el catálogo y la configuración de la sucursal actual.</p>
                 </div>
                 <Link :href="route('products.index')" class="text-sm font-semibold text-slate-300 hover:text-slate-100">Volver</Link>
             </div>
@@ -186,22 +182,31 @@ const submitBatchEdit = () => {
 
         <form class="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_21rem]" @submit.prevent="submit">
             <div class="grid gap-6">
-                <AppPanel title="Stock y lotes" subtitle="Ajusta el stock actual y registra lote solo cuando el cambio agrega mercaderia.">
-                    <div class="grid gap-3 sm:grid-cols-3 text-sm text-slate-300">
+                <AppPanel title="Inventario de esta sucursal" :subtitle="`Sucursal activa: ${props.product.branch_name}`">
+                    <div class="grid gap-3 sm:grid-cols-4 text-sm text-slate-300">
                         <div class="app-subsection">
-                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Stock total</p>
+                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Stock en esta sucursal</p>
                             <p class="mt-2 text-2xl font-bold text-slate-100">{{ props.product.batch_summary.total_stock }}</p>
                         </div>
                         <div class="app-subsection">
-                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Lotes activos</p>
-                            <p class="mt-2 text-2xl font-bold text-slate-100">{{ props.product.batch_summary.tracked_stock }}</p>
+                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Reservado</p>
+                            <p class="mt-2 text-2xl font-bold text-slate-100">{{ props.product.reserved_stock }}</p>
                         </div>
                         <div class="app-subsection">
-                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Sin lote historico</p>
-                            <p class="mt-2 text-2xl font-bold text-slate-100">{{ props.product.batch_summary.untracked_stock }}</p>
+                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Disponible</p>
+                            <p class="mt-2 text-2xl font-bold text-slate-100">{{ props.product.available_stock }}</p>
+                        </div>
+                        <div class="app-subsection">
+                            <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Stock mínimo</p>
+                            <p class="mt-2 text-2xl font-bold text-slate-100">{{ props.product.min_stock }}</p>
                         </div>
                     </div>
-                    <p class="mt-4 text-xs text-slate-400">Si aumentas stock desde esta pantalla puedes indicar lote y vencimiento. Si reduces stock, el sistema consume por FEFO y luego usa el remanente historico sin lote.</p>
+                    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-100/15 bg-slate-950/35 p-4 text-sm text-slate-300">
+                        <p>Lotes de esta sucursal: <strong class="text-slate-100">{{ props.product.batch_summary.batches_count }}</strong>. El ajuste usa FEFO y conserva el stock histórico sin lote.</p>
+                        <Link :href="route('products.inventory-adjustments.create', props.product.id)" class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500">
+                            Ajustar inventario
+                        </Link>
+                    </div>
                 </AppPanel>
 
                 <AppPanel title="Informacion basica" subtitle="Mantiene ordenado el catalogo y reduce errores de identificacion en mostrador.">
@@ -302,27 +307,12 @@ const submitBatchEdit = () => {
                     </div>
                 </AppPanel>
 
-                <AppPanel title="Stock y vencimientos" subtitle="Usa lote solo cuando el ajuste suma stock y revisa rapido si el producto ya entro en nivel critico.">
+                <AppPanel title="Configuración de esta sucursal y vencimientos" subtitle="El stock se ajusta únicamente desde la operación de inventario.">
                     <div class="grid gap-4 md:grid-cols-2">
-                        <div class="app-field">
-                            <label class="app-field-label">{{ stockLabel }}</label>
-                            <input v-model.number="form.stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl text-sm" />
-                            <p v-if="form.errors.stock" class="text-xs text-rose-300">{{ form.errors.stock }}</p>
-                        </div>
                         <div class="app-field">
                             <label class="app-field-label">{{ minStockLabel }}</label>
                             <input v-model.number="form.min_stock" type="number" min="0" :step="quantityStep" class="w-full rounded-xl text-sm" />
                             <p v-if="form.errors.min_stock" class="text-xs text-rose-300">{{ form.errors.min_stock }}</p>
-                        </div>
-                        <div class="app-field">
-                            <label class="app-field-label">Lote para ingreso o ajuste positivo</label>
-                            <input v-model="form.batch_code" type="text" class="w-full rounded-xl text-sm" placeholder="Opcional, se genera automatico" />
-                            <p v-if="form.errors.batch_code" class="text-xs text-rose-300">{{ form.errors.batch_code }}</p>
-                        </div>
-                        <div class="app-field">
-                            <label class="app-field-label">Vencimiento del lote</label>
-                            <input v-model="form.batch_expires_at" type="date" class="w-full rounded-xl text-sm" />
-                            <p v-if="form.errors.batch_expires_at" class="text-xs text-rose-300">{{ form.errors.batch_expires_at }}</p>
                         </div>
                         <div class="app-field">
                             <label class="app-field-label">Fecha de vencimiento de referencia</label>

@@ -50,6 +50,7 @@ test('purchase increments stock updates cost and stores business on items', func
 
     expect($product->fresh()->stock)->toBe('7.000');
     expect($product->fresh()->cost_price)->toBe('950.00');
+    expect($product->fresh()->edit_version)->toBe(2);
 
     $purchase = Purchase::query()->firstOrFail();
     $item = PurchaseItem::query()->firstOrFail();

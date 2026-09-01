@@ -294,8 +294,8 @@ class ProductController extends Controller
             'batchCorrections' => fn ($query) => $query->where('branch_id', $branch->id),
         ]);
 
-        $batchSummary = $this->buildBatchSummary($product);
         $branchStock = $product->branchStocks->first();
+        $batchSummary = $this->buildBatchSummary($product, $branchStock);
 
         return Inertia::render('Products/Edit', [
             'product' => [
@@ -315,6 +315,11 @@ class ProductController extends Controller
                 'vat_rate' => (float) $product->vat_rate,
                 'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
                 'stock' => (float) ($branchStock?->stock ?? 0),
+                'reserved_stock' => (float) ($branchStock?->reserved_stock ?? 0),
+                'available_stock' => (float) ($branchStock?->availableStock() ?? 0),
+                'branch_name' => $branch->name,
+                'edit_version' => $product->edit_version,
+                'branch_stock_edit_version' => $branchStock?->edit_version,
                 'batch_summary' => $batchSummary,
                 'batch_corrections_count' => $product->batch_corrections_count,
                 'batches' => $product->batches
@@ -344,7 +349,6 @@ class ProductController extends Controller
         CurrentBusiness $currentBusiness,
         CurrentBranch $currentBranch,
         Product $product,
-        ProductBatchService $productBatchService,
         BranchProductStockService $branchProductStockService,
     ): RedirectResponse {
         $business = $currentBusiness->get();
@@ -356,9 +360,6 @@ class ProductController extends Controller
         $categoryId = $this->resolveCategoryId($business->id, $data['category_id'] ?? null);
         $supplierId = $this->resolveSupplierId($business->id, $data['supplier_id'] ?? null);
 
-        $branchStock = $branchProductStockService->stock($branch, $product);
-        $newStock = round((float) ($data['stock'] ?? $branchStock?->stock ?? 0), 3);
-
         DB::transaction(function () use (
             $product,
             $categoryId,
@@ -366,9 +367,6 @@ class ProductController extends Controller
             $data,
             $business,
             $branch,
-            $newStock,
-            $request,
-            $productBatchService,
             $branchProductStockService
         ): void {
             $product = Product::query()
@@ -376,8 +374,27 @@ class ProductController extends Controller
                 ->whereKey($product->id)
                 ->lockForUpdate()
                 ->firstOrFail();
-            $branchStock = $branchProductStockService->stock($branch, $product);
-            $beforeStock = round((float) ($branchStock?->stock ?? 0), 3);
+            if ((int) $data['edit_version'] !== (int) $product->edit_version) {
+                throw ValidationException::withMessages([
+                    'edit_version' => 'Este producto fue modificado por otro usuario mientras lo estabas editando. Actualizá la información antes de volver a guardar.',
+                ]);
+            }
+
+            $branchStock = $branchProductStockService->lockStock($branch, $product);
+            if (($data['branch_stock_edit_version'] ?? null) !== null
+                && (int) $data['branch_stock_edit_version'] !== (int) $branchStock->edit_version) {
+                throw ValidationException::withMessages([
+                    'branch_stock_edit_version' => 'La configuración de inventario de esta sucursal fue modificada por otro usuario. Actualizá la información antes de volver a guardar.',
+                ]);
+            }
+
+            $nextUnitType = $data['unit_type'];
+            $nextWeightUnit = ProductMeasurement::normalizeWeightUnit($nextUnitType, $data['weight_unit'] ?? null);
+            if ($this->measurementWouldChange($product, $nextUnitType, $nextWeightUnit) && $this->hasInventoryHistory($product)) {
+                throw ValidationException::withMessages([
+                    'unit_type' => 'No se puede cambiar la unidad de medida porque el producto ya tiene inventario o movimientos. Creá un producto nuevo o usá una conversión específica.',
+                ]);
+            }
 
             $product->update([
                 'category_id' => $categoryId,
@@ -388,69 +405,17 @@ class ProductController extends Controller
                 'barcode' => $data['barcode'] ?: null,
                 'sku' => $data['sku'] ?: null,
                 'unit_type' => $data['unit_type'],
-                'weight_unit' => ProductMeasurement::normalizeWeightUnit($data['unit_type'], $data['weight_unit'] ?? null),
+                'weight_unit' => $nextWeightUnit,
                 'sale_price' => $data['sale_price'],
                 'cost_price' => $data['cost_price'],
                 'vat_treatment' => $this->vatCalculator->normalizeTreatment($data['vat_treatment'] ?? null),
                 'vat_rate' => $this->resolvedVatRate($data),
-                'min_stock' => $data['min_stock'] ?? 0,
                 'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
                 'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
                 'is_active' => (bool) ($data['is_active'] ?? true),
             ]);
 
-            if ($beforeStock !== $newStock) {
-                $stockDelta = round($newStock - $beforeStock, 3);
-
-                if ($stockDelta > 0) {
-                    $productBatchService->receiveStock($business, $branch, $product, $stockDelta, [
-                        'batch_code' => $data['batch_code'] ?? null,
-                        'expires_at' => $data['batch_expires_at'] ?? null,
-                        'unit_cost' => $data['cost_price'],
-                        'movement_type' => 'adjustment',
-                        'reference_type' => Product::class,
-                        'reference_id' => $product->id,
-                        'notes' => 'Ajuste manual desde edicion de producto',
-                        'created_by' => $request->user()?->id,
-                        'error_key' => 'batch_code',
-                    ]);
-                } elseif ($stockDelta < 0) {
-                    $productBatchService->consumeStock($business, $branch, $product, abs($stockDelta), [
-                        'movement_type' => 'adjustment',
-                        'reference_type' => Product::class,
-                        'reference_id' => $product->id,
-                        'notes' => 'Ajuste manual desde edicion de producto',
-                        'created_by' => $request->user()?->id,
-                    ]);
-                }
-
-                $branchStock = $branchProductStockService->adjust(
-                    $branch,
-                    $product,
-                    $stockDelta,
-                    (float) ($data['min_stock'] ?? 0),
-                );
-
-                StockMovement::query()->create([
-                    'business_id' => $business->id,
-                    'branch_id' => $branch->id,
-                    'product_id' => $product->id,
-                    'type' => 'adjustment',
-                    'reference_type' => Product::class,
-                    'reference_id' => $product->id,
-                    'quantity' => $stockDelta,
-                    'stock_before' => $beforeStock,
-                    'stock_after' => $branchStock->stock,
-                    'notes' => 'Ajuste manual desde edicion de producto',
-                    'created_by' => $request->user()?->id,
-                ]);
-            } else {
-                $branchProductStockService->setMinStock(
-                    $branch,
-                    $product,
-                    (float) ($data['min_stock'] ?? 0),
-                );
-            }
+            $branchProductStockService->setLockedMinStock($branchStock, (float) ($data['min_stock'] ?? 0));
         });
 
         return redirect()
@@ -664,10 +629,10 @@ class ProductController extends Controller
     /**
      * @return array<string, float|int|bool>
      */
-    private function buildBatchSummary(Product $product): array
+    private function buildBatchSummary(Product $product, ?\App\Models\BranchProductStock $branchStock): array
     {
         $trackedStock = round((float) $product->batches->sum('quantity'), 3);
-        $totalStock = round((float) $product->stock, 3);
+        $totalStock = round((float) ($branchStock?->stock ?? 0), 3);
 
         return [
             'tracked_stock' => $trackedStock,
@@ -676,6 +641,21 @@ class ProductController extends Controller
             'has_batches' => $product->batches->isNotEmpty(),
             'batches_count' => $product->batches->count(),
         ];
+    }
+
+    private function measurementWouldChange(Product $product, string $unitType, ?string $weightUnit): bool
+    {
+        return $product->unit_type !== $unitType || $product->weight_unit !== $weightUnit;
+    }
+
+    private function hasInventoryHistory(Product $product): bool
+    {
+        return $product->branchStocks()
+            ->where(fn ($query) => $query->where('stock', '>', 0)->orWhere('reserved_stock', '>', 0))
+            ->exists()
+            || $product->batches()->exists()
+            || $product->stockMovements()->exists()
+            || \App\Models\ProductBatchMovement::query()->where('product_id', $product->id)->exists();
     }
 
     /**

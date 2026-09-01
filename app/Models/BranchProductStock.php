@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BranchProductStock extends Model
 {
@@ -20,6 +21,7 @@ class BranchProductStock extends Model
         'stock',
         'reserved_stock',
         'min_stock',
+        'edit_version',
     ];
 
     /**
@@ -31,7 +33,17 @@ class BranchProductStock extends Model
             'stock' => 'decimal:3',
             'reserved_stock' => 'decimal:3',
             'min_stock' => 'decimal:3',
+            'edit_version' => 'int',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (BranchProductStock $stock): void {
+            if ($stock->isDirty('min_stock')) {
+                $stock->edit_version = ((int) $stock->getOriginal('edit_version')) + 1;
+            }
+        });
     }
 
     /**
@@ -48,6 +60,12 @@ class BranchProductStock extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /** @return HasMany<InventoryAdjustment, $this> */
+    public function inventoryAdjustments(): HasMany
+    {
+        return $this->hasMany(InventoryAdjustment::class);
     }
 
     public function availableStock(): float
