@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Business;
+use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductBatchCorrection;
@@ -17,8 +18,9 @@ class ProductBatchService
     /**
      * @param  array<string, mixed>  $context
      */
-    public function receiveStock(Business $business, Product $product, float $quantity, array $context = []): ?ProductBatch
+    public function receiveStock(Business $business, Branch $branch, Product $product, float $quantity, array $context = []): ?ProductBatch
     {
+        $this->ensureBranchContext($business, $branch, $product);
         $normalizedQuantity = round($quantity, 3);
 
         if ($normalizedQuantity <= 0) {
@@ -32,6 +34,7 @@ class ProductBatchService
         $batch = $batchCode !== null
             ? ProductBatch::query()
                 ->forBusiness($business->id)
+                ->where('branch_id', $branch->id)
                 ->where('product_id', $product->id)
                 ->where('batch_code', $batchCode)
                 ->lockForUpdate()
@@ -41,8 +44,9 @@ class ProductBatchService
         if ($batch === null) {
             $batch = ProductBatch::query()->create([
                 'business_id' => $business->id,
+                'branch_id' => $branch->id,
                 'product_id' => $product->id,
-                'batch_code' => $batchCode ?? $this->generateBatchCode($business->id, $product->id),
+                'batch_code' => $batchCode ?? $this->generateBatchCode($business->id, $branch->id, $product->id),
                 'expires_at' => $expiresAt?->toDateString(),
                 'quantity' => 0,
                 'unit_cost' => $unitCost,
@@ -65,7 +69,7 @@ class ProductBatchService
         $batch->quantity = $after;
         $batch->save();
 
-        $this->recordMovement($business, $product, $batch, [
+        $this->recordMovement($business, $branch, $product, $batch, [
             'type' => $context['movement_type'] ?? 'purchase',
             'reference_type' => $context['reference_type'] ?? null,
             'reference_id' => $context['reference_id'] ?? null,
@@ -83,8 +87,9 @@ class ProductBatchService
      * @param  array<string, mixed>  $context
      * @return array{allocations: Collection<int, array<string, mixed>>, batched_quantity: float, unbatched_quantity: float}
      */
-    public function consumeStock(Business $business, Product $product, float $quantity, array $context = []): array
+    public function consumeStock(Business $business, Branch $branch, Product $product, float $quantity, array $context = []): array
     {
+        $this->ensureBranchContext($business, $branch, $product);
         $remaining = round($quantity, 3);
         $allocations = collect();
 
@@ -98,6 +103,7 @@ class ProductBatchService
 
         $batches = ProductBatch::query()
             ->forBusiness($business->id)
+            ->where('branch_id', $branch->id)
             ->where('product_id', $product->id)
             ->available()
             ->orderedForOutbound()
@@ -122,7 +128,7 @@ class ProductBatchService
             $batch->quantity = $after;
             $batch->save();
 
-            $this->recordMovement($business, $product, $batch, [
+            $this->recordMovement($business, $branch, $product, $batch, [
                 'type' => $context['movement_type'] ?? 'sale',
                 'reference_type' => $context['reference_type'] ?? null,
                 'reference_id' => $context['reference_id'] ?? null,
@@ -150,10 +156,17 @@ class ProductBatchService
         ];
     }
 
-    public function availableBatchStock(Product $product): float
+    public function availableBatchStock(Branch $branch, Product $product): float
     {
+        if ((int) $branch->business_id !== (int) $product->business_id) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'La sucursal no pertenece al comercio del producto.',
+            ]);
+        }
+
         return round((float) ProductBatch::query()
             ->forBusiness($product->business_id)
+            ->where('branch_id', $branch->id)
             ->where('product_id', $product->id)
             ->available()
             ->sum('quantity'), 3);
@@ -162,8 +175,18 @@ class ProductBatchService
     /**
      * @param  array<string, mixed>  $context
      */
-    public function correctBatch(Business $business, Product $product, ProductBatch $batch, array $context = []): ProductBatch
+    public function correctBatch(Business $business, Branch $branch, Product $product, ProductBatch $batch, array $context = []): ProductBatch
     {
+        $this->ensureBranchContext($business, $branch, $product);
+
+        if ((int) $batch->business_id !== (int) $business->id
+            || (int) $batch->product_id !== (int) $product->id
+            || (int) $batch->branch_id !== (int) $branch->id) {
+            throw ValidationException::withMessages([
+                'batch_code' => 'El lote no pertenece a la sucursal seleccionada.',
+            ]);
+        }
+
         $newBatchCode = $this->normalizeBatchCode($context['batch_code'] ?? null);
         $newExpiresAt = $this->normalizeDate($context['expires_at'] ?? null);
         $newUnitCost = $this->normalizeMoney($context['unit_cost'] ?? null);
@@ -191,6 +214,7 @@ class ProductBatchService
         DB::transaction(function () use (
             $batch,
             $business,
+            $branch,
             $product,
             $context,
             $newBatchCode,
@@ -209,6 +233,7 @@ class ProductBatchService
 
             ProductBatchCorrection::query()->create([
                 'business_id' => $business->id,
+                'branch_id' => $branch->id,
                 'product_id' => $product->id,
                 'product_batch_id' => $batch->id,
                 'corrected_by' => $context['created_by'] ?? null,
@@ -225,11 +250,12 @@ class ProductBatchService
         return $batch->fresh();
     }
 
-    private function generateBatchCode(int $businessId, int $productId): string
+    private function generateBatchCode(int $businessId, int $branchId, int $productId): string
     {
         $prefix = 'L-'.now()->format('Y').'-';
         $codes = ProductBatch::query()
             ->forBusiness($businessId)
+            ->where('branch_id', $branchId)
             ->where('product_id', $productId)
             ->where('batch_code', 'like', $prefix.'%')
             ->lockForUpdate()
@@ -289,10 +315,11 @@ class ProductBatchService
     /**
      * @param  array<string, mixed>  $payload
      */
-    private function recordMovement(Business $business, Product $product, ProductBatch $batch, array $payload): void
+    private function recordMovement(Business $business, Branch $branch, Product $product, ProductBatch $batch, array $payload): void
     {
         ProductBatchMovement::query()->create([
             'business_id' => $business->id,
+            'branch_id' => $branch->id,
             'product_batch_id' => $batch->id,
             'product_id' => $product->id,
             'type' => $payload['type'],
@@ -304,5 +331,15 @@ class ProductBatchService
             'notes' => $payload['notes'],
             'created_by' => $payload['created_by'],
         ]);
+    }
+
+    private function ensureBranchContext(Business $business, Branch $branch, Product $product): void
+    {
+        if ((int) $branch->business_id !== (int) $business->id
+            || (int) $product->business_id !== (int) $business->id) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'La sucursal o el producto no pertenecen al comercio.',
+            ]);
+        }
     }
 }

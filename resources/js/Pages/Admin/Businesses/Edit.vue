@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
@@ -23,6 +23,10 @@ const props = defineProps({
     fiscal_catalog: {
         type: Object,
         default: () => ({ document_types: [], voucher_types: [], authorization_modes: [], environments: [], fiscal_conditions: [] }),
+    },
+    branches: {
+        type: Array,
+        default: () => [],
     },
 });
 
@@ -121,6 +125,46 @@ const paymentForm = useForm({
     notes: '',
 });
 
+const branchForm = useForm({
+    name: '',
+    code: '',
+    address: '',
+    phone: '',
+    email: '',
+    is_active: true,
+});
+const branchFiscalForm = useForm({
+    is_enabled: false,
+    fiscal_external_business_id: '',
+    fiscal_environment: 'testing',
+    fiscal_cuit: '',
+    fiscal_condition: 'monotributo',
+    fiscal_point_of_sale: 2,
+    fiscal_document_type: 'invoice_c',
+    fiscal_cbte_type: 11,
+    fiscal_concept: 1,
+    fiscal_authorization_mode: 'cae',
+    fiscal_caea_code: '',
+    fiscal_caea_period: '',
+    fiscal_caea_order: '',
+    fiscal_caea_from: '',
+    fiscal_caea_to: '',
+    fiscal_caea_due_date: '',
+    fiscal_caea_report_deadline: '',
+    fiscal_activities: '',
+});
+const branchCommercialForm = useForm({
+    advanced_sale_settings_enabled: false,
+    sale_sectors: [],
+    payment_destinations: [],
+});
+const editingBranch = ref(null);
+const showingBranchForm = ref(false);
+const fiscalBranch = ref(null);
+const showingBranchFiscalForm = ref(false);
+const commercialBranch = ref(null);
+const showingBranchCommercialForm = ref(false);
+
 const implementationPlans = computed(() => props.commercial_catalog?.implementation_plans || []);
 const maintenancePlans = computed(() => props.commercial_catalog?.maintenance_plans || []);
 const availablePaymentPlans = computed(() => (
@@ -165,6 +209,132 @@ const submitSalesSettings = () => {
 
 const submitPayment = () => {
     paymentForm.post(route('admin.businesses.payments.store', props.business.id));
+};
+
+const resetBranchForm = () => {
+    editingBranch.value = null;
+    branchForm.reset();
+    branchForm.is_active = true;
+    branchForm.clearErrors();
+};
+
+const startBranchCreation = () => {
+    resetBranchForm();
+    showingBranchForm.value = true;
+};
+
+const startBranchEdition = (branch) => {
+    editingBranch.value = branch;
+    branchForm.name = branch.name || '';
+    branchForm.code = branch.code || '';
+    branchForm.address = branch.address || '';
+    branchForm.phone = branch.phone || '';
+    branchForm.email = branch.email || '';
+    branchForm.is_active = Boolean(branch.is_active);
+    branchForm.clearErrors();
+    showingBranchForm.value = true;
+};
+
+const cancelBranchEdition = () => {
+    resetBranchForm();
+    showingBranchForm.value = false;
+};
+
+const submitBranch = () => {
+    if (editingBranch.value) {
+        branchForm.put(route('admin.businesses.branches.update', [props.business.id, editingBranch.value.id]));
+        return;
+    }
+
+    branchForm.post(route('admin.businesses.branches.store', props.business.id));
+};
+
+const configureBranchFiscal = (branch) => {
+    const settings = branch.fiscal_setting || props.sales_settings;
+
+    fiscalBranch.value = branch;
+    branchFiscalForm.is_enabled = Boolean(settings.is_enabled ?? settings.fiscal_enabled);
+    branchFiscalForm.fiscal_external_business_id = settings.fiscal_external_business_id || '';
+    branchFiscalForm.fiscal_environment = settings.fiscal_environment || 'testing';
+    branchFiscalForm.fiscal_cuit = settings.fiscal_cuit || '';
+    branchFiscalForm.fiscal_condition = settings.fiscal_condition || 'monotributo';
+    branchFiscalForm.fiscal_point_of_sale = settings.fiscal_point_of_sale ?? 2;
+    branchFiscalForm.fiscal_document_type = settings.fiscal_document_type || 'invoice_c';
+    branchFiscalForm.fiscal_cbte_type = settings.fiscal_cbte_type ?? 11;
+    branchFiscalForm.fiscal_concept = settings.fiscal_concept ?? 1;
+    branchFiscalForm.fiscal_authorization_mode = settings.fiscal_authorization_mode || 'cae';
+    branchFiscalForm.fiscal_caea_code = settings.fiscal_caea_code || '';
+    branchFiscalForm.fiscal_caea_period = settings.fiscal_caea_period || '';
+    branchFiscalForm.fiscal_caea_order = settings.fiscal_caea_order || '';
+    branchFiscalForm.fiscal_caea_from = settings.fiscal_caea_from || '';
+    branchFiscalForm.fiscal_caea_to = settings.fiscal_caea_to || '';
+    branchFiscalForm.fiscal_caea_due_date = settings.fiscal_caea_due_date || '';
+    branchFiscalForm.fiscal_caea_report_deadline = settings.fiscal_caea_report_deadline || '';
+    branchFiscalForm.fiscal_activities = settings.fiscal_activities || '';
+    branchFiscalForm.clearErrors();
+    showingBranchFiscalForm.value = true;
+};
+
+const cancelBranchFiscalEdition = () => {
+    fiscalBranch.value = null;
+    branchFiscalForm.reset();
+    branchFiscalForm.clearErrors();
+    showingBranchFiscalForm.value = false;
+};
+
+const submitBranchFiscal = () => {
+    if (!fiscalBranch.value) return;
+
+    branchFiscalForm.put(route('admin.businesses.branches.fiscal-settings.update', [props.business.id, fiscalBranch.value.id]));
+};
+
+const configureBranchCommercial = (branch) => {
+    const settings = branch.commercial_setting || {};
+    commercialBranch.value = branch;
+    branchCommercialForm.advanced_sale_settings_enabled = Boolean(settings.advanced_sale_settings_enabled);
+    branchCommercialForm.sale_sectors = (settings.sale_sectors || []).map((sector) => ({
+        id: sector.id || null,
+        name: sector.name || '',
+        description: sector.description || '',
+        is_active: Boolean(sector.is_active),
+    }));
+    branchCommercialForm.payment_destinations = (settings.payment_destinations || []).map((destination) => ({
+        id: destination.id || null,
+        name: destination.name || '',
+        account_holder: destination.account_holder || '',
+        reference: destination.reference || '',
+        account_number: destination.account_number || '',
+        is_active: Boolean(destination.is_active),
+    }));
+    branchCommercialForm.clearErrors();
+    showingBranchCommercialForm.value = true;
+};
+
+const cancelBranchCommercialEdition = () => {
+    commercialBranch.value = null;
+    branchCommercialForm.reset();
+    branchCommercialForm.clearErrors();
+    showingBranchCommercialForm.value = false;
+};
+
+const submitBranchCommercial = () => {
+    if (!commercialBranch.value) return;
+    branchCommercialForm.put(route('admin.businesses.branches.commercial-settings.update', [props.business.id, commercialBranch.value.id]));
+};
+
+const addBranchSector = () => branchCommercialForm.sale_sectors.push(makeSector());
+const addBranchPaymentDestination = () => branchCommercialForm.payment_destinations.push(makePaymentDestination());
+
+const removeBranchSector = (index) => {
+    const sector = branchCommercialForm.sale_sectors[index];
+    if (sector?.id) { sector.is_active = false; return; }
+    branchCommercialForm.sale_sectors.splice(index, 1);
+};
+
+const removeBranchPaymentDestination = (index) => {
+    const destination = branchCommercialForm.payment_destinations[index];
+    if (destination?.id) { destination.is_active = false; return; }
+    branchCommercialForm.payment_destinations.splice(index, 1);
 };
 
 const addSector = () => {
@@ -226,6 +396,28 @@ const planLabel = (plan) => {
 
     return `${plan.title}${plan.price ? ` - ${priceLabel}${plan.price}${priceSuffix}` : ''}`;
 };
+
+const sectionNavigation = [
+    { id: 'datos-generales', label: 'Datos generales' },
+    { id: 'resumen-comercial', label: 'Resumen' },
+    { id: 'abonos', label: 'Planes y abonos' },
+    { id: 'configuracion-operativa', label: 'Configuración' },
+    { id: 'sucursales', label: 'Sucursales' },
+    { id: 'cobros', label: 'Registrar pago' },
+    { id: 'historial-pagos', label: 'Historial' },
+];
+
+const openSection = (sectionId) => {
+    const section = document.getElementById(sectionId);
+
+    if (!section) return;
+
+    if (section.tagName === 'DETAILS') {
+        section.open = true;
+    }
+
+    requestAnimationFrame(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+};
 </script>
 
 <template>
@@ -247,8 +439,31 @@ const planLabel = (plan) => {
             </div>
         </template>
 
+        <nav aria-label="Secciones de edición" class="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-3 shadow-sm backdrop-blur">
+            <button
+                v-for="section in sectionNavigation"
+                :key="section.id"
+                type="button"
+                class="shrink-0 rounded-lg border border-cyan-100/15 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800/70 hover:text-slate-100"
+                @click="openSection(section.id)"
+            >
+                {{ section.label }}
+            </button>
+        </nav>
+
         <div class="grid gap-6">
-            <section class="grid gap-4 xl:grid-cols-2">
+            <details id="resumen-comercial" class="order-2 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-100">Resumen de implementacion y mantenimiento</h3>
+                            <p class="mt-1 text-sm text-slate-300/80">Estado actual del alta y del abono del comercio.</p>
+                        </div>
+                        <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">Ver / ocultar</span>
+                    </div>
+                </summary>
+
+                <section class="mt-5 grid gap-4 border-t border-cyan-100/15 pt-5 xl:grid-cols-2">
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
                     <div class="flex items-center justify-between gap-3">
                         <div>
@@ -301,15 +516,21 @@ const planLabel = (plan) => {
                     </div>
                     <p class="mt-4 text-sm text-slate-300/80">{{ billing.maintenance.status_message }}</p>
                 </article>
-            </section>
+                </section>
+            </details>
 
-            <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submitBilling">
-                <div class="flex flex-wrap items-start justify-between gap-3">
+            <details id="abonos" class="order-3 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-semibold text-slate-100">Planes y abonos</h3>
                         <p class="mt-1 text-sm text-slate-300/80">Define lo pactado con el cliente y la ventana de gracia del comercio.</p>
                     </div>
-                </div>
+                        <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">Ver / ocultar</span>
+                    </div>
+                </summary>
+
+                <form class="mt-5 border-t border-cyan-100/15 pt-5" @submit.prevent="submitBilling">
 
                 <div class="mt-5 grid gap-6 xl:grid-cols-2">
                     <section class="rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
@@ -384,15 +605,21 @@ const planLabel = (plan) => {
                         Guardar planes y abonos
                     </button>
                 </div>
-            </form>
+                </form>
+            </details>
 
-            <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submit">
-                <div class="flex items-start justify-between gap-3">
+            <details id="datos-generales" open class="order-1 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-semibold text-slate-100">Datos generales</h3>
                         <p class="mt-1 text-sm text-slate-300/80">Configuracion base del comercio.</p>
                     </div>
-                </div>
+                        <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">Ver / ocultar</span>
+                    </div>
+                </summary>
+
+                <form class="mt-4 border-t border-cyan-100/15 pt-4" @submit.prevent="submit">
 
                 <div class="mt-4 grid gap-3 md:grid-cols-2">
                     <div class="space-y-1">
@@ -435,15 +662,21 @@ const planLabel = (plan) => {
                         Guardar datos generales
                     </button>
                 </div>
-            </form>
+                </form>
+            </details>
 
-            <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submitPayment">
-                <div class="flex flex-wrap items-start justify-between gap-3">
+            <details id="cobros" class="order-6 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-semibold text-slate-100">Registrar pago manual</h3>
                         <p class="mt-1 text-sm text-slate-300/80">Cada pago queda asentado y, si es mantenimiento, actualiza la cobertura del comercio.</p>
                     </div>
-                </div>
+                        <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">Ver / ocultar</span>
+                    </div>
+                </summary>
+
+                <form class="mt-5 border-t border-cyan-100/15 pt-5" @submit.prevent="submitPayment">
 
                 <div class="mt-5 grid gap-3 xl:grid-cols-2">
                     <div class="space-y-1">
@@ -493,17 +726,21 @@ const planLabel = (plan) => {
                         Registrar pago
                     </button>
                 </div>
-            </form>
+                </form>
+            </details>
 
-            <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                <div class="flex items-center justify-between gap-3">
-                    <div>
-                        <h3 class="text-lg font-semibold text-slate-100">Historial de pagos</h3>
-                        <p class="mt-1 text-sm text-slate-300/80">Ultimos movimientos registrados manualmente para este comercio.</p>
+            <details id="historial-pagos" class="order-7 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-100">Historial de pagos</h3>
+                            <p class="mt-1 text-sm text-slate-300/80">Ultimos movimientos registrados manualmente para este comercio.</p>
+                        </div>
+                        <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">Ver / ocultar</span>
                     </div>
-                </div>
+                </summary>
 
-                <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+                <div class="mt-5 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap border-t border-cyan-100/15 pt-5">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>
@@ -534,18 +771,19 @@ const planLabel = (plan) => {
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </details>
 
-            <form class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @submit.prevent="submitSalesSettings">
-                <div class="flex flex-wrap items-start justify-between gap-3">
+            <details id="configuracion-operativa" class="order-4 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h3 class="text-lg font-semibold text-slate-100">Funciones por comercio</h3>
-                        <p class="mt-1 text-sm text-slate-300/80">Configuracion exclusiva para ventas avanzadas y acceso al catalogo global.</p>
+                        <h3 class="text-lg font-semibold text-slate-100">Credenciales y compatibilidad del comercio</h3>
+                        <p class="mt-1 text-sm text-slate-300/80">El catálogo global y las credenciales compartidas se gestionan aquí. ARCA, terminal Point y sectores/destinos de cobro se configuran en cada sucursal.</p>
                     </div>
                     <div class="flex flex-col gap-2">
                         <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
                             <input v-model="salesSettingsForm.advanced_sale_settings_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
-                            Habilitar ventas avanzadas
+                            Fallback de ventas avanzadas
                         </label>
                         <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
                             <input v-model="salesSettingsForm.global_product_catalog_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
@@ -553,14 +791,18 @@ const planLabel = (plan) => {
                         </label>
                         <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
                             <input v-model="salesSettingsForm.fiscal_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
-                            Habilitar facturacion electronica
+                            Fallback de facturación electrónica
                         </label>
                         <label class="inline-flex items-center gap-2 rounded-xl border border-cyan-100/20 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
                             <input v-model="salesSettingsForm.mercadopago_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
-                            Habilitar Mercado Pago Point
+                            Habilitar credenciales de Mercado Pago
                         </label>
                     </div>
-                </div>
+                        <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">Ver / ocultar</span>
+                    </div>
+                </summary>
+
+                <form class="mt-5 border-t border-cyan-100/15 pt-5" @submit.prevent="submitSalesSettings">
 
                 <p v-if="salesSettingsForm.errors.sale_sectors" class="mt-3 text-sm text-rose-300">{{ salesSettingsForm.errors.sale_sectors }}</p>
                 <p v-if="salesSettingsForm.errors.payment_destinations" class="mt-2 text-sm text-rose-300">{{ salesSettingsForm.errors.payment_destinations }}</p>
@@ -582,7 +824,7 @@ const planLabel = (plan) => {
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <h4 class="text-base font-semibold text-slate-100">Mercado Pago Point</h4>
-                            <p class="mt-1 text-xs text-slate-400">Credenciales y terminal para cobros integrados del comercio.</p>
+                            <p class="mt-1 text-xs text-slate-400">Credenciales compartidas de la cuenta; la terminal se define por sucursal.</p>
                         </div>
                     </div>
 
@@ -906,7 +1148,268 @@ const planLabel = (plan) => {
                         Guardar funciones por comercio
                     </button>
                 </div>
-            </form>
+                </form>
+            </details>
+
+            <details id="sucursales" class="order-5 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+                <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.25em] text-cyan-100/70">Operación</p>
+                        <h3 class="mt-2 text-lg font-semibold text-slate-100">Sucursales del comercio</h3>
+                        <p class="mt-1 text-sm text-slate-300/80">Crea, edita o desactiva sucursales. Nunca se eliminan datos operativos.</p>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
+                        @click="startBranchCreation"
+                    >
+                        Agregar sucursal
+                    </button>
+                        <span class="rounded-full border border-cyan-100/20 px-3 py-1 text-xs font-semibold text-cyan-100">Ver / ocultar</span>
+                    </div>
+                </summary>
+
+                <div class="mt-5 border-t border-cyan-100/15 pt-5">
+
+                <form v-if="showingBranchForm" class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4" @submit.prevent="submitBranch">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h4 class="text-base font-semibold text-slate-100">{{ editingBranch ? 'Editar sucursal' : 'Nueva sucursal' }}</h4>
+                            <p class="mt-1 text-xs text-slate-400">El código identifica a la sucursal dentro de este comercio.</p>
+                        </div>
+                        <span v-if="editingBranch?.is_default" class="rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-semibold text-cyan-100">Sucursal principal</span>
+                    </div>
+
+                    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Nombre</label>
+                            <input v-model="branchForm.name" type="text" maxlength="150" required class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. Sucursal Centro" />
+                            <p v-if="branchForm.errors.name" class="text-xs text-rose-200">{{ branchForm.errors.name }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Código</label>
+                            <input v-model="branchForm.code" type="text" maxlength="64" required class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="centro" />
+                            <p v-if="branchForm.errors.code" class="text-xs text-rose-200">{{ branchForm.errors.code }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Teléfono</label>
+                            <input v-model="branchForm.phone" type="text" maxlength="80" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Opcional" />
+                            <p v-if="branchForm.errors.phone" class="text-xs text-rose-200">{{ branchForm.errors.phone }}</p>
+                        </div>
+                        <div class="space-y-1 md:col-span-2">
+                            <label class="text-sm font-medium text-slate-300">Dirección</label>
+                            <input v-model="branchForm.address" type="text" maxlength="255" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Opcional" />
+                            <p v-if="branchForm.errors.address" class="text-xs text-rose-200">{{ branchForm.errors.address }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Email</label>
+                            <input v-model="branchForm.email" type="email" maxlength="255" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Opcional" />
+                            <p v-if="branchForm.errors.email" class="text-xs text-rose-200">{{ branchForm.errors.email }}</p>
+                        </div>
+                    </div>
+
+                    <label class="mt-4 inline-flex items-center gap-2 text-sm text-slate-300">
+                        <input v-model="branchForm.is_active" type="checkbox" :disabled="Boolean(editingBranch?.is_default)" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500" />
+                        Sucursal activa
+                    </label>
+                    <p v-if="editingBranch?.is_default" class="mt-1 text-xs text-slate-400">La sucursal principal no se puede desactivar.</p>
+                    <p v-if="branchForm.errors.is_active" class="mt-1 text-xs text-rose-200">{{ branchForm.errors.is_active }}</p>
+
+                    <div class="mt-5 flex justify-end gap-3">
+                        <button type="button" class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70" @click="cancelBranchEdition">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-50" :disabled="branchForm.processing">
+                            {{ editingBranch ? 'Guardar sucursal' : 'Crear sucursal' }}
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-5 overflow-x-auto rounded-xl border border-cyan-100/15">
+                    <table class="min-w-full divide-y divide-cyan-100/15 text-left text-sm">
+                        <thead class="bg-slate-950/35 text-xs uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="px-4 py-3 font-medium">Sucursal</th>
+                                <th class="px-4 py-3 font-medium">Contacto</th>
+                                <th class="px-4 py-3 font-medium">Estado</th>
+                                <th class="px-4 py-3 font-medium"><span class="sr-only">Acciones</span></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-cyan-100/10 text-slate-200">
+                            <tr v-for="branch in branches" :key="branch.id">
+                                <td class="px-4 py-3">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="font-semibold text-slate-100">{{ branch.name }}</span>
+                                        <span v-if="branch.is_default" class="rounded-full bg-cyan-300/15 px-2 py-0.5 text-xs font-semibold text-cyan-100">Principal</span>
+                                    </div>
+                                    <p class="mt-1 text-xs text-slate-400">{{ branch.code }}{{ branch.address ? ` · ${branch.address}` : '' }}</p>
+                                </td>
+                                <td class="px-4 py-3 text-xs text-slate-300">
+                                    <p>{{ branch.phone || '-' }}</p>
+                                    <p class="mt-1">{{ branch.email || '-' }}</p>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="branch.is_active ? 'bg-emerald-400/15 text-emerald-100' : 'bg-slate-400/15 text-slate-300'">
+                                        {{ branch.is_active ? 'Activa' : 'Inactiva' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <div class="flex justify-end gap-2">
+                                        <button type="button" class="rounded-lg border border-emerald-100/30 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/10" @click="configureBranchCommercial(branch)">
+                                            Ventas
+                                        </button>
+                                        <button type="button" class="rounded-lg border border-amber-100/30 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-400/10" @click="configureBranchFiscal(branch)">
+                                            ARCA
+                                        </button>
+                                        <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-800/70" @click="startBranchEdition(branch)">
+                                            Editar
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="!branches.length">
+                                <td colspan="4" class="px-4 py-6 text-center text-sm text-slate-400">Este comercio todavía no tiene sucursales.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <form v-if="showingBranchFiscalForm" class="mt-5 rounded-2xl border border-amber-100/25 bg-slate-950/35 p-4" @submit.prevent="submitBranchFiscal">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.25em] text-amber-100/70">API ARCA</p>
+                            <h4 class="mt-2 text-base font-semibold text-slate-100">Perfil fiscal: {{ fiscalBranch?.name }}</h4>
+                            <p class="mt-1 text-xs text-slate-400">Esta configuración se usa únicamente al facturar ventas de esta sucursal.</p>
+                        </div>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+                            <input v-model="branchFiscalForm.is_enabled" type="checkbox" class="rounded border-amber-100/25 bg-slate-950/35 text-amber-500 focus:ring-amber-500" />
+                            Habilitar facturación ARCA
+                        </label>
+                    </div>
+
+                    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">ID empresa en API ARCA</label>
+                            <input v-model="branchFiscalForm.fiscal_external_business_id" type="text" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Comparte el del comercio si usa el mismo CUIT" />
+                            <p v-if="branchFiscalForm.errors.fiscal_external_business_id" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_external_business_id }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Ambiente</label>
+                            <select v-model="branchFiscalForm.fiscal_environment" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalEnvironmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">CUIT emisor</label>
+                            <input v-model="branchFiscalForm.fiscal_cuit" type="text" inputmode="numeric" maxlength="11" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            <p v-if="branchFiscalForm.errors.fiscal_cuit" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_cuit }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Condición fiscal</label>
+                            <select v-model="branchFiscalForm.fiscal_condition" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalConditionOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Punto de venta</label>
+                            <input v-model.number="branchFiscalForm.fiscal_point_of_sale" type="number" min="1" max="99999" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            <p v-if="branchFiscalForm.errors.fiscal_point_of_sale" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_point_of_sale }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Tipo de comprobante</label>
+                            <select v-model="branchFiscalForm.fiscal_document_type" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalDocumentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Código de comprobante</label>
+                            <select v-model.number="branchFiscalForm.fiscal_cbte_type" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalVoucherTypeOptions" :key="option.value" :value="option.value">{{ option.label }} - {{ option.value }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Concepto</label>
+                            <select v-model.number="branchFiscalForm.fiscal_concept" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalConceptOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Autorización</label>
+                            <select v-model="branchFiscalForm.fiscal_authorization_mode" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option v-for="option in fiscalAuthorizationModeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1 xl:col-span-2">
+                            <label class="text-sm font-medium text-slate-300">Actividades ARCA</label>
+                            <input v-model="branchFiscalForm.fiscal_activities" type="text" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. 492140, 471120" />
+                        </div>
+                    </div>
+
+                    <div v-if="branchFiscalForm.fiscal_authorization_mode === 'caea'" class="mt-4 grid gap-4 md:grid-cols-4">
+                        <div class="space-y-1 md:col-span-2">
+                            <label class="text-sm font-medium text-slate-300">CAEA vigente</label>
+                            <input v-model="branchFiscalForm.fiscal_caea_code" type="text" maxlength="14" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Período</label>
+                            <input v-model="branchFiscalForm.fiscal_caea_period" type="text" maxlength="6" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Orden</label>
+                            <select v-model="branchFiscalForm.fiscal_caea_order" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"><option value="">-</option><option value="1">1</option><option value="2">2</option></select>
+                        </div>
+                        <div class="space-y-1"><label class="text-sm font-medium text-slate-300">Desde</label><input v-model="branchFiscalForm.fiscal_caea_from" type="date" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" /></div>
+                        <div class="space-y-1"><label class="text-sm font-medium text-slate-300">Hasta</label><input v-model="branchFiscalForm.fiscal_caea_to" type="date" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" /></div>
+                        <div class="space-y-1"><label class="text-sm font-medium text-slate-300">Vencimiento</label><input v-model="branchFiscalForm.fiscal_caea_due_date" type="date" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" /></div>
+                        <div class="space-y-1"><label class="text-sm font-medium text-slate-300">Tope informe</label><input v-model="branchFiscalForm.fiscal_caea_report_deadline" type="date" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" /></div>
+                    </div>
+
+                    <p v-if="branchFiscalForm.errors.is_enabled" class="mt-3 text-xs text-rose-200">{{ branchFiscalForm.errors.is_enabled }}</p>
+                    <div class="mt-5 flex justify-end gap-3">
+                        <button type="button" class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70" @click="cancelBranchFiscalEdition">Cancelar</button>
+                        <button type="submit" class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50" :disabled="branchFiscalForm.processing">Guardar configuración ARCA</button>
+                    </div>
+                </form>
+
+                <form v-if="showingBranchCommercialForm" class="mt-5 rounded-2xl border border-emerald-100/25 bg-slate-950/35 p-4" @submit.prevent="submitBranchCommercial">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-[0.25em] text-emerald-100/70">Operación de ventas</p>
+                            <h4 class="mt-2 text-base font-semibold text-slate-100">Sectores y cobros: {{ commercialBranch?.name }}</h4>
+                            <p class="mt-1 text-xs text-slate-400">Sólo se usan y validan al vender desde esta sucursal.</p>
+                        </div>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-200"><input v-model="branchCommercialForm.advanced_sale_settings_enabled" type="checkbox" class="rounded border-emerald-100/25 bg-slate-950/35 text-emerald-500 focus:ring-emerald-500" /> Habilitar sectores y destinos de cobro</label>
+                    </div>
+                    <p v-if="branchCommercialForm.errors.sale_sectors" class="mt-3 text-sm text-rose-200">{{ branchCommercialForm.errors.sale_sectors }}</p>
+                    <p v-if="branchCommercialForm.errors.payment_destinations" class="mt-2 text-sm text-rose-200">{{ branchCommercialForm.errors.payment_destinations }}</p>
+
+                    <div class="mt-5 grid gap-5 xl:grid-cols-2">
+                        <section class="rounded-xl border border-emerald-100/15 bg-slate-900/45 p-4">
+                            <div class="flex items-center justify-between gap-3"><div><h5 class="font-semibold text-slate-100">Sectores / puntos de venta</h5><p class="mt-1 text-xs text-slate-400">Mostrador, taller, depósito, etc.</p></div><button type="button" class="rounded-lg border border-emerald-100/25 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/10" @click="addBranchSector">Agregar</button></div>
+                            <div class="mt-4 space-y-3">
+                                <article v-for="(sector, index) in branchCommercialForm.sale_sectors" :key="`branch-sector-${sector.id ?? index}`" class="rounded-lg border border-emerald-100/10 p-3">
+                                    <div class="flex justify-end"><button type="button" class="text-xs text-rose-200 hover:text-rose-100" @click="removeBranchSector(index)">{{ sector.id ? 'Desactivar' : 'Quitar' }}</button></div>
+                                    <div class="mt-2 grid gap-3"><input v-model="sector.name" type="text" maxlength="255" class="w-full rounded-xl border-emerald-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Nombre" /><input v-model="sector.description" type="text" maxlength="255" class="w-full rounded-xl border-emerald-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Descripción opcional" /></div>
+                                    <label class="mt-3 inline-flex items-center gap-2 text-xs text-slate-300"><input v-model="sector.is_active" type="checkbox" class="rounded border-emerald-100/25 bg-slate-950/35 text-emerald-500" /> Activo</label>
+                                </article>
+                            </div>
+                        </section>
+                        <section class="rounded-xl border border-emerald-100/15 bg-slate-900/45 p-4">
+                            <div class="flex items-center justify-between gap-3"><div><h5 class="font-semibold text-slate-100">Destinos de cobro</h5><p class="mt-1 text-xs text-slate-400">Cuentas, alias o cajas de esta sucursal.</p></div><button type="button" class="rounded-lg border border-emerald-100/25 px-3 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/10" @click="addBranchPaymentDestination">Agregar</button></div>
+                            <div class="mt-4 space-y-3">
+                                <article v-for="(destination, index) in branchCommercialForm.payment_destinations" :key="`branch-destination-${destination.id ?? index}`" class="rounded-lg border border-emerald-100/10 p-3">
+                                    <div class="flex justify-end"><button type="button" class="text-xs text-rose-200 hover:text-rose-100" @click="removeBranchPaymentDestination(index)">{{ destination.id ? 'Desactivar' : 'Quitar' }}</button></div>
+                                    <div class="mt-2 grid gap-3"><input v-model="destination.name" type="text" maxlength="255" class="w-full rounded-xl border-emerald-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Nombre" /><input v-model="destination.account_holder" type="text" maxlength="255" class="w-full rounded-xl border-emerald-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Titular" /><input v-model="destination.reference" type="text" maxlength="255" class="w-full rounded-xl border-emerald-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Alias / referencia" /><input v-model="destination.account_number" type="text" maxlength="255" class="w-full rounded-xl border-emerald-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Cuenta / CBU / CVU" /></div>
+                                    <label class="mt-3 inline-flex items-center gap-2 text-xs text-slate-300"><input v-model="destination.is_active" type="checkbox" class="rounded border-emerald-100/25 bg-slate-950/35 text-emerald-500" /> Activo</label>
+                                </article>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="mt-5 flex justify-end gap-3"><button type="button" class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70" @click="cancelBranchCommercialEdition">Cancelar</button><button type="submit" class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50" :disabled="branchCommercialForm.processing">Guardar configuración de ventas</button></div>
+                </form>
+                </div>
+            </details>
         </div>
     </AuthenticatedLayout>
 </template>

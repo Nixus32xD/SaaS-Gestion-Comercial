@@ -7,6 +7,7 @@ use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalPdfService;
 use App\Services\Fiscal\FiscalSaleDocumentService;
+use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
@@ -17,6 +18,7 @@ class SaleFiscalDocumentController extends Controller
     public function __construct(
         private readonly FiscalSaleDocumentService $fiscalSaleDocumentService,
         private readonly FiscalPdfService $fiscalPdfService,
+        private readonly FiscalSalePayloadBuilder $fiscalPayloadBuilder,
     ) {}
 
     public function store(CurrentBusiness $currentBusiness, Sale $sale): RedirectResponse
@@ -24,7 +26,7 @@ class SaleFiscalDocumentController extends Controller
         $business = $currentBusiness->get();
         abort_if($business === null, 404);
         abort_if($sale->business_id !== $business->id, 403);
-        abort_unless((bool) config('fiscal.enabled') && $business->hasElectronicBilling(), 403);
+        abort_unless((bool) config('fiscal.enabled') && $this->fiscalPayloadBuilder->isEnabledForSale($sale), 403);
 
         $document = $this->fiscalSaleDocumentService->issue($sale);
 
@@ -41,7 +43,7 @@ class SaleFiscalDocumentController extends Controller
         abort_if($sale->business_id !== $business->id, 403);
         abort_if($saleFiscalDocument->business_id !== $business->id, 403);
         abort_if($saleFiscalDocument->sale_id !== $sale->id, 403);
-        abort_unless((bool) config('fiscal.enabled') && $business->hasElectronicBilling(), 403);
+        abort_unless((bool) config('fiscal.enabled') && $this->fiscalPayloadBuilder->isEnabledForSale($sale), 403);
 
         $document = $this->fiscalSaleDocumentService->reconcile($saleFiscalDocument);
 

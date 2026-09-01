@@ -13,9 +13,11 @@ use App\Models\ProductBatch;
 use App\Models\ProductBatchCorrection;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Services\BranchProductStockService;
 use App\Services\Fiscal\FiscalVatCalculator;
 use App\Services\ProductBatchService;
 use App\Services\Products\GlobalProductCatalogService;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
 use Illuminate\Http\JsonResponse;
@@ -31,10 +33,11 @@ class ProductController extends Controller
 {
     public function __construct(private readonly FiscalVatCalculator $vatCalculator) {}
 
-    public function index(Request $request, CurrentBusiness $currentBusiness): Response
+    public function index(Request $request, CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
 
         $search = trim((string) $request->query('search', ''));
         $categoryId = $this->resolveCategoryFilter($business->id, $request->query('category_id'));
@@ -54,6 +57,7 @@ class ProductController extends Controller
         $batchExpiryCounts = [];
         foreach (Product::batchExpiryFilterMap() as $filterKey => $status) {
             $batchExpiryCounts['batches as '.$filterKey.'_count'] = fn ($query) => $query
+                ->where('branch_id', $branch->id)
                 ->available()
                 ->withExpirationStatus($status);
         }
@@ -83,40 +87,45 @@ class ProductController extends Controller
             ->with([
                 'supplier:id,name',
                 'category:id,name',
+                'branchStocks' => fn ($query) => $query->where('branch_id', $branch->id),
             ])
             ->withCount($batchExpiryCounts)
-            ->filter($filters)
+            ->filter($filters, $branch->id)
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString()
-            ->through(fn (Product $product) => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'barcode' => $product->barcode,
-                'sku' => $product->sku,
-                'unit_type' => $product->unit_type,
-                'weight_unit' => $product->weight_unit,
-                'type_label' => ProductMeasurement::typeLabel($product->unit_type, $product->weight_unit),
-                'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
-                'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
-                'sale_price' => (float) $product->sale_price,
-                'cost_price' => (float) $product->cost_price,
-                'vat_treatment' => $product->vat_treatment,
-                'vat_rate' => (float) $product->vat_rate,
-                'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
-                'stock' => (float) $product->stock,
-                'min_stock' => (float) $product->min_stock,
-                'shelf_life_days' => $product->shelf_life_days,
-                'expiry_alert_days' => $product->expiry_alert_days,
-                'is_active' => $product->is_active,
-                'category' => $product->category?->name,
-                'supplier' => $product->supplier?->name,
-                'has_low_stock' => (float) $product->stock <= (float) $product->min_stock,
-                'expired_batches_count' => (int) ($product->expired_batches_count ?? 0),
-                'upcoming_batches_count' => (int) ($product->upcoming_batches_count ?? 0),
-                'valid_batches_count' => (int) ($product->valid_batches_count ?? 0),
-                'no_expiration_batches_count' => (int) ($product->no_expiration_batches_count ?? 0),
-            ]);
+            ->through(function (Product $product): array {
+                $branchStock = $product->branchStocks->first();
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'barcode' => $product->barcode,
+                    'sku' => $product->sku,
+                    'unit_type' => $product->unit_type,
+                    'weight_unit' => $product->weight_unit,
+                    'type_label' => ProductMeasurement::typeLabel($product->unit_type, $product->weight_unit),
+                    'quantity_label' => ProductMeasurement::quantityLabel($product->unit_type, $product->weight_unit),
+                    'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
+                    'sale_price' => (float) $product->sale_price,
+                    'cost_price' => (float) $product->cost_price,
+                    'vat_treatment' => $product->vat_treatment,
+                    'vat_rate' => (float) $product->vat_rate,
+                    'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
+                    'stock' => (float) ($branchStock?->stock ?? 0),
+                    'min_stock' => (float) ($branchStock?->min_stock ?? 0),
+                    'shelf_life_days' => $product->shelf_life_days,
+                    'expiry_alert_days' => $product->expiry_alert_days,
+                    'is_active' => $product->is_active,
+                    'category' => $product->category?->name,
+                    'supplier' => $product->supplier?->name,
+                    'has_low_stock' => (float) ($branchStock?->stock ?? 0) <= (float) ($branchStock?->min_stock ?? 0),
+                    'expired_batches_count' => (int) ($product->expired_batches_count ?? 0),
+                    'upcoming_batches_count' => (int) ($product->upcoming_batches_count ?? 0),
+                    'valid_batches_count' => (int) ($product->valid_batches_count ?? 0),
+                    'no_expiration_batches_count' => (int) ($product->no_expiration_batches_count ?? 0),
+                ];
+            });
 
         return Inertia::render('Products/Index', [
             'filters' => $filters,
@@ -172,11 +181,14 @@ class ProductController extends Controller
     public function store(
         StoreProductRequest $request,
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
         GlobalProductCatalogService $catalogService,
-        ProductBatchService $productBatchService
+        ProductBatchService $productBatchService,
+        BranchProductStockService $branchProductStockService,
     ): RedirectResponse {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
 
         $data = $request->validated();
         $globalCatalogEnabled = $business->hasGlobalProductCatalog();
@@ -191,13 +203,15 @@ class ProductController extends Controller
 
         DB::transaction(function () use (
             $business,
+            $branch,
             $categoryId,
             $supplierId,
             $data,
             $initialStock,
             $request,
             $globalProduct,
-            $productBatchService
+            $productBatchService,
+            $branchProductStockService,
         ): void {
             $product = Product::query()->create([
                 'business_id' => $business->id,
@@ -215,28 +229,36 @@ class ProductController extends Controller
                 'cost_price' => $data['cost_price'],
                 'vat_treatment' => $this->vatCalculator->normalizeTreatment($data['vat_treatment'] ?? null),
                 'vat_rate' => $this->resolvedVatRate($data),
-                'stock' => $initialStock,
+                'stock' => 0,
                 'min_stock' => $data['min_stock'] ?? 0,
                 'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
                 'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
                 'is_active' => (bool) ($data['is_active'] ?? true),
             ]);
 
+            $branchStock = $branchProductStockService->adjust(
+                $branch,
+                $product,
+                $initialStock,
+                (float) ($data['min_stock'] ?? 0),
+            );
+
             if ($initialStock > 0) {
                 StockMovement::query()->create([
                     'business_id' => $business->id,
+                    'branch_id' => $branch->id,
                     'product_id' => $product->id,
                     'type' => 'initial',
                     'reference_type' => Product::class,
                     'reference_id' => $product->id,
                     'quantity' => $initialStock,
                     'stock_before' => 0,
-                    'stock_after' => $initialStock,
+                    'stock_after' => $branchStock->stock,
                     'notes' => 'Stock inicial del producto',
                     'created_by' => $request->user()?->id,
                 ]);
 
-                $productBatchService->receiveStock($business, $product, $initialStock, [
+                $productBatchService->receiveStock($business, $branch, $product, $initialStock, [
                     'batch_code' => $data['batch_code'] ?? null,
                     'expires_at' => $data['batch_expires_at'] ?? null,
                     'unit_cost' => $data['cost_price'],
@@ -255,19 +277,25 @@ class ProductController extends Controller
             ->with('success', 'Producto creado correctamente.');
     }
 
-    public function edit(CurrentBusiness $currentBusiness, Product $product): Response
+    public function edit(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Product $product): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
         abort_if($product->business_id !== $business->id, 403);
 
         $product->load([
             'batches' => fn ($query) => $query
+                ->where('branch_id', $branch->id)
                 ->available()
                 ->orderedForOutbound(),
-        ])->loadCount('batchCorrections');
+            'branchStocks' => fn ($query) => $query->where('branch_id', $branch->id),
+        ])->loadCount([
+            'batchCorrections' => fn ($query) => $query->where('branch_id', $branch->id),
+        ]);
 
         $batchSummary = $this->buildBatchSummary($product);
+        $branchStock = $product->branchStocks->first();
 
         return Inertia::render('Products/Edit', [
             'product' => [
@@ -286,14 +314,14 @@ class ProductController extends Controller
                 'vat_treatment' => $product->vat_treatment,
                 'vat_rate' => (float) $product->vat_rate,
                 'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
-                'stock' => (float) $product->stock,
+                'stock' => (float) ($branchStock?->stock ?? 0),
                 'batch_summary' => $batchSummary,
                 'batch_corrections_count' => $product->batch_corrections_count,
                 'batches' => $product->batches
                     ->map(fn (ProductBatch $batch) => $this->mapBatchForDisplay($batch, (int) ($product->expiry_alert_days ?? 15)))
                     ->values()
                     ->all(),
-                'min_stock' => (float) $product->min_stock,
+                'min_stock' => (float) ($branchStock?->min_stock ?? 0),
                 'shelf_life_days' => $product->shelf_life_days,
                 'expiry_alert_days' => $product->expiry_alert_days,
                 'is_active' => $product->is_active,
@@ -314,18 +342,22 @@ class ProductController extends Controller
     public function update(
         UpdateProductRequest $request,
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
         Product $product,
-        ProductBatchService $productBatchService
+        ProductBatchService $productBatchService,
+        BranchProductStockService $branchProductStockService,
     ): RedirectResponse {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
         abort_if($product->business_id !== $business->id, 403);
 
         $data = $request->validated();
         $categoryId = $this->resolveCategoryId($business->id, $data['category_id'] ?? null);
         $supplierId = $this->resolveSupplierId($business->id, $data['supplier_id'] ?? null);
 
-        $newStock = round((float) ($data['stock'] ?? $product->stock), 3);
+        $branchStock = $branchProductStockService->stock($branch, $product);
+        $newStock = round((float) ($data['stock'] ?? $branchStock?->stock ?? 0), 3);
 
         DB::transaction(function () use (
             $product,
@@ -333,22 +365,19 @@ class ProductController extends Controller
             $supplierId,
             $data,
             $business,
+            $branch,
             $newStock,
             $request,
-            $productBatchService
+            $productBatchService,
+            $branchProductStockService
         ): void {
             $product = Product::query()
                 ->forBusiness($business->id)
                 ->whereKey($product->id)
                 ->lockForUpdate()
                 ->firstOrFail();
-            $beforeStock = round((float) $product->stock, 3);
-
-            if ($newStock < (float) $product->reserved_stock) {
-                throw ValidationException::withMessages([
-                    'stock' => 'El stock no puede ser menor que las unidades reservadas para cobros Point pendientes.',
-                ]);
-            }
+            $branchStock = $branchProductStockService->stock($branch, $product);
+            $beforeStock = round((float) ($branchStock?->stock ?? 0), 3);
 
             $product->update([
                 'category_id' => $categoryId,
@@ -364,7 +393,6 @@ class ProductController extends Controller
                 'cost_price' => $data['cost_price'],
                 'vat_treatment' => $this->vatCalculator->normalizeTreatment($data['vat_treatment'] ?? null),
                 'vat_rate' => $this->resolvedVatRate($data),
-                'stock' => $newStock,
                 'min_stock' => $data['min_stock'] ?? 0,
                 'shelf_life_days' => ($data['shelf_life_days'] ?? null) !== null ? (int) $data['shelf_life_days'] : null,
                 'expiry_alert_days' => (int) ($data['expiry_alert_days'] ?? 15),
@@ -375,7 +403,7 @@ class ProductController extends Controller
                 $stockDelta = round($newStock - $beforeStock, 3);
 
                 if ($stockDelta > 0) {
-                    $productBatchService->receiveStock($business, $product, $stockDelta, [
+                    $productBatchService->receiveStock($business, $branch, $product, $stockDelta, [
                         'batch_code' => $data['batch_code'] ?? null,
                         'expires_at' => $data['batch_expires_at'] ?? null,
                         'unit_cost' => $data['cost_price'],
@@ -387,7 +415,7 @@ class ProductController extends Controller
                         'error_key' => 'batch_code',
                     ]);
                 } elseif ($stockDelta < 0) {
-                    $productBatchService->consumeStock($business, $product, abs($stockDelta), [
+                    $productBatchService->consumeStock($business, $branch, $product, abs($stockDelta), [
                         'movement_type' => 'adjustment',
                         'reference_type' => Product::class,
                         'reference_id' => $product->id,
@@ -396,18 +424,32 @@ class ProductController extends Controller
                     ]);
                 }
 
+                $branchStock = $branchProductStockService->adjust(
+                    $branch,
+                    $product,
+                    $stockDelta,
+                    (float) ($data['min_stock'] ?? 0),
+                );
+
                 StockMovement::query()->create([
                     'business_id' => $business->id,
+                    'branch_id' => $branch->id,
                     'product_id' => $product->id,
                     'type' => 'adjustment',
                     'reference_type' => Product::class,
                     'reference_id' => $product->id,
                     'quantity' => $stockDelta,
                     'stock_before' => $beforeStock,
-                    'stock_after' => $newStock,
+                    'stock_after' => $branchStock->stock,
                     'notes' => 'Ajuste manual desde edicion de producto',
                     'created_by' => $request->user()?->id,
                 ]);
+            } else {
+                $branchProductStockService->setMinStock(
+                    $branch,
+                    $product,
+                    (float) ($data['min_stock'] ?? 0),
+                );
             }
         });
 
@@ -416,24 +458,27 @@ class ProductController extends Controller
             ->with('success', 'Producto actualizado correctamente.');
     }
 
-    public function batchCorrections(CurrentBusiness $currentBusiness, Product $product): Response
+    public function batchCorrections(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Product $product): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
         abort_if($product->business_id !== $business->id, 403);
 
         return Inertia::render('Products/BatchCorrections', [
             'product' => [
                 'id' => $product->id,
                 'name' => $product->name,
-                'stock' => (float) $product->stock,
+                'stock' => (float) $product->branchStocks()->where('branch_id', $branch->id)->value('stock'),
                 'batch_corrections_count' => ProductBatchCorrection::query()
                     ->forBusiness($business->id)
+                    ->where('branch_id', $branch->id)
                     ->where('product_id', $product->id)
                     ->count(),
             ],
             'corrections' => ProductBatchCorrection::query()
                 ->forBusiness($business->id)
+                ->where('branch_id', $branch->id)
                 ->where('product_id', $product->id)
                 ->with([
                     'batch:id,batch_code',
@@ -467,19 +512,22 @@ class ProductController extends Controller
     public function updateBatch(
         UpdateProductBatchRequest $request,
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
         Product $product,
         ProductBatch $batch,
         ProductBatchService $productBatchService
     ): RedirectResponse {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
         abort_if($product->business_id !== $business->id, 403);
         abort_if($batch->business_id !== $business->id, 403);
+        abort_if($batch->branch_id !== $branch->id, 404);
         abort_if($batch->product_id !== $product->id, 404);
 
         $data = $request->validated();
 
-        $productBatchService->correctBatch($business, $product, $batch, [
+        $productBatchService->correctBatch($business, $branch, $product, $batch, [
             'batch_code' => $data['batch_code'],
             'expires_at' => $data['expires_at'] ?? null,
             'unit_cost' => $data['unit_cost'] ?? null,

@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Business;
+use App\Models\Branch;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -15,6 +15,7 @@ class SaleStockReservationService
 {
     public function __construct(
         private readonly ProductBatchService $productBatchService,
+        private readonly BranchProductStockService $branchProductStockService,
     ) {}
 
     public function reserve(Sale $sale): void
@@ -29,18 +30,18 @@ class SaleStockReservationService
 
             $items = $this->stockItems($sale);
             $products = $this->lockedProducts($sale, $items);
+            $branch = $this->saleBranch($sale);
 
             foreach ($this->quantitiesByProduct($items) as $productId => $quantity) {
                 $product = $products->get($productId);
 
-                if ($product === null || $product->availableStock() < $quantity) {
+                if ($product === null) {
                     throw ValidationException::withMessages([
                         'items' => "Stock insuficiente para {$product?->name}.",
                     ]);
                 }
 
-                $product->reserved_stock = round((float) $product->reserved_stock + $quantity, 3);
-                $product->save();
+                $this->branchProductStockService->reserve($branch, $product, $quantity);
             }
 
             $sale->forceFill([
@@ -60,24 +61,20 @@ class SaleStockReservationService
 
             $items = $this->stockItems($sale);
             $products = $this->lockedProducts($sale, $items);
-            $stocks = $products->mapWithKeys(
-                fn (Product $product): array => [$product->id => round((float) $product->stock, 3)]
-            );
+            $branch = $this->saleBranch($sale);
 
             foreach ($items as $item) {
                 $product = $products->get($item->product_id);
-                $before = (float) $stocks->get($item->product_id, 0);
-                $after = round($before - (float) $item->quantity, 3);
 
-                if ($product === null || $after < 0) {
+                if ($product === null) {
                     throw ValidationException::withMessages([
                         'items' => "No hay stock disponible para confirmar {$item->product_name}.",
                     ]);
                 }
 
-                $stocks->put($item->product_id, $after);
+                $before = (float) ($this->branchProductStockService->stock($branch, $product)?->stock ?? 0);
 
-                $this->productBatchService->consumeStock($sale->business, $product, (float) $item->quantity, [
+                $this->productBatchService->consumeStock($sale->business, $branch, $product, (float) $item->quantity, [
                     'movement_type' => 'sale',
                     'reference_type' => SaleItem::class,
                     'reference_id' => $item->id,
@@ -85,25 +82,21 @@ class SaleStockReservationService
                     'created_by' => $sale->user_id,
                 ]);
 
+                $stock = $this->branchProductStockService->consumeReserved($branch, $product, (float) $item->quantity);
+
                 StockMovement::query()->create([
                     'business_id' => $sale->business_id,
+                    'branch_id' => $sale->branch_id,
                     'product_id' => $product->id,
                     'type' => 'sale',
                     'reference_type' => Sale::class,
                     'reference_id' => $sale->id,
                     'quantity' => -1 * (float) $item->quantity,
                     'stock_before' => $before,
-                    'stock_after' => $after,
+                    'stock_after' => $stock->stock,
                     'notes' => "Venta {$sale->sale_number} confirmada por Mercado Pago Point",
                     'created_by' => $sale->user_id,
                 ]);
-            }
-
-            foreach ($this->quantitiesByProduct($items) as $productId => $quantity) {
-                $product = $products->get($productId);
-                $product->stock = (float) $stocks->get($productId, 0);
-                $product->reserved_stock = max(0, round((float) $product->reserved_stock - $quantity, 3));
-                $product->save();
             }
 
             $sale->forceFill([
@@ -123,11 +116,13 @@ class SaleStockReservationService
 
             $items = $this->stockItems($sale);
             $products = $this->lockedProducts($sale, $items);
+            $branch = $this->saleBranch($sale);
 
             foreach ($this->quantitiesByProduct($items) as $productId => $quantity) {
                 $product = $products->get($productId);
-                $product->reserved_stock = max(0, round((float) $product->reserved_stock - $quantity, 3));
-                $product->save();
+                if ($product !== null) {
+                    $this->branchProductStockService->release($branch, $product, $quantity);
+                }
             }
 
             $sale->forceFill([
@@ -141,6 +136,19 @@ class SaleStockReservationService
         return Sale::query()
             ->whereKey($sale->id)
             ->lockForUpdate()
+            ->firstOrFail();
+    }
+
+    private function saleBranch(Sale $sale): Branch
+    {
+        $branch = Branch::query()
+            ->forBusiness($sale->business_id)
+            ->whereKey($sale->branch_id)
+            ->first();
+
+        return $branch ?? Branch::query()
+            ->forBusiness($sale->business_id)
+            ->where('is_default', true)
             ->firstOrFail();
     }
 

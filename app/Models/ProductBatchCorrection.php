@@ -17,6 +17,7 @@ class ProductBatchCorrection extends Model
      */
     protected $fillable = [
         'business_id',
+        'branch_id',
         'product_id',
         'product_batch_id',
         'corrected_by',
@@ -28,6 +29,28 @@ class ProductBatchCorrection extends Model
         'new_unit_cost',
         'reason',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProductBatchCorrection $correction): void {
+            if ($correction->branch_id !== null) {
+                return;
+            }
+
+            $correction->branch_id = ProductBatch::query()
+                ->forBusiness($correction->business_id)
+                ->whereKey($correction->product_batch_id)
+                ->value('branch_id');
+        });
+    }
+
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
 
     /**
      * @return array<string, string>

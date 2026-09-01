@@ -2,6 +2,7 @@
 
 namespace App\Services\Fiscal;
 
+use App\Models\BranchFiscalSetting;
 use App\Models\SaleFiscalDocument;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
@@ -15,12 +16,14 @@ class FiscalQrService
 {
     private const BASE_URL = 'https://www.arca.gob.ar/fe/qr/?p=';
 
+    public function __construct(private readonly BranchFiscalSettingsResolver $branchFiscalSettings) {}
+
     /**
      * @return array<string, int|float|string>
      */
     public function payload(SaleFiscalDocument $document): array
     {
-        $document->loadMissing(['sale.business']);
+        $document->loadMissing(['sale.business', 'sale.branch.fiscalSetting']);
 
         if (! $document->isAuthorized()) {
             throw ValidationException::withMessages([
@@ -29,7 +32,6 @@ class FiscalQrService
         }
 
         $sale = $document->sale;
-        $business = $sale?->business;
         $fiscalPayload = $document->fiscal_payload ?? [];
         $customer = data_get($fiscalPayload, 'customer', []);
 
@@ -40,7 +42,7 @@ class FiscalQrService
         $payload = [
             'ver' => 1,
             'fecha' => $this->issueDate($document),
-            'cuit' => $this->digitsAsInt($business?->fiscal_cuit, 'CUIT del emisor'),
+            'cuit' => $this->digitsAsInt($this->issuerCuit($document), 'CUIT del emisor'),
             'ptoVta' => $this->positiveInt($document->fiscal_point_of_sale, 'punto de venta'),
             'tipoCmp' => $this->positiveInt($document->fiscal_cbte_type, 'tipo de comprobante'),
             'nroCmp' => $this->positiveInt($document->fiscal_number, 'numero de comprobante'),
@@ -60,6 +62,23 @@ class FiscalQrService
         }
 
         return $payload;
+    }
+
+    public function issuerCuit(SaleFiscalDocument $document): ?string
+    {
+        $document->loadMissing(['sale.business', 'sale.branch.fiscalSetting']);
+
+        $sale = $document->sale;
+        if ($sale === null || $sale->business === null) {
+            return null;
+        }
+
+        $settings = $this->branchFiscalSettings->forSale($sale);
+        $branchCuit = $settings instanceof BranchFiscalSetting
+            ? $settings->fiscal_cuit
+            : null;
+
+        return filled($branchCuit) ? $branchCuit : $sale->business->fiscal_cuit;
     }
 
     public function url(SaleFiscalDocument $document): string

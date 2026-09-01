@@ -77,6 +77,39 @@ class Business extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::created(function (Business $business): void {
+            Branch::query()->firstOrCreate(
+                [
+                    'business_id' => $business->id,
+                    'code' => Branch::DEFAULT_CODE,
+                ],
+                [
+                    'name' => 'Sucursal Principal',
+                    'is_active' => true,
+                    'is_default' => true,
+                ]
+            );
+        });
+    }
+
+    /**
+     * @return HasMany<Branch, $this>
+     */
+    public function branches(): HasMany
+    {
+        return $this->hasMany(Branch::class);
+    }
+
+    /**
+     * @return HasOne<Branch, $this>
+     */
+    public function defaultBranch(): HasOne
+    {
+        return $this->hasOne(Branch::class)->where('is_default', true);
+    }
+
     /**
      * @return HasMany<User, $this>
      */
@@ -211,6 +244,30 @@ class Business extends Model
     public function mercadoPagoCredential(): HasOne
     {
         return $this->hasOne(BusinessMercadoPagoCredential::class);
+    }
+
+    /**
+     * @return HasMany<BranchMercadoPagoPointSetting, $this>
+     */
+    public function mercadoPagoPointSettings(): HasMany
+    {
+        return $this->hasMany(BranchMercadoPagoPointSetting::class);
+    }
+
+    /**
+     * @return HasMany<BranchFiscalSetting, $this>
+     */
+    public function branchFiscalSettings(): HasMany
+    {
+        return $this->hasMany(BranchFiscalSetting::class);
+    }
+
+    /**
+     * @return HasMany<BranchCommercialSetting, $this>
+     */
+    public function branchCommercialSettings(): HasMany
+    {
+        return $this->hasMany(BranchCommercialSetting::class);
     }
 
     /**

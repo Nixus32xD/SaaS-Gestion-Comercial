@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\AssignsDefaultBranch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StockMovement extends Model
 {
+    use AssignsDefaultBranch;
     use BelongsToBusiness;
     use HasFactory;
 
@@ -17,6 +19,7 @@ class StockMovement extends Model
      */
     protected $fillable = [
         'business_id',
+        'branch_id',
         'product_id',
         'type',
         'reference_type',
@@ -40,12 +43,27 @@ class StockMovement extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::creating(function (StockMovement $movement): void {
+            self::assignDefaultBranchIfMissing($movement);
+        });
+    }
+
     /**
      * @return BelongsTo<Product, $this>
      */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     /**
@@ -56,4 +74,3 @@ class StockMovement extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 }
-

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\AssignsDefaultBranch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Sale extends Model
 {
+    use AssignsDefaultBranch;
     use BelongsToBusiness;
     use HasFactory;
 
@@ -80,6 +82,7 @@ class Sale extends Model
      */
     protected $fillable = [
         'business_id',
+        'branch_id',
         'user_id',
         'sale_sector_id',
         'customer_id',
@@ -139,12 +142,27 @@ class Sale extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::creating(function (Sale $sale): void {
+            self::assignDefaultBranchIfMissing($sale);
+        });
+    }
+
     /**
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     /**

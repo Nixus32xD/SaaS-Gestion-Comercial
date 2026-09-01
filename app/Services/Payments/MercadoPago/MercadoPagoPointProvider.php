@@ -26,7 +26,7 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
 
     public function createOrder(Business $business, Sale $sale, User $user, string $method): Payment
     {
-        $settings = $this->settingsResolver->forBusiness($business);
+        $settings = $this->settingsResolver->forSale($business, $sale->branch);
         $this->assertConfigured($settings);
         $payment = DB::transaction(function () use ($business, $sale, $user, $method): Payment {
             $lockedSale = Sale::query()
@@ -145,10 +145,10 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             ]);
         }
 
-        $payment->loadMissing('sale.business');
+        $payment->loadMissing('sale.business', 'sale.branch');
         $business = $payment->sale?->business;
         $settings = $business instanceof Business
-            ? $this->settingsResolver->forBusiness($business)
+            ? $this->settingsResolver->forSale($business, $payment->sale?->branch)
             : $this->settingsResolver->forBusiness(Business::query()->findOrFail($payment->business_id));
 
         $payload = $providerPayload ?? $this->client->getOrder(
@@ -250,14 +250,14 @@ class MercadoPagoPointProvider implements PaymentProviderInterface
             return;
         }
 
-        $payment->loadMissing('sale.business');
+        $payment->loadMissing('sale.business', 'sale.branch');
         $business = $payment->sale?->business;
 
         if (! $business instanceof Business) {
             return;
         }
 
-        $settings = $this->settingsResolver->forBusiness($business);
+        $settings = $this->settingsResolver->forSale($business, $payment->sale?->branch);
         $idempotencyKey = 'mp-point-cancel-p'.$payment->id;
 
         try {

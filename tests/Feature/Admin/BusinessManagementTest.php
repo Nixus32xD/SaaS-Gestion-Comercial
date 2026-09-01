@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Business;
+use App\Models\Branch;
 use App\Models\Product;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -90,4 +91,80 @@ test('superadmin can archive a business without deleting its products', function
             ->component('Admin/Businesses/Index')
             ->where('businesses.total', 0)
         );
+});
+
+test('superadmin can manage a business branches from its edit panel', function () {
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create();
+
+    $this->actingAs($superAdmin)
+        ->get(route('admin.businesses.edit', $business))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Businesses/Edit')
+            ->has('branches', 1)
+            ->where('branches.0.id', $business->defaultBranch->id)
+            ->where('branches.0.is_default', true)
+        );
+
+    $this->actingAs($superAdmin)
+        ->post(route('admin.businesses.branches.store', $business), [
+            'name' => 'Sucursal Centro',
+            'code' => 'Centro Mendoza',
+            'address' => 'San Martín 120',
+            'phone' => '261-555-1000',
+            'email' => 'centro@example.test',
+            'is_active' => true,
+        ])
+        ->assertRedirect(route('admin.businesses.edit', $business));
+
+    $branch = Branch::query()
+        ->forBusiness($business->id)
+        ->where('code', 'centro-mendoza')
+        ->firstOrFail();
+
+    expect($branch->name)->toBe('Sucursal Centro')
+        ->and($branch->is_active)->toBeTrue()
+        ->and($branch->is_default)->toBeFalse();
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.branches.update', [$business, $branch]), [
+            'name' => 'Sucursal Centro Norte',
+            'code' => 'centro-norte',
+            'address' => 'San Martín 120',
+            'phone' => '261-555-2000',
+            'email' => 'norte@example.test',
+            'is_active' => false,
+        ])
+        ->assertRedirect(route('admin.businesses.edit', $business));
+
+    expect($branch->fresh())
+        ->name->toBe('Sucursal Centro Norte')
+        ->code->toBe('centro-norte')
+        ->is_active->toBeFalse();
+});
+
+test('superadmin cannot deactivate a business default branch or update another business branch', function () {
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create();
+    $otherBusiness = Business::factory()->create();
+    $defaultBranch = $business->defaultBranch;
+
+    $this->actingAs($superAdmin)
+        ->from(route('admin.businesses.edit', $business))
+        ->put(route('admin.businesses.branches.update', [$business, $defaultBranch]), [
+            'name' => $defaultBranch->name,
+            'code' => $defaultBranch->code,
+            'is_active' => false,
+        ])
+        ->assertRedirect(route('admin.businesses.edit', $business))
+        ->assertSessionHasErrors('is_active');
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.branches.update', [$business, $otherBusiness->defaultBranch]), [
+            'name' => 'No permitido',
+            'code' => 'no-permitido',
+            'is_active' => true,
+        ])
+        ->assertNotFound();
 });

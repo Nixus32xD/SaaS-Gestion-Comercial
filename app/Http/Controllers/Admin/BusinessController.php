@@ -166,14 +166,24 @@ class BusinessController extends Controller
                 BusinessFeature::ADVANCED_SALE_SETTINGS,
                 BusinessFeature::GLOBAL_PRODUCT_CATALOG,
             ]),
-            'saleSectors' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
-            'paymentDestinations' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
+            'saleSectors' => fn ($query) => $query->whereHas('branch', fn ($branchQuery) => $branchQuery->where('is_default', true))->orderBy('sort_order')->orderBy('name'),
+            'paymentDestinations' => fn ($query) => $query->whereHas('branch', fn ($branchQuery) => $branchQuery->where('is_default', true))->orderBy('sort_order')->orderBy('name'),
             'payments' => fn ($query) => $query
                 ->with('recordedBy:id,name')
                 ->latest('paid_at')
                 ->latest('id')
                 ->limit(20),
             'mercadoPagoCredential',
+            'branches' => fn ($query) => $query
+                ->with([
+                    'fiscalSetting',
+                    'commercialSetting',
+                    'saleSectors' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
+                    'paymentDestinations' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
+                ])
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->orderBy('id'),
         ]);
 
         $implementationPaidAmount = (float) $business->payments()
@@ -194,6 +204,53 @@ class BusinessController extends Controller
                 'address' => $business->address,
                 'is_active' => $business->is_active,
             ],
+            'branches' => $business->branches->map(fn ($branch): array => [
+                'id' => $branch->id,
+                'name' => $branch->name,
+                'code' => $branch->code,
+                'address' => $branch->address,
+                'phone' => $branch->phone,
+                'email' => $branch->email,
+                'is_active' => $branch->is_active,
+                'is_default' => $branch->is_default,
+                'fiscal_setting' => $branch->fiscalSetting === null ? null : [
+                    'is_enabled' => $branch->fiscalSetting->is_enabled,
+                    'fiscal_external_business_id' => $branch->fiscalSetting->fiscal_external_business_id,
+                    'fiscal_environment' => $branch->fiscalSetting->fiscal_environment,
+                    'fiscal_cuit' => $branch->fiscalSetting->fiscal_cuit,
+                    'fiscal_condition' => $branch->fiscalSetting->fiscal_condition,
+                    'fiscal_point_of_sale' => $branch->fiscalSetting->fiscal_point_of_sale,
+                    'fiscal_document_type' => $branch->fiscalSetting->fiscal_document_type,
+                    'fiscal_cbte_type' => $branch->fiscalSetting->fiscal_cbte_type,
+                    'fiscal_concept' => $branch->fiscalSetting->fiscal_concept,
+                    'fiscal_authorization_mode' => $branch->fiscalSetting->fiscal_authorization_mode,
+                    'fiscal_caea_code' => $branch->fiscalSetting->fiscal_caea_code,
+                    'fiscal_caea_period' => $branch->fiscalSetting->fiscal_caea_period,
+                    'fiscal_caea_order' => $branch->fiscalSetting->fiscal_caea_order,
+                    'fiscal_caea_from' => $branch->fiscalSetting->fiscal_caea_from?->format('Y-m-d'),
+                    'fiscal_caea_to' => $branch->fiscalSetting->fiscal_caea_to?->format('Y-m-d'),
+                    'fiscal_caea_due_date' => $branch->fiscalSetting->fiscal_caea_due_date?->format('Y-m-d'),
+                    'fiscal_caea_report_deadline' => $branch->fiscalSetting->fiscal_caea_report_deadline?->format('Y-m-d'),
+                    'fiscal_activities' => implode(', ', $branch->fiscalSetting->fiscal_activities ?? []),
+                ],
+                'commercial_setting' => [
+                    'advanced_sale_settings_enabled' => (bool) ($branch->commercialSetting?->advanced_sale_settings_enabled ?? $business->hasAdvancedSaleSettings()),
+                    'sale_sectors' => $branch->saleSectors->map(fn ($sector) => [
+                        'id' => $sector->id,
+                        'name' => $sector->name,
+                        'description' => $sector->description,
+                        'is_active' => $sector->is_active,
+                    ])->values()->all(),
+                    'payment_destinations' => $branch->paymentDestinations->map(fn ($destination) => [
+                        'id' => $destination->id,
+                        'name' => $destination->name,
+                        'account_holder' => $destination->account_holder,
+                        'reference' => $destination->reference,
+                        'account_number' => $destination->account_number,
+                        'is_active' => $destination->is_active,
+                    ])->values()->all(),
+                ],
+            ])->values()->all(),
             'sales_settings' => [
                 'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
                 'global_product_catalog_enabled' => $business->hasGlobalProductCatalog(),

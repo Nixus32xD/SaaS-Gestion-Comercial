@@ -3,6 +3,7 @@
 namespace App\Services\Fiscal;
 
 use App\Models\Business;
+use App\Models\BranchFiscalSetting;
 use Illuminate\Validation\ValidationException;
 
 class FiscalCompanySyncService
@@ -68,6 +69,63 @@ class FiscalCompanySyncService
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function syncFromBranchSettings(
+        Business $business,
+        BranchFiscalSetting $setting,
+        array $payload,
+    ): void {
+        if (! $this->shouldSyncBranch($setting, $payload)) {
+            return;
+        }
+
+        $cuit = trim((string) ($payload['fiscal_cuit'] ?? ''));
+        if ($cuit === '') {
+            throw ValidationException::withMessages([
+                'fiscal_cuit' => 'El CUIT fiscal es obligatorio para crear la empresa fiscal externa.',
+            ]);
+        }
+
+        $externalBusinessId = $this->externalBranchBusinessId($business, $payload);
+        $companyPayload = $this->companyPayload($business, $payload, $externalBusinessId, $cuit);
+        $currentExternalBusinessId = trim((string) $setting->fiscal_external_business_id);
+        $renameFrom = $setting->is_enabled
+            && $currentExternalBusinessId !== ''
+            && $currentExternalBusinessId !== $externalBusinessId
+            ? $currentExternalBusinessId
+            : null;
+
+        try {
+            $response = $renameFrom !== null
+                ? $this->client->upsertCompany($companyPayload, $renameFrom)
+                : $this->client->upsertCompany($companyPayload);
+
+            if ($renameFrom !== null && $this->apiError($response)?->code === 'company_not_found') {
+                $response = $this->client->upsertCompany($companyPayload);
+            }
+        } catch (FiscalApiTimeoutException) {
+            throw ValidationException::withMessages([
+                'is_enabled' => 'La API fiscal no respondió al guardar la configuración de la sucursal. Intenta nuevamente.',
+            ]);
+        } catch (FiscalApiException $exception) {
+            throw ValidationException::withMessages([
+                'is_enabled' => $exception->getMessage(),
+            ]);
+        }
+
+        $apiError = $this->apiError($response);
+        if ($apiError !== null) {
+            $mappedError = $this->errorMapper->fromResponse($response);
+
+            throw ValidationException::withMessages([
+                'is_enabled' => $mappedError['message']
+                    ?? $this->friendlyApiErrorMessage($apiError->code, $apiError->message),
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     private function shouldSync(Business $business, array $payload): bool
     {
         if (! (bool) config('fiscal.enabled') || ! (bool) ($payload['fiscal_enabled'] ?? false)) {
@@ -103,7 +161,52 @@ class FiscalCompanySyncService
     /**
      * @param  array<string, mixed>  $payload
      */
+    private function shouldSyncBranch(BranchFiscalSetting $setting, array $payload): bool
+    {
+        if (! (bool) config('fiscal.enabled') || ! (bool) ($payload['is_enabled'] ?? false)) {
+            return false;
+        }
+
+        if (! $setting->is_enabled) {
+            return true;
+        }
+
+        return $this->normalizedFiscalValue($setting->fiscal_external_business_id)
+            !== $this->normalizedFiscalValue($payload['fiscal_external_business_id'] ?? null)
+            || $this->normalizedFiscalValue($setting->fiscal_environment)
+            !== $this->normalizedFiscalValue($this->apiEnvironment($payload))
+            || $this->normalizedFiscalValue($setting->fiscal_cuit)
+            !== $this->normalizedFiscalValue($payload['fiscal_cuit'] ?? null)
+            || $this->normalizedFiscalValue($setting->fiscal_condition)
+            !== $this->normalizedFiscalValue($payload['fiscal_condition'] ?? null)
+            || (int) ($setting->fiscal_point_of_sale ?? 0)
+            !== (int) ($payload['fiscal_point_of_sale'] ?? 0)
+            || $this->normalizedFiscalValue($setting->fiscal_document_type)
+            !== $this->normalizedFiscalValue($payload['fiscal_document_type'] ?? null)
+            || (int) ($setting->fiscal_cbte_type ?? 0)
+            !== (int) ($payload['fiscal_cbte_type'] ?? 0)
+            || (int) ($setting->fiscal_concept ?? 0)
+            !== (int) ($payload['fiscal_concept'] ?? 0)
+            || $this->authorizationMode($setting->fiscal_authorization_mode)
+            !== $this->authorizationMode($payload['fiscal_authorization_mode'] ?? null)
+            || $this->activities($setting->fiscal_activities)
+            !== $this->activities($payload['fiscal_activities'] ?? []);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     private function externalBusinessId(Business $business, array $payload): string
+    {
+        $externalId = trim((string) ($payload['fiscal_external_business_id'] ?? ''));
+
+        return $externalId !== '' ? $externalId : (string) $business->id;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function externalBranchBusinessId(Business $business, array $payload): string
     {
         $externalId = trim((string) ($payload['fiscal_external_business_id'] ?? ''));
 

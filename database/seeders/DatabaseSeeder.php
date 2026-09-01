@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Branch;
+use App\Models\BranchProductStock;
 use App\Models\Business;
 use App\Models\Category;
 use App\Models\Product;
@@ -48,6 +50,18 @@ class DatabaseSeeder extends Seeder
                 'phone' => '1130000000',
                 'address' => 'Calle Demo 123',
                 'is_active' => true,
+            ]
+        );
+
+        $defaultBranch = Branch::query()->firstOrCreate(
+            [
+                'business_id' => $business->id,
+                'code' => Branch::DEFAULT_CODE,
+            ],
+            [
+                'name' => 'Sucursal Principal',
+                'is_active' => true,
+                'is_default' => true,
             ]
         );
 
@@ -187,6 +201,19 @@ class DatabaseSeeder extends Seeder
                 ]
             );
 
+            BranchProductStock::query()->updateOrCreate(
+                [
+                    'business_id' => $business->id,
+                    'branch_id' => $defaultBranch->id,
+                    'product_id' => $product->id,
+                ],
+                [
+                    'stock' => $product->stock,
+                    'reserved_stock' => $product->reserved_stock ?? 0,
+                    'min_stock' => $product->min_stock,
+                ]
+            );
+
             $hasInitialMovement = StockMovement::query()
                 ->where('business_id', $business->id)
                 ->where('product_id', $product->id)
@@ -196,6 +223,7 @@ class DatabaseSeeder extends Seeder
             if (! $hasInitialMovement) {
                 StockMovement::query()->create([
                     'business_id' => $business->id,
+                    'branch_id' => $defaultBranch->id,
                     'product_id' => $product->id,
                     'type' => 'initial',
                     'reference_type' => Product::class,

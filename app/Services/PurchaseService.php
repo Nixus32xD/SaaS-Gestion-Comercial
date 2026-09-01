@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\Category;
 use App\Models\GlobalProduct;
@@ -26,15 +27,18 @@ class PurchaseService
         private readonly DocumentNumberService $documentNumberService,
         private readonly GlobalProductCatalogService $catalogService,
         private readonly ProductBatchService $productBatchService,
-        private readonly FiscalVatCalculator $vatCalculator
+        private readonly FiscalVatCalculator $vatCalculator,
+        private readonly BranchProductStockService $branchProductStockService,
     ) {}
 
     /**
      * @param  array<string, mixed>  $payload
      */
-    public function createPurchase(Business $business, User $user, array $payload): Purchase
+    public function createPurchase(Business $business, User $user, array $payload, ?Branch $branch = null): Purchase
     {
-        return DB::transaction(function () use ($business, $user, $payload): Purchase {
+        $branch = $this->resolveBranch($business, $branch);
+
+        return DB::transaction(function () use ($business, $user, $payload, $branch): Purchase {
             $purchasedAt = $this->resolveDateTimeValue($payload['purchased_at'] ?? null);
             $globalCatalogEnabled = $business->hasGlobalProductCatalog();
 
@@ -187,6 +191,7 @@ class PurchaseService
 
             $purchase = Purchase::query()->create([
                 'business_id' => $business->id,
+                'branch_id' => $branch->id,
                 'user_id' => $user->id,
                 'supplier_id' => $supplier?->id,
                 'purchase_number' => $this->documentNumberService->nextPurchaseNumber($business->id),
@@ -199,8 +204,8 @@ class PurchaseService
             foreach ($lines as $line) {
                 /** @var Product $product */
                 $product = $line['product'];
-                $before = round((float) $product->stock, 3);
-                $after = round($before + (float) $line['quantity'], 3);
+                $branchStock = $this->branchProductStockService->stock($branch, $product);
+                $before = round((float) ($branchStock?->stock ?? 0), 3);
 
                 /** @var PurchaseItem $purchaseItem */
                 $purchaseItem = $purchase->items()->create([
@@ -213,7 +218,7 @@ class PurchaseService
                     'expires_at' => $line['expires_at'],
                 ]);
 
-                $this->productBatchService->receiveStock($business, $product, (float) $line['quantity'], [
+                $this->productBatchService->receiveStock($business, $branch, $product, (float) $line['quantity'], [
                     'batch_code' => $line['batch_code'],
                     'expires_at' => $line['expires_at'],
                     'unit_cost' => $line['unit_cost'],
@@ -225,19 +230,26 @@ class PurchaseService
                     'error_key' => 'items',
                 ]);
 
-                $product->stock = $after;
                 $product->cost_price = $line['unit_cost'];
                 $product->save();
 
+                $branchStock = $this->branchProductStockService->adjust(
+                    $branch,
+                    $product,
+                    (float) $line['quantity'],
+                    $branchStock === null ? (float) $product->min_stock : null,
+                );
+
                 StockMovement::query()->create([
                     'business_id' => $business->id,
+                    'branch_id' => $branch->id,
                     'product_id' => $product->id,
                     'type' => 'purchase',
                     'reference_type' => Purchase::class,
                     'reference_id' => $purchase->id,
                     'quantity' => $line['quantity'],
                     'stock_before' => $before,
-                    'stock_after' => $after,
+                    'stock_after' => $branchStock->stock,
                     'notes' => "Compra {$purchase->purchase_number}",
                     'created_by' => $user->id,
                 ]);
@@ -273,6 +285,22 @@ class PurchaseService
         }
 
         return $value;
+    }
+
+    private function resolveBranch(Business $business, ?Branch $branch): Branch
+    {
+        $branch ??= $business->branches()
+            ->active()
+            ->where('is_default', true)
+            ->first();
+
+        if ($branch === null || (int) $branch->business_id !== (int) $business->id || ! $branch->is_active) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'La sucursal seleccionada no pertenece al comercio o está inactiva.',
+            ]);
+        }
+
+        return $branch;
     }
 
     private function resolveExpirationDate(array $item, Product $product, mixed $purchasedAt): ?Carbon

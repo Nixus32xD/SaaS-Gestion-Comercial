@@ -73,6 +73,33 @@ class Product extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::created(function (Product $product): void {
+            $defaultBranch = Branch::query()
+                ->forBusiness($product->business_id)
+                ->where('is_default', true)
+                ->first();
+
+            if ($defaultBranch === null) {
+                return;
+            }
+
+            BranchProductStock::query()->firstOrCreate(
+                [
+                    'business_id' => $product->business_id,
+                    'branch_id' => $defaultBranch->id,
+                    'product_id' => $product->id,
+                ],
+                [
+                    'stock' => $product->stock,
+                    'reserved_stock' => $product->reserved_stock ?? 0,
+                    'min_stock' => $product->min_stock,
+                ]
+            );
+        });
+    }
+
     /**
      * @return BelongsTo<Supplier, $this>
      */
@@ -103,6 +130,14 @@ class Product extends Model
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);
+    }
+
+    /**
+     * @return HasMany<BranchProductStock, $this>
+     */
+    public function branchStocks(): HasMany
+    {
+        return $this->hasMany(BranchProductStock::class);
     }
 
     /**
@@ -139,7 +174,7 @@ class Product extends Model
      * @param  array<string, mixed>  $filters
      * @return Builder<static>
      */
-    public function scopeFilter(Builder $query, array $filters): Builder
+    public function scopeFilter(Builder $query, array $filters, ?int $branchId = null): Builder
     {
         $search = trim((string) ($filters['search'] ?? ''));
         $categoryId = $filters['category_id'] ?? null;
@@ -178,11 +213,45 @@ class Product extends Model
                         ->orWhere('cost_price', 0);
                 });
             })
-            ->when($noStock, fn (Builder $builder) => $builder->where('stock', '<=', 0))
-            ->when($withStock, fn (Builder $builder) => $builder->where('stock', '>', 0))
-            ->when($lowStock, fn (Builder $builder) => $builder->whereColumn('stock', '<=', 'min_stock'))
-            ->when($selectedBatchStatuses !== [], function (Builder $builder) use ($selectedBatchStatuses): void {
-                $builder->whereHas('batches', function (Builder $batchQuery) use ($selectedBatchStatuses): void {
+            ->when($noStock, function (Builder $builder) use ($branchId): void {
+                if ($branchId === null) {
+                    $builder->where('stock', '<=', 0);
+
+                    return;
+                }
+
+                $builder->whereHas('branchStocks', fn (Builder $stockQuery) => $stockQuery
+                    ->where('branch_id', $branchId)
+                    ->where('stock', '<=', 0));
+            })
+            ->when($withStock, function (Builder $builder) use ($branchId): void {
+                if ($branchId === null) {
+                    $builder->where('stock', '>', 0);
+
+                    return;
+                }
+
+                $builder->whereHas('branchStocks', fn (Builder $stockQuery) => $stockQuery
+                    ->where('branch_id', $branchId)
+                    ->where('stock', '>', 0));
+            })
+            ->when($lowStock, function (Builder $builder) use ($branchId): void {
+                if ($branchId === null) {
+                    $builder->whereColumn('stock', '<=', 'min_stock');
+
+                    return;
+                }
+
+                $builder->whereHas('branchStocks', fn (Builder $stockQuery) => $stockQuery
+                    ->where('branch_id', $branchId)
+                    ->whereColumn('stock', '<=', 'min_stock'));
+            })
+            ->when($selectedBatchStatuses !== [], function (Builder $builder) use ($selectedBatchStatuses, $branchId): void {
+                $builder->whereHas('batches', function (Builder $batchQuery) use ($selectedBatchStatuses, $branchId): void {
+                    if ($branchId !== null) {
+                        $batchQuery->where('branch_id', $branchId);
+                    }
+
                     $batchQuery
                         ->available()
                         ->where(function (Builder $statusQuery) use ($selectedBatchStatuses): void {

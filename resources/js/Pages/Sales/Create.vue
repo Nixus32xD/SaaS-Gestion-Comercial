@@ -762,7 +762,6 @@ const buildDraftSnapshot = () => ({
         payment_destination_id: form.payment_destination_id,
         amount_received: form.amount_received,
         paid_amount: form.paid_amount,
-        sold_at: form.sold_at,
         discount: form.discount,
         notes: form.notes,
         items: form.items.map((item) => ({ ...item })),
@@ -809,7 +808,6 @@ const restoreDraft = () => {
         form.payment_destination_id = draft?.form?.payment_destination_id ?? form.payment_destination_id;
         form.amount_received = draft?.form?.amount_received ?? form.amount_received;
         form.paid_amount = draft?.form?.paid_amount ?? form.paid_amount;
-        form.sold_at = draft?.form?.sold_at ?? form.sold_at;
         form.discount = draft?.form?.discount ?? form.discount;
         form.notes = draft?.form?.notes ?? form.notes;
         form.items = Array.isArray(draft?.form?.items) ? draft.form.items.map((item) => ({ ...item })) : form.items;

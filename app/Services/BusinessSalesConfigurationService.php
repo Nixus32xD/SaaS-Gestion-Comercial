@@ -80,10 +80,12 @@ class BusinessSalesConfigurationService
                 'point_print_on_terminal' => $payload['mercadopago_point_print_on_terminal'] ?? 'no_ticket',
             ], request()->user());
 
+            $defaultBranch = $business->branches()->where('is_default', true)->firstOrFail();
+
             foreach ((array) ($payload['sale_sectors'] ?? []) as $index => $sector) {
                 $record = isset($sector['id'])
-                    ? $business->saleSectors()->findOrFail($sector['id'])
-                    : $business->saleSectors()->make();
+                    ? $defaultBranch->saleSectors()->findOrFail($sector['id'])
+                    : $defaultBranch->saleSectors()->make(['business_id' => $business->id]);
 
                 $record->fill([
                     'name' => $sector['name'],
@@ -97,8 +99,8 @@ class BusinessSalesConfigurationService
 
             foreach ((array) ($payload['payment_destinations'] ?? []) as $index => $destination) {
                 $record = isset($destination['id'])
-                    ? $business->paymentDestinations()->findOrFail($destination['id'])
-                    : $business->paymentDestinations()->make();
+                    ? $defaultBranch->paymentDestinations()->findOrFail($destination['id'])
+                    : $defaultBranch->paymentDestinations()->make(['business_id' => $business->id]);
 
                 $record->fill([
                     'name' => $destination['name'],

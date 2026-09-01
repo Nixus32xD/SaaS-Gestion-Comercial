@@ -18,6 +18,7 @@ class FiscalPdfService
             'document' => $document,
             'sale' => $document->sale,
             'business' => $document->sale->business,
+            'issuerCuit' => $this->qrService->issuerCuit($document),
             'qrUrl' => $this->qrService->url($document),
             'qrImage' => $this->qrService->imageDataUri($document),
             'voucherLabel' => $this->voucherLabel($document),

@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Fiscal\GenerateFiscalCredentialCsrProxyRequest;
 use App\Http\Requests\Fiscal\UploadFiscalCredentialCertificateProxyRequest;
 use App\Models\Business;
+use App\Models\BranchFiscalSetting;
 use App\Services\Fiscal\FiscalApiClient;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalApiException;
 use App\Services\Fiscal\FiscalApiTimeoutException;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
+use App\Services\Fiscal\BranchFiscalSettingsResolver;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\RedirectResponse;
 
@@ -20,15 +23,17 @@ class FiscalCredentialProxyController extends Controller
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
         private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
+        private readonly BranchFiscalSettingsResolver $branchFiscalSettings,
     ) {}
 
     public function generateCsr(
         GenerateFiscalCredentialCsrProxyRequest $request,
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
     ): RedirectResponse {
-        $business = $this->business($currentBusiness);
+        [$business, $settings] = $this->configuration($currentBusiness, $currentBranch);
         $payload = $request->validated();
-        $externalBusinessId = $this->payloadBuilder->externalBusinessId($business);
+        $externalBusinessId = $this->payloadBuilder->externalBusinessIdForConfiguration($business, $settings);
 
         try {
             $response = $this->client->generateCredentialCsr($externalBusinessId, $payload);
@@ -62,10 +67,11 @@ class FiscalCredentialProxyController extends Controller
     public function storeCertificate(
         UploadFiscalCredentialCertificateProxyRequest $request,
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
     ): RedirectResponse {
-        $business = $this->business($currentBusiness);
+        [$business, $settings] = $this->configuration($currentBusiness, $currentBranch);
         $data = $request->validated();
-        $externalBusinessId = $this->payloadBuilder->externalBusinessId($business);
+        $externalBusinessId = $this->payloadBuilder->externalBusinessIdForConfiguration($business, $settings);
 
         try {
             $response = $this->client->storeCredentialCertificate(
@@ -90,12 +96,19 @@ class FiscalCredentialProxyController extends Controller
         return back()->with('success', 'Certificado cargado en la API fiscal.');
     }
 
-    private function business(CurrentBusiness $currentBusiness): Business
+    /**
+     * @return array{0: Business, 1: BranchFiscalSetting|Business}
+     */
+    private function configuration(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): array
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_unless((bool) config('fiscal.enabled') && $business->hasElectronicBilling(), 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_unless(
+            (bool) config('fiscal.enabled') && $this->branchFiscalSettings->isEnabledForBranch($business, $branch),
+            403
+        );
 
-        return $business;
+        return [$business, $this->branchFiscalSettings->forBranch($business, $branch)];
     }
 }

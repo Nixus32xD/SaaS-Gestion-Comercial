@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
-use App\Models\BusinessFeature;
 use App\Models\BusinessPaymentDestination;
 use App\Models\BusinessSaleSector;
 use App\Models\Product;
@@ -12,7 +11,10 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Supplier;
 use App\Services\ProductExpirationAlertService;
+use App\Services\BranchCommercialSettingsResolver;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -21,16 +23,22 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(CurrentBusiness $currentBusiness, ProductExpirationAlertService $expirationAlertService): Response
+    public function index(
+        Request $request,
+        CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
+        ProductExpirationAlertService $expirationAlertService,
+        BranchCommercialSettingsResolver $commercialSettingsResolver,
+    ): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        $branchScope = $request->query('branch_scope') === 'current' ? 'current' : 'all';
+        $branchId = $branchScope === 'current' ? $branch->id : null;
 
-        $business->load([
-            'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
-        ]);
-
-        $advancedSaleSettingsEnabled = $business->hasAdvancedSaleSettings();
+        $advancedSaleSettingsEnabled = $commercialSettingsResolver
+            ->advancedSaleSettingsEnabled($business, $branch);
         $todayStart = now()->startOfDay();
         $todayEnd = now()->endOfDay();
         $monthStart = now()->startOfMonth();
@@ -39,6 +47,7 @@ class DashboardController extends Controller
 
         $salesSummary = Sale::query()
             ->forBusiness($business->id)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw(
                 'COALESCE(SUM(CASE WHEN sold_at BETWEEN ? AND ? THEN total ELSE 0 END), 0) as today_sales, COALESCE(SUM(CASE WHEN sold_at BETWEEN ? AND ? THEN total ELSE 0 END), 0) as month_sales',
                 [$todayStart, $todayEnd, $monthStart, $monthEnd]
@@ -53,9 +62,19 @@ class DashboardController extends Controller
 
         $lowStock = Product::query()
             ->forBusiness($business->id)
-            ->select(['id', 'name', 'stock', 'min_stock'])
-            ->whereColumn('stock', '<=', 'min_stock')
-            ->orderBy('stock')
+            ->select(['products.id', 'products.name', 'products.stock', 'products.min_stock'])
+            ->when($branchId !== null, function ($query) use ($business, $branchId): void {
+                $query->join('branch_product_stocks as branch_stock', function ($join) use ($business, $branchId): void {
+                    $join->on('branch_stock.product_id', '=', 'products.id')
+                        ->where('branch_stock.business_id', $business->id)
+                        ->where('branch_stock.branch_id', $branchId);
+                })
+                    ->addSelect('branch_stock.stock as branch_stock', 'branch_stock.min_stock as branch_min_stock')
+                    ->whereColumn('branch_stock.stock', '<=', 'branch_stock.min_stock')
+                    ->orderBy('branch_stock.stock');
+            }, function ($query): void {
+                $query->whereColumn('stock', '<=', 'min_stock')->orderBy('stock');
+            })
             ->limit(8)
             ->get();
 
@@ -77,6 +96,9 @@ class DashboardController extends Controller
             ])
             ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
             ->forBusiness($business->id)
+            ->when($branchId !== null, fn ($query) => $query
+                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+                ->where('sales.branch_id', $branchId))
             ->whereNotNull('sale_items.product_id')
             ->groupBy('sale_items.product_id', 'sale_items.product_name', 'products.unit_type', 'products.weight_unit')
             ->orderByDesc('sold_quantity')
@@ -85,6 +107,7 @@ class DashboardController extends Controller
 
         $latestSales = Sale::query()
             ->forBusiness($business->id)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select(['id', 'business_id', 'user_id', 'sale_sector_id', 'sale_number', 'payment_destination_id', 'total', 'sold_at'])
             ->with(['user:id,name', 'saleSector:id,name', 'paymentDestination:id,name'])
             ->latest('sold_at')
@@ -93,19 +116,21 @@ class DashboardController extends Controller
 
         $latestPurchases = Purchase::query()
             ->forBusiness($business->id)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select(['id', 'business_id', 'supplier_id', 'purchase_number', 'total', 'purchased_at'])
             ->with('supplier:id,name')
             ->latest('purchased_at')
             ->limit(8)
             ->get();
 
-        $expirationAlerts = $expirationAlertService->listForBusiness($business->id, 8)->values();
+        $expirationAlerts = $expirationAlertService->listForBusiness($business->id, 8, null, $branchId)->values();
 
         $trendStart = now()->startOfDay()->subDays(13);
         $trendEnd = now()->endOfDay();
 
         $salesByDate = Sale::query()
             ->forBusiness($business->id)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw('DATE(sold_at) as day, SUM(total) as total')
             ->whereBetween('sold_at', [$trendStart, $trendEnd])
             ->groupBy('day')
@@ -113,6 +138,7 @@ class DashboardController extends Controller
 
         $purchasesByDate = Purchase::query()
             ->forBusiness($business->id)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw('DATE(purchased_at) as day, SUM(total) as total')
             ->whereBetween('purchased_at', [$trendStart, $trendEnd])
             ->groupBy('day')
@@ -128,7 +154,7 @@ class DashboardController extends Controller
             ];
         });
 
-        $allTimeStart = $this->firstActivityStart($business->id);
+        $allTimeStart = $this->firstActivityStart($business->id, $branchId);
 
         return Inertia::render('Dashboard/Index', [
             'summary' => [
@@ -144,43 +170,49 @@ class DashboardController extends Controller
                         'last_14_days',
                         'Ultimos 14 dias',
                         $trendStart,
-                        $trendEnd
+                        $trendEnd,
+                        $branchId,
                     ),
                     $this->periodSummary(
                         $business->id,
                         'current_month',
                         'Mes actual',
                         $monthStart,
-                        $todayEnd
+                        $todayEnd,
+                        $branchId,
                     ),
                     $this->periodSummary(
                         $business->id,
                         'current_year',
                         'Anio en curso',
                         $yearStart,
-                        $todayEnd
+                        $todayEnd,
+                        $branchId,
                     ),
                     $this->periodSummary(
                         $business->id,
                         'all_time',
-                        'Historico total'
+                        'Historico total',
+                        null,
+                        null,
+                        $branchId,
                     ),
                 ],
             ],
             'performance_series' => [
                 'periods' => [
-                    $this->periodSeries($business->id, 'last_14_days', '14 dias', $trendStart, $trendEnd, 'day'),
-                    $this->periodSeries($business->id, 'current_month', 'Mes', $monthStart, $todayEnd, 'day'),
-                    $this->periodSeries($business->id, 'current_year', 'Anio', $yearStart, $todayEnd, 'month'),
-                    $this->periodSeries($business->id, 'all_time', 'Total', $allTimeStart, $todayEnd, 'month'),
+                    $this->periodSeries($business->id, 'last_14_days', '14 dias', $trendStart, $trendEnd, 'day', $branchId),
+                    $this->periodSeries($business->id, 'current_month', 'Mes', $monthStart, $todayEnd, 'day', $branchId),
+                    $this->periodSeries($business->id, 'current_year', 'Anio', $yearStart, $todayEnd, 'month', $branchId),
+                    $this->periodSeries($business->id, 'all_time', 'Total', $allTimeStart, $todayEnd, 'month', $branchId),
                 ],
             ],
             'daily_totals' => $dailyTotals->all(),
             'low_stock_products' => $lowStock->map(fn (Product $product) => [
                 'id' => $product->id,
                 'name' => $product->name,
-                'stock' => (float) $product->stock,
-                'min_stock' => (float) $product->min_stock,
+                'stock' => (float) ($branchId !== null ? $product->branch_stock : $product->stock),
+                'min_stock' => (float) ($branchId !== null ? $product->branch_min_stock : $product->min_stock),
             ]),
             'top_sold_products' => $topProducts->map(fn ($row) => [
                 'product_id' => $row->product_id,
@@ -205,14 +237,18 @@ class DashboardController extends Controller
                 'supplier' => $purchase->supplier?->name,
             ]),
             'expiration_alerts' => $expirationAlerts->all(),
+            'branch_filter' => [
+                'scope' => $branchScope,
+                'current_branch_name' => $branch->name,
+            ],
             'advanced_sales' => [
                 'enabled' => $advancedSaleSettingsEnabled,
                 'month' => $monthStart->format('Y-m'),
                 'sales_by_sector' => $advancedSaleSettingsEnabled
-                    ? $this->salesBySector($business->id, $monthStart, $monthEnd)
+                    ? $this->salesBySector($business->id, $monthStart, $monthEnd, $branchId)
                     : [],
                 'sales_by_payment_destination' => $advancedSaleSettingsEnabled
-                    ? $this->salesByPaymentDestination($business->id, $monthStart, $monthEnd)
+                    ? $this->salesByPaymentDestination($business->id, $monthStart, $monthEnd, $branchId)
                     : [],
             ],
         ]);
@@ -227,9 +263,10 @@ class DashboardController extends Controller
         string $label,
         mixed $start = null,
         mixed $end = null,
+        ?int $branchId = null,
     ): array {
-        $salesQuery = Sale::query()->forBusiness($businessId);
-        $purchasesQuery = Purchase::query()->forBusiness($businessId);
+        $salesQuery = Sale::query()->forBusiness($businessId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId));
+        $purchasesQuery = Purchase::query()->forBusiness($businessId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId));
 
         if ($start !== null && $end !== null) {
             $salesQuery->whereBetween('sold_at', [$start, $end]);
@@ -272,9 +309,10 @@ class DashboardController extends Controller
         Carbon $start,
         Carbon $end,
         string $granularity,
+        ?int $branchId = null,
     ): array {
-        $salesTotals = $this->totalsByBucket(Sale::class, $businessId, 'sold_at', $start, $end, $granularity);
-        $purchaseTotals = $this->totalsByBucket(Purchase::class, $businessId, 'purchased_at', $start, $end, $granularity);
+        $salesTotals = $this->totalsByBucket(Sale::class, $businessId, 'sold_at', $start, $end, $granularity, $branchId);
+        $purchaseTotals = $this->totalsByBucket(Purchase::class, $businessId, 'purchased_at', $start, $end, $granularity, $branchId);
 
         $points = $this->seriesBuckets($start, $end, $granularity)
             ->map(function (Carbon $bucket) use ($granularity, $salesTotals, $purchaseTotals): array {
@@ -318,6 +356,7 @@ class DashboardController extends Controller
         Carbon $start,
         Carbon $end,
         string $granularity,
+        ?int $branchId = null,
     ): Collection {
         $bucketExpression = $granularity === 'month'
             ? $this->monthBucketExpression($dateColumn)
@@ -325,6 +364,7 @@ class DashboardController extends Controller
 
         return $model::query()
             ->forBusiness($businessId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw("{$bucketExpression} as bucket, COALESCE(SUM(total), 0) as total")
             ->whereBetween($dateColumn, [$start, $end])
             ->groupBy(DB::raw($bucketExpression))
@@ -362,11 +402,11 @@ class DashboardController extends Controller
         };
     }
 
-    private function firstActivityStart(int $businessId): Carbon
+    private function firstActivityStart(int $businessId, ?int $branchId = null): Carbon
     {
         $firstDate = collect([
-            Sale::query()->forBusiness($businessId)->min('sold_at'),
-            Purchase::query()->forBusiness($businessId)->min('purchased_at'),
+            Sale::query()->forBusiness($businessId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->min('sold_at'),
+            Purchase::query()->forBusiness($businessId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->min('purchased_at'),
         ])
             ->filter()
             ->map(fn ($date): Carbon => Carbon::parse($date))
@@ -379,10 +419,11 @@ class DashboardController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function salesBySector(int $businessId, mixed $monthStart, mixed $monthEnd): array
+    private function salesBySector(int $businessId, mixed $monthStart, mixed $monthEnd, ?int $branchId = null): array
     {
         $totals = Sale::query()
             ->forBusiness($businessId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select('sale_sector_id', DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as sales_count'))
             ->whereBetween('sold_at', [$monthStart, $monthEnd])
             ->whereNotNull('sale_sector_id')
@@ -415,10 +456,11 @@ class DashboardController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function salesByPaymentDestination(int $businessId, mixed $monthStart, mixed $monthEnd): array
+    private function salesByPaymentDestination(int $businessId, mixed $monthStart, mixed $monthEnd, ?int $branchId = null): array
     {
         $totals = Sale::query()
             ->forBusiness($businessId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select('payment_destination_id', DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as sales_count'))
             ->whereBetween('sold_at', [$monthStart, $monthEnd])
             ->whereNotNull('payment_destination_id')

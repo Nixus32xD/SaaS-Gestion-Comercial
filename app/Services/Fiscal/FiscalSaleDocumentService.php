@@ -25,8 +25,7 @@ class FiscalSaleDocumentService
             ]);
         }
 
-        $business = $sale->business;
-        if (! (bool) config('fiscal.enabled') || ! $business->hasElectronicBilling()) {
+        if (! (bool) config('fiscal.enabled') || ! $this->payloadBuilder->isEnabledForSale($sale)) {
             throw ValidationException::withMessages([
                 'fiscal' => 'La facturacion fiscal no esta habilitada para este comercio.',
             ]);
@@ -102,7 +101,8 @@ class FiscalSaleDocumentService
             if ($document->fiscal_document_id !== null) {
                 $response = $this->client->reconcileDocument($document->fiscal_document_id);
             } else {
-                $businessId = $this->payloadBuilder->externalBusinessId($document->sale->business);
+                $businessId = (string) data_get($document->fiscal_payload, 'business_id');
+                $businessId = $businessId !== '' ? $businessId : $this->payloadBuilder->externalBusinessIdForSale($document->sale);
                 $response = $this->client->documentByOrigin($businessId, 'sale', $document->sale_id);
             }
         } catch (FiscalApiTimeoutException $exception) {

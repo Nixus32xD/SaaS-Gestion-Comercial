@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\BusinessBillingService;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use Closure;
 use Illuminate\Http\Request;
@@ -45,6 +46,12 @@ class EnsureBusinessContext
 
         $request->session()->put('business_id', $business->id);
         app(CurrentBusiness::class)->set($business);
+
+        $branch = app(CurrentBranch::class)->resolve(
+            $business,
+            $request->session()->get('branch_id')
+        );
+        $request->session()->put('branch_id', $branch->id);
 
         return $next($request);
     }

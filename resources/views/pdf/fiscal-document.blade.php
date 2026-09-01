@@ -30,7 +30,7 @@
             <tr>
                 <td>
                     <p class="title">{{ $business->name }}</p>
-                    <div>CUIT: {{ $business->fiscal_cuit }}</div>
+                    <div>CUIT: {{ $issuerCuit }}</div>
                     @if($business->address)
                         <div>Domicilio: {{ $business->address }}</div>
                     @endif

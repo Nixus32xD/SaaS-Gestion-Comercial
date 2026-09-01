@@ -3,29 +3,34 @@
 namespace App\Services\Fiscal;
 
 use App\Models\Business;
+use App\Models\BranchFiscalSetting;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Support\ProductMeasurement;
 
 class FiscalSalePayloadBuilder
 {
-    public function __construct(private readonly FiscalVatCalculator $vatCalculator) {}
+    public function __construct(
+        private readonly FiscalVatCalculator $vatCalculator,
+        private readonly BranchFiscalSettingsResolver $branchFiscalSettings,
+    ) {}
 
     /**
      * @return array<string, mixed>
      */
     public function build(Sale $sale, string $idempotencyKey): array
     {
-        $sale->loadMissing(['business', 'items.product']);
+        $sale->loadMissing(['business', 'branch.fiscalSetting', 'items.product']);
 
         /** @var Business $business */
         $business = $sale->business;
+        $settings = $this->branchFiscalSettings->forSale($sale);
         $voucherDate = $sale->sold_at?->toDateString() ?? now()->toDateString();
-        $concept = $this->concept($business);
+        $concept = $this->concept($settings);
 
-        $authorizationMode = $this->authorizationMode($business);
+        $authorizationMode = $this->authorizationMode($settings);
         $payload = [
-            'business_id' => $this->externalBusinessId($business),
+            'business_id' => $this->externalBusinessIdForSettings($business, $settings),
             'sale_id' => $sale->sale_number ?: (string) $sale->id,
             'origin' => [
                 'type' => 'sale',
@@ -35,12 +40,12 @@ class FiscalSalePayloadBuilder
             'origin_id' => (string) $sale->id,
             'invoice_mode' => 'auto',
             'voucher_date' => $voucherDate,
-            'point_of_sale' => $this->pointOfSale($business),
+            'point_of_sale' => $this->pointOfSale($settings),
             'concept' => $concept,
             'authorization_mode' => $authorizationMode,
             'authorization_type' => $authorizationMode === 'caea' ? 'CAEA' : 'CAE',
             'customer' => $this->customer($sale),
-            'amounts' => $this->amounts($sale, $business),
+            'amounts' => $this->amounts($sale, $settings),
             'currency' => (string) config('fiscal.defaults.currency', 'PES'),
             'currency_rate' => (float) config('fiscal.defaults.currency_rate', 1),
             'items' => $sale->items
@@ -50,13 +55,13 @@ class FiscalSalePayloadBuilder
             'idempotency_key' => $idempotencyKey,
         ];
 
-        $activities = $this->activities($business);
+        $activities = $this->activities($settings);
         if ($activities !== []) {
             $payload['activities'] = $activities;
         }
 
         if ($authorizationMode === 'caea') {
-            $payload['caea'] = $this->caea($business);
+            $payload['caea'] = $this->caea($settings);
         }
 
         if (in_array($concept, [2, 3], true)) {
@@ -77,19 +82,54 @@ class FiscalSalePayloadBuilder
         return $externalId !== '' ? $externalId : (string) $business->id;
     }
 
-    private function pointOfSale(Business $business): int
+    public function externalBusinessIdForSale(Sale $sale): string
     {
-        return (int) ($business->fiscal_point_of_sale ?: config('fiscal.defaults.point_of_sale', 2));
+        $settings = $this->configurationForSale($sale);
+
+        return $this->externalBusinessIdForSettings($sale->business, $settings);
     }
 
-    private function concept(Business $business): int
+    public function externalBusinessIdForConfiguration(Business $business, BranchFiscalSetting|Business $settings): string
     {
-        return (int) ($business->fiscal_concept ?: config('fiscal.defaults.concept', 1));
+        return $this->externalBusinessIdForSettings($business, $settings);
     }
 
-    private function authorizationMode(Business $business): string
+    public function isEnabledForSale(Sale $sale): bool
     {
-        $mode = strtolower(trim((string) ($business->fiscal_authorization_mode ?: config(
+        $settings = $this->configurationForSale($sale);
+
+        return $settings instanceof BranchFiscalSetting
+            ? $settings->is_enabled
+            : $settings->fiscal_enabled;
+    }
+
+    public function configurationForSale(Sale $sale): BranchFiscalSetting|Business
+    {
+        $sale->loadMissing(['business', 'branch.fiscalSetting']);
+
+        return $this->branchFiscalSettings->forSale($sale);
+    }
+
+    private function externalBusinessIdForSettings(Business $business, BranchFiscalSetting|Business $settings): string
+    {
+        $externalId = trim((string) $settings->fiscal_external_business_id);
+
+        return $externalId !== '' ? $externalId : (string) $business->id;
+    }
+
+    private function pointOfSale(BranchFiscalSetting|Business $settings): int
+    {
+        return (int) ($settings->fiscal_point_of_sale ?: config('fiscal.defaults.point_of_sale', 2));
+    }
+
+    private function concept(BranchFiscalSetting|Business $settings): int
+    {
+        return (int) ($settings->fiscal_concept ?: config('fiscal.defaults.concept', 1));
+    }
+
+    private function authorizationMode(BranchFiscalSetting|Business $settings): string
+    {
+        $mode = strtolower(trim((string) ($settings->fiscal_authorization_mode ?: config(
             'fiscal.defaults.authorization_mode',
             'cae'
         ))));
@@ -100,16 +140,16 @@ class FiscalSalePayloadBuilder
     /**
      * @return array<string, mixed>
      */
-    private function caea(Business $business): array
+    private function caea(BranchFiscalSetting|Business $settings): array
     {
         return array_filter([
-            'code' => $business->fiscal_caea_code,
-            'period' => $business->fiscal_caea_period,
-            'order' => $business->fiscal_caea_order,
-            'from' => $business->fiscal_caea_from?->format('Ymd'),
-            'to' => $business->fiscal_caea_to?->format('Ymd'),
-            'due_date' => $business->fiscal_caea_due_date?->toDateString(),
-            'report_deadline' => $business->fiscal_caea_report_deadline?->toDateString(),
+            'code' => $settings->fiscal_caea_code,
+            'period' => $settings->fiscal_caea_period,
+            'order' => $settings->fiscal_caea_order,
+            'from' => $settings->fiscal_caea_from?->format('Ymd'),
+            'to' => $settings->fiscal_caea_to?->format('Ymd'),
+            'due_date' => $settings->fiscal_caea_due_date?->toDateString(),
+            'report_deadline' => $settings->fiscal_caea_report_deadline?->toDateString(),
             'report_now' => true,
         ], fn (mixed $value): bool => $value !== null && $value !== '');
     }
@@ -150,7 +190,7 @@ class FiscalSalePayloadBuilder
     /**
      * @return array<string, float>
      */
-    private function amounts(Sale $sale, Business $business): array
+    private function amounts(Sale $sale, BranchFiscalSetting|Business $settings): array
     {
         $breakdown = $this->vatCalculator->saleBreakdown(
             $sale->items->map(fn (SaleItem $item): array => [
@@ -159,7 +199,7 @@ class FiscalSalePayloadBuilder
                 'vat_rate' => $item->vat_rate ?: $item->product?->vat_rate,
             ]),
             (float) $sale->discount,
-            $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+            $settings->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
         );
 
         return $breakdown['totals'];
@@ -198,9 +238,9 @@ class FiscalSalePayloadBuilder
     /**
      * @return list<int>
      */
-    private function activities(Business $business): array
+    private function activities(BranchFiscalSetting|Business $settings): array
     {
-        $activities = $business->fiscal_activities ?: config('fiscal.defaults.activities', []);
+        $activities = $settings->fiscal_activities ?: config('fiscal.defaults.activities', []);
 
         return collect($activities)
             ->map(fn (mixed $activity): int => (int) $activity)

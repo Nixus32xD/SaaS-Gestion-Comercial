@@ -1,10 +1,14 @@
 <?php
 
 use App\Http\Controllers\Admin\BusinessBillingController;
+use App\Http\Controllers\Admin\BusinessBranchController;
+use App\Http\Controllers\Admin\BusinessBranchFiscalSettingController;
+use App\Http\Controllers\Admin\BusinessBranchCommercialSettingController;
 use App\Http\Controllers\Admin\BusinessController;
 use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\CommercialGuideController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
+use App\Http\Controllers\Branches\CurrentBranchController;
 use App\Http\Controllers\Categories\CategoryController;
 use App\Http\Controllers\Customers\CustomerAccountController;
 use App\Http\Controllers\Customers\CustomerController;
@@ -45,6 +49,10 @@ Route::middleware(['auth', 'superadmin'])
         Route::get('/businesses/{business}/edit', [BusinessController::class, 'edit'])->name('businesses.edit');
         Route::put('/businesses/{business}', [BusinessController::class, 'update'])->name('businesses.update');
         Route::delete('/businesses/{business}', [BusinessController::class, 'archive'])->name('businesses.archive');
+        Route::post('/businesses/{business}/branches', [BusinessBranchController::class, 'store'])->name('businesses.branches.store');
+        Route::put('/businesses/{business}/branches/{branch}', [BusinessBranchController::class, 'update'])->name('businesses.branches.update');
+        Route::put('/businesses/{business}/branches/{branch}/fiscal-settings', [BusinessBranchFiscalSettingController::class, 'update'])->name('businesses.branches.fiscal-settings.update');
+        Route::put('/businesses/{business}/branches/{branch}/commercial-settings', [BusinessBranchCommercialSettingController::class, 'update'])->name('businesses.branches.commercial-settings.update');
         Route::put('/businesses/{business}/billing', [BusinessBillingController::class, 'update'])->name('businesses.billing.update');
         Route::post('/businesses/{business}/payments', [BusinessBillingController::class, 'storePayment'])->name('businesses.payments.store');
         Route::put('/businesses/{business}/sales-settings', [BusinessSalesSettingsController::class, 'update'])->name('businesses.sales-settings.update');
@@ -54,6 +62,8 @@ Route::middleware(['auth', 'superadmin'])
     });
 
 Route::middleware(['auth', 'business'])->group(function (): void {
+    Route::put('/branches/current', [CurrentBranchController::class, 'update'])->name('branches.current.update');
+
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
@@ -121,6 +131,7 @@ Route::middleware(['auth', 'business', 'business.admin'])->group(function (): vo
     Route::delete('/sales/quick-options/{quickSaleOption}', [QuickSaleOptionController::class, 'destroy'])->name('sales.quick-options.destroy');
     Route::get('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'edit'])->name('mercadopago-settings.edit');
     Route::put('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'update'])->name('mercadopago-settings.update');
+    Route::put('/integrations/mercadopago/point-branch', [MercadoPagoSettingsController::class, 'updateBranchPoint'])->name('mercadopago-settings.branch-point.update');
 
     Route::get('/users', [BusinessUserController::class, 'index'])->name('users.index');
     Route::post('/users', [BusinessUserController::class, 'store'])->name('users.store');

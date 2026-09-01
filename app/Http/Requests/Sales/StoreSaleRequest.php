@@ -4,7 +4,9 @@ namespace App\Http\Requests\Sales;
 
 use App\Http\Requests\Sales\Concerns\HasSaleReceiptRules;
 use App\Models\BusinessFeature;
+use App\Models\BranchCommercialSetting;
 use App\Models\Sale;
+use App\Support\CurrentBranch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -33,7 +35,14 @@ class StoreSaleRequest extends FormRequest
     public function rules(): array
     {
         $businessId = (int) ($this->user()?->business_id ?? 0);
-        $advancedSaleSettingsEnabled = $businessId > 0
+        $branchId = (int) (app(CurrentBranch::class)->get()?->id ?? 0);
+        $advancedSaleSettingsEnabled = $branchId > 0
+            ? BranchCommercialSetting::query()
+                ->where('business_id', $businessId)
+                ->where('branch_id', $branchId)
+                ->value('advanced_sale_settings_enabled')
+            : null;
+        $advancedSaleSettingsEnabled ??= $businessId > 0
             && BusinessFeature::query()
                 ->where('business_id', $businessId)
                 ->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS)
@@ -89,6 +98,7 @@ class StoreSaleRequest extends FormRequest
                 Rule::exists('business_sale_sectors', 'id')->where(
                     fn ($query) => $query
                         ->where('business_id', $businessId)
+                        ->when($branchId > 0, fn ($query) => $query->where('branch_id', $branchId))
                         ->where('is_active', true)
                 ),
             ],
@@ -98,6 +108,7 @@ class StoreSaleRequest extends FormRequest
                 Rule::exists('business_payment_destinations', 'id')->where(
                     fn ($query) => $query
                         ->where('business_id', $businessId)
+                        ->when($branchId > 0, fn ($query) => $query->where('branch_id', $branchId))
                         ->where('is_active', true)
                 ),
             ],

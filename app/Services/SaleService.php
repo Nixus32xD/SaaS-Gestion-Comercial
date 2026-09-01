@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessPaymentDestination;
 use App\Models\BusinessSaleSector;
@@ -29,14 +30,18 @@ class SaleService
         private readonly FiscalVatCalculator $vatCalculator,
         private readonly PaymentService $paymentService,
         private readonly SaleStockReservationService $stockReservationService,
+        private readonly BranchProductStockService $branchProductStockService,
+        private readonly BranchCommercialSettingsResolver $commercialSettingsResolver,
     ) {}
 
     /**
      * @param  array<string, mixed>  $payload
      */
-    public function createSale(Business $business, User $user, array $payload): Sale
+    public function createSale(Business $business, User $user, array $payload, ?Branch $branch = null): Sale
     {
-        return DB::transaction(function () use ($business, $user, $payload): Sale {
+        $branch = $this->resolveBranch($business, $branch);
+
+        return DB::transaction(function () use ($business, $user, $payload, $branch): Sale {
             $items = collect((array) ($payload['items'] ?? []));
             $productItems = $items
                 ->filter(fn (array $item): bool => (int) ($item['product_id'] ?? 0) > 0)
@@ -121,9 +126,9 @@ class SaleService
                     continue;
                 }
 
-                if ($product->availableStock() < $requestedQty) {
+                if ($this->branchProductStockService->availableStock($branch, $product) < $requestedQty) {
                     throw ValidationException::withMessages([
-                        'items' => "Stock insuficiente para {$product->name}.",
+                        'items' => "Stock insuficiente para {$product->name} en {$branch->name}.",
                     ]);
                 }
             }
@@ -149,6 +154,7 @@ class SaleService
             );
             [$saleSectorId, $paymentDestinationId] = $this->resolveAdvancedSaleContext(
                 $business,
+                $branch,
                 $payload,
                 $paymentMethod,
                 $paidAmount,
@@ -157,6 +163,7 @@ class SaleService
 
             $sale = Sale::query()->create([
                 'business_id' => $business->id,
+                'branch_id' => $branch->id,
                 'user_id' => $user->id,
                 'sale_sector_id' => $saleSectorId,
                 'customer_id' => $customer?->id,
@@ -181,10 +188,6 @@ class SaleService
                 'notes' => $payload['notes'] ?? null,
                 'sold_at' => $this->resolveDateTimeValue($payload['sold_at'] ?? null),
             ]);
-
-            $stocks = $products->mapWithKeys(
-                fn (Product $product): array => [$product->id => round((float) $product->stock, 3)]
-            );
 
             foreach ($lineItems as $index => $lineItem) {
                 $lineFiscal = $fiscalBreakdown['lines'][$index] ?? [];
@@ -215,18 +218,17 @@ class SaleService
                 }
 
                 $productId = (int) $lineItem['product_id'];
-                $before = (float) $stocks->get($productId, 0);
-                $after = round($before - (float) $lineItem['quantity'], 3);
+                $product = $products->get($productId);
 
-                if ($after < 0) {
+                if ($product === null) {
                     throw ValidationException::withMessages([
-                        'items' => 'La venta deja stock negativo en uno o mas productos.',
+                        'items' => 'Producto no encontrado para la venta.',
                     ]);
                 }
 
-                $stocks->put($productId, $after);
+                $before = (float) ($this->branchProductStockService->stock($branch, $product)?->stock ?? 0);
 
-                $this->productBatchService->consumeStock($business, $products->get($productId), (float) $lineItem['quantity'], [
+                $this->productBatchService->consumeStock($business, $branch, $product, (float) $lineItem['quantity'], [
                     'movement_type' => 'sale',
                     'reference_type' => SaleItem::class,
                     'reference_id' => $saleItem->id,
@@ -234,15 +236,18 @@ class SaleService
                     'created_by' => $user->id,
                 ]);
 
+                $stock = $this->branchProductStockService->consume($branch, $product, (float) $lineItem['quantity']);
+
                 StockMovement::query()->create([
                     'business_id' => $business->id,
+                    'branch_id' => $branch->id,
                     'product_id' => $productId,
                     'type' => 'sale',
                     'reference_type' => Sale::class,
                     'reference_id' => $sale->id,
                     'quantity' => -1 * (float) $lineItem['quantity'],
                     'stock_before' => $before,
-                    'stock_after' => $after,
+                    'stock_after' => $stock->stock,
                     'notes' => "Venta {$sale->sale_number}",
                     'created_by' => $user->id,
                 ]);
@@ -250,11 +255,6 @@ class SaleService
 
             if ($usesMercadoPagoPoint) {
                 $this->stockReservationService->reserve($sale);
-            } else {
-                foreach ($products as $product) {
-                    $product->stock = (float) $stocks->get($product->id, 0);
-                    $product->save();
-                }
             }
 
             if (! $usesMercadoPagoPoint && $paidAmount > 0 && $paymentMethod !== null) {
@@ -302,6 +302,22 @@ class SaleService
         }
 
         return $value;
+    }
+
+    private function resolveBranch(Business $business, ?Branch $branch): Branch
+    {
+        $branch ??= $business->branches()
+            ->active()
+            ->where('is_default', true)
+            ->first();
+
+        if ($branch === null || (int) $branch->business_id !== (int) $business->id || ! $branch->is_active) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'La sucursal seleccionada no pertenece al comercio o está inactiva.',
+            ]);
+        }
+
+        return $branch;
     }
 
     private function resolvePaymentMethod(mixed $value): ?string
@@ -487,12 +503,13 @@ class SaleService
      */
     private function resolveAdvancedSaleContext(
         Business $business,
+        Branch $branch,
         array $payload,
         ?string $paymentMethod,
         float $paidAmount,
         bool $requiresIntegratedPaymentDestination = false
     ): array {
-        if (! $business->hasAdvancedSaleSettings()) {
+        if (! $this->commercialSettingsResolver->advancedSaleSettingsEnabled($business, $branch)) {
             return [null, null];
         }
 
@@ -501,6 +518,7 @@ class SaleService
 
         $saleSectorExists = BusinessSaleSector::query()
             ->forBusiness($business->id)
+            ->where('branch_id', $branch->id)
             ->whereKey($saleSectorId)
             ->where('is_active', true)
             ->exists();
@@ -518,6 +536,7 @@ class SaleService
 
         $paymentDestinationExists = BusinessPaymentDestination::query()
             ->forBusiness($business->id)
+            ->where('branch_id', $branch->id)
             ->whereKey($paymentDestinationId)
             ->where('is_active', true)
             ->exists();

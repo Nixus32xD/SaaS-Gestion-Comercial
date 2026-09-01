@@ -4,12 +4,16 @@ namespace App\Http\Controllers\Fiscal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Business;
+use App\Models\Branch;
+use App\Models\BranchFiscalSetting;
 use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalApiClient;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalApiException;
 use App\Services\Fiscal\FiscalApiTimeoutException;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
+use App\Services\Fiscal\BranchFiscalSettingsResolver;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -22,15 +26,18 @@ class ElectronicBillingController extends Controller
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
         private readonly FiscalApiErrorMapper $fiscalApiErrorMapper,
+        private readonly BranchFiscalSettingsResolver $branchFiscalSettings,
     ) {}
 
-    public function index(Request $request, CurrentBusiness $currentBusiness): Response
+    public function index(Request $request, CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_unless($this->moduleEnabled($business), 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_unless($this->moduleEnabled($business, $branch), 403);
 
-        $externalBusinessId = $this->payloadBuilder->externalBusinessId($business);
+        $settings = $this->branchFiscalSettings->forBranch($business, $branch);
+        $externalBusinessId = $this->payloadBuilder->externalBusinessIdForConfiguration($business, $settings);
         $apiOverview = $this->apiOverview($externalBusinessId);
         $diagnostics = $request->boolean('run_diagnostics')
             ? $this->diagnostics($externalBusinessId)
@@ -41,15 +48,15 @@ class ElectronicBillingController extends Controller
             : $this->ivaSalesBookNotRequested($ivaPeriod);
 
         return Inertia::render('Fiscal/Index', [
-            'configuration' => $this->configuration($business, $externalBusinessId),
+            'configuration' => $this->configuration($settings, $branch, $externalBusinessId),
             'connection' => $apiOverview['connection'],
             'setup' => $apiOverview['setup'],
             'activities' => $apiOverview['activities'],
             'points_of_sale' => $apiOverview['points_of_sale'],
             'diagnostics' => $diagnostics,
             'iva_sales_book' => $ivaSalesBook,
-            'summary' => $this->summary($business),
-            'documents' => $this->documents($business),
+            'summary' => $this->summary($business, $branch),
+            'documents' => $this->documents($business, $branch),
             'can_manage_credentials' => request()->user()?->isBusinessAdmin() ?? false,
             'credential_onboarding' => session('fiscal_credential_onboarding', [
                 'credential_id' => null,
@@ -61,36 +68,39 @@ class ElectronicBillingController extends Controller
         ]);
     }
 
-    private function moduleEnabled(Business $business): bool
+    private function moduleEnabled(Business $business, Branch $branch): bool
     {
-        return (bool) config('fiscal.enabled') && $business->hasElectronicBilling();
+        return (bool) config('fiscal.enabled')
+            && $this->branchFiscalSettings->isEnabledForBranch($business, $branch);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function configuration(Business $business, string $externalBusinessId): array
+    private function configuration(BranchFiscalSetting|Business $settings, Branch $branch, string $externalBusinessId): array
     {
         return [
+            'branch_name' => $branch->name,
+            'branch_code' => $branch->code,
             'external_business_id' => $externalBusinessId,
-            'fiscal_cuit' => $business->fiscal_cuit,
-            'fiscal_condition' => $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
-            'point_of_sale' => $business->fiscal_point_of_sale ?? config('fiscal.defaults.point_of_sale'),
-            'document_type' => $business->fiscal_document_type ?: config('fiscal.defaults.document_type'),
-            'cbte_type' => $business->fiscal_cbte_type ?? config('fiscal.defaults.cbte_type'),
-            'concept' => $business->fiscal_concept ?? config('fiscal.defaults.concept'),
-            'authorization_mode' => $business->fiscal_authorization_mode
+            'fiscal_cuit' => $settings->fiscal_cuit,
+            'fiscal_condition' => $settings->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+            'point_of_sale' => $settings->fiscal_point_of_sale ?? config('fiscal.defaults.point_of_sale'),
+            'document_type' => $settings->fiscal_document_type ?: config('fiscal.defaults.document_type'),
+            'cbte_type' => $settings->fiscal_cbte_type ?? config('fiscal.defaults.cbte_type'),
+            'concept' => $settings->fiscal_concept ?? config('fiscal.defaults.concept'),
+            'authorization_mode' => $settings->fiscal_authorization_mode
                 ?: config('fiscal.defaults.authorization_mode', 'cae'),
             'caea' => [
-                'code' => $business->fiscal_caea_code,
-                'period' => $business->fiscal_caea_period,
-                'order' => $business->fiscal_caea_order,
-                'from' => $business->fiscal_caea_from?->format('Y-m-d'),
-                'to' => $business->fiscal_caea_to?->format('Y-m-d'),
-                'due_date' => $business->fiscal_caea_due_date?->format('Y-m-d'),
-                'report_deadline' => $business->fiscal_caea_report_deadline?->format('Y-m-d'),
+                'code' => $settings->fiscal_caea_code,
+                'period' => $settings->fiscal_caea_period,
+                'order' => $settings->fiscal_caea_order,
+                'from' => $settings->fiscal_caea_from?->format('Y-m-d'),
+                'to' => $settings->fiscal_caea_to?->format('Y-m-d'),
+                'due_date' => $settings->fiscal_caea_due_date?->format('Y-m-d'),
+                'report_deadline' => $settings->fiscal_caea_report_deadline?->format('Y-m-d'),
             ],
-            'activities' => $business->fiscal_activities ?: config('fiscal.defaults.activities', []),
+            'activities' => $settings->fiscal_activities ?: config('fiscal.defaults.activities', []),
         ];
     }
 
@@ -588,10 +598,11 @@ class ElectronicBillingController extends Controller
     /**
      * @return array<string, int>
      */
-    private function summary(Business $business): array
+    private function summary(Business $business, Branch $branch): array
     {
         $counts = SaleFiscalDocument::query()
             ->forBusiness($business->id)
+            ->whereHas('sale', fn ($query) => $query->where('branch_id', $branch->id))
             ->selectRaw('fiscal_status, COUNT(*) as total')
             ->groupBy('fiscal_status')
             ->pluck('total', 'fiscal_status');
@@ -608,11 +619,12 @@ class ElectronicBillingController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function documents(Business $business): array
+    private function documents(Business $business, Branch $branch): array
     {
         return SaleFiscalDocument::query()
             ->forBusiness($business->id)
-            ->with(['sale:id,business_id,sale_number,total,sold_at'])
+            ->whereHas('sale', fn ($query) => $query->where('branch_id', $branch->id))
+            ->with(['sale:id,business_id,branch_id,sale_number,total,sold_at'])
             ->latest('id')
             ->limit(25)
             ->get()

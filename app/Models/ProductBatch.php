@@ -21,12 +21,27 @@ class ProductBatch extends Model
      */
     protected $fillable = [
         'business_id',
+        'branch_id',
         'product_id',
         'batch_code',
         'expires_at',
         'quantity',
         'unit_cost',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProductBatch $batch): void {
+            if ($batch->branch_id !== null) {
+                return;
+            }
+
+            $batch->branch_id = Branch::query()
+                ->forBusiness($batch->business_id)
+                ->where('is_default', true)
+                ->value('id');
+        });
+    }
 
     /**
      * @return array<string, string>
@@ -46,6 +61,14 @@ class ProductBatch extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     /**

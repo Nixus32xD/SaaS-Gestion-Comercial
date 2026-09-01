@@ -10,17 +10,24 @@ class ProductExpirationAlertService
     /**
      * @return Collection<int, array<string, mixed>>
      */
-    public function listForBusiness(int $businessId, int $limit = 10, ?int $daysThreshold = null): Collection
+    public function listForBusiness(int $businessId, int $limit = 10, ?int $daysThreshold = null, ?int $branchId = null): Collection
     {
         $today = now()->startOfDay();
         $maxDays = $daysThreshold ?? 30;
 
         return ProductBatch::query()
             ->forBusiness($businessId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->with(['product:id,business_id,name,expiry_alert_days,is_active,stock'])
             ->available()
             ->whereNotNull('expires_at')
-            ->whereHas('product', fn ($query) => $query->where('is_active', true)->where('stock', '>', 0))
+            ->whereHas('product', function ($query) use ($branchId): void {
+                $query->where('is_active', true);
+
+                if ($branchId === null) {
+                    $query->where('stock', '>', 0);
+                }
+            })
             ->where(function ($query) use ($today, $maxDays): void {
                 $query
                     ->where('expires_at', '<', $today->toDateString())

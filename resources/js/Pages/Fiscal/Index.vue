@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     configuration: { type: Object, required: true },
@@ -16,6 +16,13 @@ const props = defineProps({
     can_manage_credentials: { type: Boolean, default: false },
     credential_onboarding: { type: Object, default: () => ({}) },
 });
+
+const page = usePage();
+const hasMultipleBranches = computed(() => (
+    Array.isArray(page.props.branches)
+        ? page.props.branches.length > 1
+        : Boolean(page.props.business?.has_multiple_branches)
+));
 
 const sanitizedBusinessId = String(props.configuration.external_business_id || 'empresa')
     .replace(/[^A-Za-z0-9._-]/g, '-')
@@ -406,7 +413,8 @@ const reconcileDocument = (document) => {
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Facturacion electronica</h2>
-                    <p class="mt-1 text-sm text-slate-300/80">Configuracion fiscal, estado de API y comprobantes emitidos.</p>
+                    <p class="mt-1 text-sm text-slate-300/80">Configuración fiscal, estado de API y comprobantes{{ hasMultipleBranches ? ' de la sucursal activa.' : '.' }}</p>
+                    <p v-if="hasMultipleBranches" class="mt-2 inline-flex rounded-full bg-cyan-300/15 px-3 py-1 text-xs font-semibold text-cyan-100">Sucursal: {{ configuration.branch_name }}{{ configuration.branch_code ? ` · ${configuration.branch_code}` : '' }}</p>
                 </div>
                 <Link :href="route('sales.index')" class="text-sm font-semibold text-slate-300 hover:text-slate-100">Ventas</Link>
             </div>
@@ -745,7 +753,7 @@ const reconcileDocument = (document) => {
             </section>
 
             <section class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                <h3 class="text-base font-semibold text-slate-100">Configuracion del comercio</h3>
+                <h3 class="text-base font-semibold text-slate-100">Configuración fiscal{{ hasMultipleBranches ? ' de la sucursal activa' : '' }}</h3>
 
                 <dl class="mt-4 grid gap-3 text-sm text-slate-300 md:grid-cols-2 xl:grid-cols-3">
                     <div>

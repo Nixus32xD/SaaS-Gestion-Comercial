@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalSaleDocumentService;
+use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Services\Payments\PaymentService;
 use App\Services\SaleStockReservationService;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ class MercadoPagoPaymentCompletionService
 {
     public function __construct(
         private readonly FiscalSaleDocumentService $fiscalSaleDocumentService,
+        private readonly FiscalSalePayloadBuilder $fiscalPayloadBuilder,
         private readonly SaleStockReservationService $stockReservationService,
         private readonly PaymentService $paymentService,
     ) {}
@@ -65,7 +67,7 @@ class MercadoPagoPaymentCompletionService
             return;
         }
 
-        if (! (bool) config('fiscal.enabled') || ! $business->hasElectronicBilling()) {
+        if (! (bool) config('fiscal.enabled') || ! $this->fiscalPayloadBuilder->isEnabledForSale($sale)) {
             return;
         }
 

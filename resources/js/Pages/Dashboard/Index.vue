@@ -17,6 +17,7 @@ const props = defineProps({
     latest_purchases: { type: Array, default: () => [] },
     expiration_alerts: { type: Array, default: () => [] },
     advanced_sales: { type: Object, default: () => ({ enabled: false, sales_by_sector: [], sales_by_payment_destination: [] }) },
+    branch_filter: { type: Object, default: () => ({ scope: 'all', current_branch_name: '' }) },
 });
 
 const page = usePage();
@@ -83,6 +84,12 @@ const userFirstName = computed(() => {
 });
 
 const businessName = computed(() => page.props.business?.name || 'Comercio');
+const currentBranchScope = computed(() => props.branch_filter?.scope === 'current');
+const hasMultipleBranches = computed(() => (
+    Array.isArray(page.props.branches)
+        ? page.props.branches.length > 1
+        : Boolean(page.props.business?.has_multiple_branches)
+));
 
 const advancedSalesEnabled = computed(() => Boolean(props.advanced_sales?.enabled));
 
@@ -394,7 +401,15 @@ const priorityCards = computed(() => ([
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/70">Resumen general</p>
                     <h2 class="mt-2 break-words text-3xl font-bold text-slate-100">{{ greeting }}, {{ userFirstName }}</h2>
-                    <p class="mt-1 break-words text-sm text-slate-300">{{ businessName }} - Periodo {{ selectedPeriod.range_label || 'sin movimientos' }}</p>
+                    <p class="mt-1 break-words text-sm text-slate-300">{{ businessName }}<template v-if="hasMultipleBranches"> - {{ currentBranchScope ? branch_filter.current_branch_name : 'Todas las sucursales' }}</template> - Periodo {{ selectedPeriod.range_label || 'sin movimientos' }}</p>
+                    <div v-if="hasMultipleBranches" class="mt-3 inline-flex rounded-lg border border-cyan-100/20 bg-slate-950/35 p-1 text-xs font-semibold">
+                        <Link :href="route('dashboard', { branch_scope: 'all' })" class="rounded-md px-3 py-1.5" :class="!currentBranchScope ? 'bg-cyan-300/18 text-cyan-50' : 'text-slate-300 hover:text-white'">
+                            Todas
+                        </Link>
+                        <Link :href="route('dashboard', { branch_scope: 'current' })" class="rounded-md px-3 py-1.5" :class="currentBranchScope ? 'bg-cyan-300/18 text-cyan-50' : 'text-slate-300 hover:text-white'">
+                            {{ branch_filter.current_branch_name || 'Sucursal actual' }}
+                        </Link>
+                    </div>
                 </div>
                 <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                     <Link :href="route('sales.create')" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Nueva venta</Link>

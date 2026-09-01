@@ -10,6 +10,7 @@ use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Services\Fiscal\FiscalVatCalculator;
 use App\Services\PurchaseService;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
 use Illuminate\Http\RedirectResponse;
@@ -76,10 +77,11 @@ class PurchaseController extends Controller
         ]);
     }
 
-    public function create(CurrentBusiness $currentBusiness): Response
+    public function create(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
 
         return Inertia::render('Purchases/Create', [
             'suppliers' => Supplier::query()
@@ -94,6 +96,7 @@ class PurchaseController extends Controller
             'products' => Product::query()
                 ->forBusiness($business->id)
                 ->where('is_active', true)
+                ->with(['branchStocks' => fn ($query) => $query->where('branch_id', $branch->id)])
                 ->select([
                     'id',
                     'business_id',
@@ -124,7 +127,7 @@ class PurchaseController extends Controller
                     'price_label' => ProductMeasurement::priceLabel($product->unit_type, $product->weight_unit),
                     'quantity_step' => ProductMeasurement::quantityStep($product->unit_type, $product->weight_unit),
                     'quantity_min' => ProductMeasurement::quantityMin($product->unit_type, $product->weight_unit),
-                    'stock' => (float) $product->stock,
+                    'stock' => $product->branchStocks->first()?->availableStock() ?? 0.0,
                     'cost_price' => (float) $product->cost_price,
                     'sale_price' => (float) $product->sale_price,
                     'vat_treatment' => $product->vat_treatment,
@@ -149,14 +152,16 @@ class PurchaseController extends Controller
 
     public function store(
         StorePurchaseRequest $request,
-        CurrentBusiness $currentBusiness
+        CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
     ): RedirectResponse {
         $business = $currentBusiness->get();
+        $branch = $currentBranch->get();
         $user = $request->user();
 
-        abort_if($business === null || $user === null, 404);
+        abort_if($business === null || $branch === null || $user === null, 404);
 
-        $purchase = $this->purchaseService->createPurchase($business, $user, $request->validated());
+        $purchase = $this->purchaseService->createPurchase($business, $user, $request->validated(), $branch);
 
         return redirect()
             ->route('purchases.show', $purchase)

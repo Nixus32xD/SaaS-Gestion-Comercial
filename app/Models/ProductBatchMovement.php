@@ -17,6 +17,7 @@ class ProductBatchMovement extends Model
      */
     protected $fillable = [
         'business_id',
+        'branch_id',
         'product_batch_id',
         'product_id',
         'type',
@@ -28,6 +29,28 @@ class ProductBatchMovement extends Model
         'notes',
         'created_by',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProductBatchMovement $movement): void {
+            if ($movement->branch_id !== null) {
+                return;
+            }
+
+            $movement->branch_id = ProductBatch::query()
+                ->forBusiness($movement->business_id)
+                ->whereKey($movement->product_batch_id)
+                ->value('branch_id');
+        });
+    }
+
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
 
     /**
      * @return array<string, string>

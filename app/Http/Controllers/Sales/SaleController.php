@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Sales;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sales\StoreSaleReceiptRequest;
 use App\Http\Requests\Sales\StoreSaleRequest;
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Models\BusinessQuickSaleOption;
@@ -15,12 +16,16 @@ use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalSaleDocumentService;
+use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Services\Fiscal\FiscalVatCalculator;
+use App\Services\Fiscal\BranchFiscalSettingsResolver;
 use App\Services\Payments\MercadoPago\MercadoPagoApiException;
 use App\Services\Payments\MercadoPago\MercadoPagoPointProvider;
 use App\Services\Payments\MercadoPago\MercadoPagoSettingsResolver;
 use App\Services\SaleReceiptService;
 use App\Services\SaleService;
+use App\Services\BranchCommercialSettingsResolver;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
 use Carbon\CarbonImmutable;
@@ -46,6 +51,9 @@ class SaleController extends Controller
         private readonly FiscalVatCalculator $vatCalculator,
         private readonly MercadoPagoPointProvider $mercadoPagoPointProvider,
         private readonly MercadoPagoSettingsResolver $mercadoPagoSettingsResolver,
+        private readonly BranchCommercialSettingsResolver $commercialSettingsResolver,
+        private readonly BranchFiscalSettingsResolver $branchFiscalSettings,
+        private readonly FiscalSalePayloadBuilder $fiscalPayloadBuilder,
     ) {}
 
     public function index(Request $request, CurrentBusiness $currentBusiness): Response
@@ -124,13 +132,15 @@ class SaleController extends Controller
         ]);
     }
 
-    public function create(CurrentBusiness $currentBusiness): Response
+    public function create(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        $branchFiscalSettings = $this->branchFiscalSettings->forBranch($business, $branch);
 
         return Inertia::render('Sales/Create', [
-            'products' => $this->searchProductsPayload($business->id),
+            'products' => $this->searchProductsPayload($business->id, $branch),
             'customers' => Customer::query()
                 ->forBusiness($business->id)
                 ->withAccountOverview()
@@ -145,44 +155,47 @@ class SaleController extends Controller
                 ])
                 ->values()
                 ->all(),
-            'advanced_sale_settings' => $this->advancedSaleSettingsPayload($business),
+            'advanced_sale_settings' => $this->advancedSaleSettingsPayload($business, $branch),
             'quick_sale_options' => $this->quickSaleOptionsPayload($business),
             'can_manage_quick_sale_options' => request()->user()?->isBusinessAdmin() ?? false,
             'vat_options' => $this->vatOptions(),
             'fiscal' => [
-                'enabled' => (bool) config('fiscal.enabled') && $business->hasElectronicBilling(),
-                'issuer_condition' => $business->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+                'enabled' => (bool) config('fiscal.enabled') && $this->branchFiscalSettings->isEnabledForBranch($business, $branch),
+                'issuer_condition' => $branchFiscalSettings->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
                 'receiver_iva_conditions' => config('fiscal.receiver_iva_conditions', []),
             ],
-            'mercadopago_point' => $this->mercadoPagoPointPayload($business),
+            'mercadopago_point' => $this->mercadoPagoPointPayload($business, $branch),
             'receipt_feature_available' => $this->saleReceiptsAvailable(),
         ]);
     }
 
-    public function searchProducts(Request $request, CurrentBusiness $currentBusiness): JsonResponse
+    public function searchProducts(Request $request, CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): JsonResponse
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
 
         $search = trim((string) $request->query('search', ''));
 
         return response()->json([
-            'products' => $this->searchProductsPayload($business->id, $search),
+            'products' => $this->searchProductsPayload($business->id, $branch, $search),
         ]);
     }
 
     public function store(
         StoreSaleRequest $request,
-        CurrentBusiness $currentBusiness
+        CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
     ): RedirectResponse {
         $business = $currentBusiness->get();
+        $branch = $currentBranch->get();
         $user = $request->user();
 
-        abort_if($business === null || $user === null, 404);
+        abort_if($business === null || $branch === null || $user === null, 404);
 
         $payload = $request->validated();
         $usesMercadoPagoPoint = ($payload['payment_provider'] ?? null) === 'mercadopago_point';
-        $sale = $this->saleService->createSale($business, $user, $payload);
+        $sale = $this->saleService->createSale($business, $user, $payload, $branch);
         $warning = null;
         $receipt = $request->file('receipt');
         $receiptFeatureAvailable = $this->saleReceiptsAvailable();
@@ -240,7 +253,7 @@ class SaleController extends Controller
         $fiscalDocument = null;
         $fiscalWarning = null;
 
-        if ($this->shouldAutoIssueFiscalDocument($business)) {
+        if ($this->shouldAutoIssueFiscalDocument($sale)) {
             try {
                 $fiscalDocument = $this->fiscalSaleDocumentService->issue($sale);
             } catch (Throwable $exception) {
@@ -283,7 +296,7 @@ class SaleController extends Controller
         ]);
         $sale->loadMissing(['saleSector', 'paymentDestination', 'customer']);
         $fiscalDocument = $sale->latestFiscalDocument;
-        $fiscalEnabled = (bool) config('fiscal.enabled') && $business->hasElectronicBilling();
+        $fiscalEnabled = (bool) config('fiscal.enabled') && $this->fiscalPayloadBuilder->isEnabledForSale($sale);
 
         return Inertia::render('Sales/Show', [
             'auto_back' => $request->boolean('auto_back'),
@@ -298,7 +311,7 @@ class SaleController extends Controller
                 'document' => $this->mapFiscalDocument($fiscalDocument),
             ],
             'mercadopago_point' => [
-                ...$this->mercadoPagoPointPayload($business),
+                ...$this->mercadoPagoPointPayload($business, $sale->branch),
             ],
             'receipt_feature_available' => $receiptFeatureAvailable,
             'sale' => [
@@ -510,9 +523,9 @@ class SaleController extends Controller
         return (bool) ($error['requires_reconcile'] ?? true);
     }
 
-    private function shouldAutoIssueFiscalDocument(Business $business): bool
+    private function shouldAutoIssueFiscalDocument(Sale $sale): bool
     {
-        return (bool) config('fiscal.enabled') && $business->hasElectronicBilling();
+        return (bool) config('fiscal.enabled') && $this->fiscalPayloadBuilder->isEnabledForSale($sale);
     }
 
     private function autoIssueWarning(?SaleFiscalDocument $document): ?string
@@ -616,35 +629,31 @@ class SaleController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function advancedSaleSettingsPayload(Business $business): array
+    private function advancedSaleSettingsPayload(Business $business, Branch $branch): array
     {
-        $business->load([
-            'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
+        $enabled = $this->commercialSettingsResolver->advancedSaleSettingsEnabled($business, $branch);
+
+        $branch->load([
+            'saleSectors' => fn ($query) => $query
+                ->select(['id', 'business_id', 'branch_id', 'name', 'description'])
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name'),
+            'paymentDestinations' => fn ($query) => $query
+                ->select(['id', 'business_id', 'branch_id', 'name', 'account_holder', 'reference', 'account_number'])
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name'),
         ]);
 
-        if ($business->hasAdvancedSaleSettings()) {
-            $business->load([
-                'saleSectors' => fn ($query) => $query
-                    ->select(['id', 'business_id', 'name', 'description'])
-                    ->where('is_active', true)
-                    ->orderBy('sort_order')
-                    ->orderBy('name'),
-                'paymentDestinations' => fn ($query) => $query
-                    ->select(['id', 'business_id', 'name', 'account_holder', 'reference', 'account_number'])
-                    ->where('is_active', true)
-                    ->orderBy('sort_order')
-                    ->orderBy('name'),
-            ]);
-        }
-
         return [
-            'enabled' => $business->hasAdvancedSaleSettings(),
-            'sale_sectors' => $business->saleSectors->map(fn ($sector) => [
+            'enabled' => $enabled,
+            'sale_sectors' => $branch->saleSectors->map(fn ($sector) => [
                 'id' => $sector->id,
                 'name' => $sector->name,
                 'description' => $sector->description,
             ])->values()->all(),
-            'payment_destinations' => $business->paymentDestinations->map(fn ($destination) => [
+            'payment_destinations' => $branch->paymentDestinations->map(fn ($destination) => [
                 'id' => $destination->id,
                 'name' => $destination->name,
                 'account_holder' => $destination->account_holder,
@@ -974,12 +983,12 @@ class SaleController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function mercadoPagoPointPayload(Business $business): array
+    private function mercadoPagoPointPayload(Business $business, ?Branch $branch = null): array
     {
-        $settings = $this->mercadoPagoSettingsResolver->forBusiness($business);
+        $settings = $this->mercadoPagoSettingsResolver->forSale($business, $branch);
 
         return [
-            'enabled' => $this->mercadoPagoSettingsResolver->pointConfigured($business),
+            'enabled' => filled($settings['access_token'] ?? null) && filled($settings['point_terminal_id'] ?? null),
             'environment' => (string) ($settings['environment'] ?? 'testing'),
             'access_token_configured' => filled($settings['access_token'] ?? null),
             'terminal_configured' => filled($settings['point_terminal_id'] ?? null),
@@ -1002,11 +1011,12 @@ class SaleController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function searchProductsPayload(int $businessId, string $search = ''): array
+    private function searchProductsPayload(int $businessId, Branch $branch, string $search = ''): array
     {
         $limit = $search === '' ? 20 : 30;
 
         return $this->productSearchQuery($businessId, $search)
+            ->with(['branchStocks' => fn ($query) => $query->where('branch_id', $branch->id)])
             ->select([
                 'id',
                 'name',
@@ -1062,6 +1072,8 @@ class SaleController extends Controller
      */
     private function mapProduct(Product $product): array
     {
+        $branchStock = $product->branchStocks->first();
+
         return [
             'id' => $product->id,
             'name' => $product->name,
@@ -1077,7 +1089,7 @@ class SaleController extends Controller
             'vat_treatment' => $product->vat_treatment,
             'vat_rate' => (float) $product->vat_rate,
             'vat_label' => $this->vatCalculator->treatmentLabel($product->vat_treatment, (float) $product->vat_rate),
-            'stock' => $product->availableStock(),
+            'stock' => $branchStock?->availableStock() ?? 0.0,
         ];
     }
 }

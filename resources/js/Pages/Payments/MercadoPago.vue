@@ -1,11 +1,31 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({
     settings: { type: Object, required: true },
+    branch_point_settings: { type: Object, required: true },
+    branch_name: { type: String, required: true },
     webhook_url: { type: String, required: true },
+});
+
+const page = usePage();
+const hasMultipleBranches = computed(() => (
+    Array.isArray(page.props.branches)
+        ? page.props.branches.length > 1
+        : Boolean(page.props.business?.has_multiple_branches)
+));
+
+const branchPointForm = useForm({
+    is_enabled: Boolean(props.branch_point_settings.is_enabled),
+    point_terminal_id: props.branch_point_settings.point_terminal_id || '',
+    point_store_id: props.branch_point_settings.point_store_id || '',
+    point_pos_id: props.branch_point_settings.point_pos_id || '',
+    point_external_store_id: props.branch_point_settings.point_external_store_id || '',
+    point_external_pos_id: props.branch_point_settings.point_external_pos_id || '',
+    point_expiration_time: props.branch_point_settings.point_expiration_time || '',
+    point_print_on_terminal: props.branch_point_settings.point_print_on_terminal || '',
 });
 
 const form = useForm({
@@ -54,6 +74,12 @@ const submit = () => {
         },
     });
 };
+
+const submitBranchPoint = () => {
+    branchPointForm.put(route('mercadopago-settings.branch-point.update'), {
+        preserveScroll: true,
+    });
+};
 </script>
 
 <template>
@@ -96,7 +122,7 @@ const submit = () => {
                     </div>
 
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-300">Terminal ID</label>
+                        <label class="text-sm font-medium text-slate-300">Terminal ID fallback</label>
                         <input v-model="form.point_terminal_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="NEWLAND_N950__..." />
                         <p v-if="form.errors.point_terminal_id" class="text-xs text-rose-300">{{ form.errors.point_terminal_id }}</p>
                     </div>
@@ -136,7 +162,7 @@ const submit = () => {
                 </div>
 
                 <section class="mt-5 rounded-2xl border border-cyan-100/20 bg-slate-950/35 p-4">
-                    <h4 class="text-base font-semibold text-slate-100">Sucursal y caja</h4>
+                    <h4 class="text-base font-semibold text-slate-100">{{ hasMultipleBranches ? 'Sucursal y caja' : 'Punto de venta y caja' }}</h4>
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div class="space-y-1">
                             <label class="text-sm font-medium text-slate-300">Store ID</label>
@@ -154,6 +180,49 @@ const submit = () => {
                             <label class="text-sm font-medium text-slate-300">External POS ID</label>
                             <input v-model="form.point_external_pos_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="CAJA001" />
                         </div>
+                    </div>
+                </section>
+
+                <section class="mt-5 rounded-2xl border border-indigo-200/25 bg-indigo-400/10 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h4 class="text-base font-semibold text-slate-100">Terminal {{ hasMultipleBranches ? `de ${branch_name}` : 'Point' }}</h4>
+                            <p class="mt-1 text-sm text-slate-300/80">
+                                {{ hasMultipleBranches
+                                    ? (branch_point_settings.configured ? 'Esta configuración reemplaza la terminal fallback para esta sucursal.' : 'Sin configuración propia: se usa la terminal fallback del comercio.')
+                                    : 'Configura la terminal Point que se usará en el comercio.' }}
+                            </p>
+                        </div>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+                            <input v-model="branchPointForm.is_enabled" type="checkbox" class="rounded border-cyan-100/25 bg-slate-950/35 text-indigo-500 focus:ring-indigo-500">
+                            {{ hasMultipleBranches ? 'Habilitar Point en esta sucursal' : 'Habilitar Mercado Pago Point' }}
+                        </label>
+                    </div>
+
+                    <div class="mt-4 grid gap-4 md:grid-cols-2">
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Terminal ID</label>
+                            <input v-model="branchPointForm.point_terminal_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="NEWLAND_N950__...">
+                            <p v-if="branchPointForm.errors.point_terminal_id" class="text-xs text-rose-300">{{ branchPointForm.errors.point_terminal_id }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Expiración de orden</label>
+                            <input v-model="branchPointForm.point_expiration_time" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Usa la configuración fallback">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">Store ID</label>
+                            <input v-model="branchPointForm.point_store_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-sm font-medium text-slate-300">POS ID</label>
+                            <input v-model="branchPointForm.point_pos_id" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100">
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex justify-end">
+                        <button type="button" class="rounded-lg border border-indigo-200/35 px-4 py-2 text-sm font-semibold text-indigo-100 hover:bg-indigo-400/15 disabled:opacity-50" :disabled="branchPointForm.processing" @click="submitBranchPoint">
+                            {{ hasMultipleBranches ? 'Guardar terminal de sucursal' : 'Guardar terminal Point' }}
+                        </button>
                     </div>
                 </section>
 

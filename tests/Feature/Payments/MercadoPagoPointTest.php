@@ -2,6 +2,8 @@
 
 use App\Models\Business;
 use App\Models\BusinessMercadoPagoCredential;
+use App\Models\Branch;
+use App\Models\BranchMercadoPagoPointSetting;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Models\Product;
@@ -515,6 +517,50 @@ test('Mercado Pago Point uses enabled business credentials before global config'
         return $request->hasHeader('Authorization', 'Bearer APP_USR-business-token')
             && $payload['config']['point']['terminal_id'] === 'NEWLAND_N950__BUSINESS';
     });
+});
+
+test('Mercado Pago Point uses the terminal configured for the sale branch', function () {
+    $business = Business::factory()->create();
+    $branch = Branch::query()->create([
+        'business_id' => $business->id,
+        'name' => 'Sucursal Centro',
+        'code' => 'centro',
+        'is_active' => true,
+        'is_default' => false,
+    ]);
+    $admin = User::factory()->businessAdmin($business->id)->create();
+    createMercadoPagoCredential($business, ['point_terminal_id' => 'NEWLAND_N950__FALLBACK']);
+    BranchMercadoPagoPointSetting::query()->create([
+        'business_id' => $business->id,
+        'branch_id' => $branch->id,
+        'is_enabled' => true,
+        'point_terminal_id' => 'NEWLAND_N950__CENTRO',
+    ]);
+    $sale = Sale::query()->create([
+        'business_id' => $business->id,
+        'branch_id' => $branch->id,
+        'user_id' => $admin->id,
+        'sale_number' => 'S-MP-CENTRO',
+        'payment_status' => Sale::PAYMENT_STATUS_PENDING,
+        'paid_amount' => 0,
+        'pending_amount' => 640,
+        'subtotal' => 640,
+        'discount' => 0,
+        'total' => 640,
+        'sold_at' => now(),
+    ]);
+
+    Http::fake(['https://api.mercadopago.com/v1/orders' => Http::response([
+        'id' => 'ORD01BRANCH',
+        'status' => 'created',
+        'transactions' => ['payments' => [['id' => 'PAY01BRANCH', 'amount' => '640.00']]],
+    ], 201)]);
+
+    $this->actingAs($admin)
+        ->post(route('sales.payments.mercadopago-point.store', $sale), ['payment_method' => Payment::METHOD_DEBIT_CARD])
+        ->assertRedirect(route('sales.show', $sale));
+
+    Http::assertSent(fn (Request $request): bool => data_get($request->data(), 'config.point.terminal_id') === 'NEWLAND_N950__CENTRO');
 });
 
 test('Mercado Pago Point does not use global credentials when business credentials are inactive', function () {

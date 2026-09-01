@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import FlashNotifications from '@/Components/FlashNotifications.vue';
 import SidebarLink from '@/Components/SidebarLink.vue';
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 
 const sidebarOpen = ref(false);
 const page = usePage();
@@ -11,6 +11,11 @@ const page = usePage();
 const isSuperAdmin = computed(() => Boolean(page.props.auth?.is_super_admin));
 const canManageUsers = computed(() => page.props.auth?.role === 'admin');
 const hasElectronicBilling = computed(() => Boolean(page.props.modules?.electronic_billing?.enabled));
+const hasMultipleBranches = computed(() => (
+    Array.isArray(page.props.branches)
+        ? page.props.branches.length > 1
+        : Boolean(page.props.business?.has_multiple_branches)
+));
 const subscriptionNotice = computed(() => (
     !isSuperAdmin.value && page.props.business_subscription?.show_notice
         ? page.props.business_subscription
@@ -55,6 +60,14 @@ const navigation = computed(() => {
 const closeSidebar = () => {
     sidebarOpen.value = false;
 };
+
+const changeBranch = (event) => {
+    router.put(route('branches.current.update'), {
+        branch_id: Number(event.target.value),
+    }, {
+        preserveScroll: true,
+    });
+};
 </script>
 
 <template>
@@ -97,6 +110,10 @@ const closeSidebar = () => {
                 <template v-if="!isSuperAdmin">
                     <p class="mt-2 text-xs uppercase tracking-wider text-cyan-100/70">Comercio</p>
                     <p class="mt-1 truncate text-sm text-slate-200">{{ $page.props.business?.name ?? 'Sin comercio' }}</p>
+                    <template v-if="hasMultipleBranches">
+                        <p class="mt-2 text-xs uppercase tracking-wider text-cyan-100/70">Sucursal</p>
+                        <p class="mt-1 truncate text-sm text-slate-200">{{ $page.props.branch?.name ?? 'Sin sucursal' }}</p>
+                    </template>
                 </template>
             </div>
 
@@ -141,7 +158,20 @@ const closeSidebar = () => {
                     </button>
                     <div class="ml-3 min-w-0 flex-1">
                         <p class="truncate text-sm font-semibold text-slate-100">{{ isSuperAdmin ? 'Panel superadmin' : ($page.props.business?.name ?? 'Comercio') }}</p>
-                        <p class="truncate text-xs text-slate-300">{{ $page.props.auth.user?.email }}</p>
+                        <p v-if="isSuperAdmin" class="truncate text-xs text-slate-300">{{ $page.props.auth.user?.email }}</p>
+                        <label v-else-if="hasMultipleBranches" class="mt-1 flex max-w-xs items-center gap-2 text-xs text-slate-300">
+                            <span>Sucursal</span>
+                            <select
+                                :value="$page.props.branch?.id ?? ''"
+                                class="min-w-0 flex-1 rounded-md border border-cyan-100/25 bg-slate-900/80 px-2 py-1 text-xs text-slate-100"
+                                :disabled="!$page.props.branch"
+                                @change="changeBranch"
+                            >
+                                <option v-for="branch in ($page.props.branches ?? [])" :key="branch.id" :value="branch.id">
+                                    {{ branch.name }}
+                                </option>
+                            </select>
+                        </label>
                     </div>
                 </div>
             </header>
