@@ -188,9 +188,11 @@ class FiscalApiClient
     /**
      * @return array<string, mixed>
      */
-    public function reconcileDocument(string|int $documentId): array
+    public function reconcileDocument(string|int $documentId, ?string $externalFiscalId = null): array
     {
-        return $this->post('/fiscal/documents/'.$this->pathSegment($documentId).'/reconcile', []);
+        return $this->post('/fiscal/documents/'.$this->pathSegment($documentId).'/reconcile', array_filter([
+            'external_fiscal_id' => $externalFiscalId,
+        ], fn (mixed $value): bool => $value !== null && $value !== ''));
     }
 
     /**

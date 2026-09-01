@@ -5,6 +5,7 @@ namespace App\Services\Fiscal;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class FiscalSaleDocumentService
@@ -17,64 +18,54 @@ class FiscalSaleDocumentService
 
     public function issue(Sale $sale): SaleFiscalDocument
     {
-        $sale->loadMissing(['business', 'items.product', 'latestFiscalDocument']);
+        [$document, $payload] = DB::transaction(function () use ($sale): array {
+            $lockedSale = Sale::query()
+                ->with(['business', 'branch.fiscalSetting', 'items.product'])
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
 
-        if ($sale->point_status !== null && $sale->point_status !== Sale::POINT_STATUS_APPROVED) {
-            throw ValidationException::withMessages([
-                'fiscal' => 'La venta Point no tiene un pago aprobado para emitir el comprobante fiscal.',
+            if ($lockedSale->point_status !== null && $lockedSale->point_status !== Sale::POINT_STATUS_APPROVED) {
+                throw ValidationException::withMessages(['fiscal' => 'La venta Point no tiene un pago aprobado para emitir el comprobante fiscal.']);
+            }
+
+            if (! (bool) config('fiscal.enabled') || ! $this->payloadBuilder->isEnabledForSale($lockedSale)) {
+                throw ValidationException::withMessages(['fiscal' => 'La facturacion fiscal no esta habilitada para este comercio.']);
+            }
+
+            $latestDocument = $lockedSale->fiscalDocuments()->latest('id')->first();
+            if ($latestDocument?->isAuthorized()) {
+                throw ValidationException::withMessages(['fiscal' => 'La venta ya tiene un comprobante fiscal autorizado.']);
+            }
+
+            $latestDocumentCanRetry = $latestDocument !== null && $this->errorMapper->safeToRetry($latestDocument);
+            if ($latestDocument?->requiresReconcile() && ! $latestDocumentCanRetry) {
+                throw ValidationException::withMessages(['fiscal' => 'La venta tiene un comprobante fiscal incierto o en proceso. Conciliar antes de reintentar.']);
+            }
+            if ($latestDocument !== null && ! $latestDocumentCanRetry) {
+                throw ValidationException::withMessages(['fiscal' => 'El ultimo estado fiscal no es seguro para reintentar. Revisa el detalle fiscal o concilia antes de emitir nuevamente.']);
+            }
+
+            $attemptNumber = $this->nextAttemptNumber($lockedSale);
+            $idempotencyKey = $this->idempotencyKey($lockedSale, $attemptNumber);
+            $payload = $this->payloadBuilder->build($lockedSale, $idempotencyKey);
+            if (($payload['authorization_type'] ?? null) === SaleFiscalDocument::AUTHORIZATION_CAEA && ! filled(data_get($payload, 'caea.code'))) {
+                throw ValidationException::withMessages(['fiscal' => 'El comercio esta configurado para CAEA pero no tiene un CAEA vigente cargado.']);
+            }
+
+            $document = SaleFiscalDocument::query()->create([
+                'business_id' => $lockedSale->business_id,
+                'sale_id' => $lockedSale->id,
+                'attempt_number' => $attemptNumber,
+                'fiscal_status' => SaleFiscalDocument::STATUS_PROCESSING,
+                'fiscal_point_of_sale' => $payload['point_of_sale'],
+                'fiscal_cbte_type' => $payload['cbte_type'] ?? null,
+                'fiscal_idempotency_key' => $idempotencyKey,
+                'fiscal_payload' => $payload,
+                'attempted_at' => now(),
             ]);
-        }
 
-        if (! (bool) config('fiscal.enabled') || ! $this->payloadBuilder->isEnabledForSale($sale)) {
-            throw ValidationException::withMessages([
-                'fiscal' => 'La facturacion fiscal no esta habilitada para este comercio.',
-            ]);
-        }
-
-        $latestDocument = $sale->latestFiscalDocument;
-
-        if ($latestDocument?->isAuthorized()) {
-            throw ValidationException::withMessages([
-                'fiscal' => 'La venta ya tiene un comprobante fiscal autorizado.',
-            ]);
-        }
-
-        $latestDocumentCanRetry = $latestDocument !== null && $this->errorMapper->safeToRetry($latestDocument);
-
-        if ($latestDocument?->requiresReconcile() && ! $latestDocumentCanRetry) {
-            throw ValidationException::withMessages([
-                'fiscal' => 'La venta tiene un comprobante fiscal incierto o en proceso. Conciliar antes de reintentar.',
-            ]);
-        }
-
-        if ($latestDocument !== null && ! $latestDocumentCanRetry) {
-            throw ValidationException::withMessages([
-                'fiscal' => 'El ultimo estado fiscal no es seguro para reintentar. Revisa el detalle fiscal o concilia antes de emitir nuevamente.',
-            ]);
-        }
-
-        $attemptNumber = $this->nextAttemptNumber($sale);
-        $idempotencyKey = $this->idempotencyKey($sale, $attemptNumber);
-        $payload = $this->payloadBuilder->build($sale, $idempotencyKey);
-
-        if (($payload['authorization_type'] ?? null) === SaleFiscalDocument::AUTHORIZATION_CAEA
-            && ! filled(data_get($payload, 'caea.code'))) {
-            throw ValidationException::withMessages([
-                'fiscal' => 'El comercio esta configurado para CAEA pero no tiene un CAEA vigente cargado.',
-            ]);
-        }
-
-        $document = SaleFiscalDocument::query()->create([
-            'business_id' => $sale->business_id,
-            'sale_id' => $sale->id,
-            'attempt_number' => $attemptNumber,
-            'fiscal_status' => SaleFiscalDocument::STATUS_PROCESSING,
-            'fiscal_point_of_sale' => $payload['point_of_sale'],
-            'fiscal_cbte_type' => $payload['cbte_type'] ?? null,
-            'fiscal_idempotency_key' => $idempotencyKey,
-            'fiscal_payload' => $payload,
-            'attempted_at' => now(),
-        ]);
+            return [$document, $payload];
+        });
 
         try {
             $response = $this->client->createDocument($payload);
@@ -99,7 +90,11 @@ class FiscalSaleDocumentService
 
         try {
             if ($document->fiscal_document_id !== null) {
-                $response = $this->client->reconcileDocument($document->fiscal_document_id);
+                $externalFiscalId = (string) data_get($document->fiscal_payload, 'external_fiscal_id');
+                $externalFiscalId = $externalFiscalId !== ''
+                    ? $externalFiscalId
+                    : $this->payloadBuilder->externalBusinessIdForSale($document->sale);
+                $response = $this->client->reconcileDocument($document->fiscal_document_id, $externalFiscalId);
             } else {
                 $businessId = (string) data_get($document->fiscal_payload, 'business_id');
                 $businessId = $businessId !== '' ? $businessId : $this->payloadBuilder->externalBusinessIdForSale($document->sale);

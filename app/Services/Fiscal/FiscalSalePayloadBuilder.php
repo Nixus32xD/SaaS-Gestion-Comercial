@@ -30,6 +30,9 @@ class FiscalSalePayloadBuilder
 
         $authorizationMode = $this->authorizationMode($settings);
         $payload = [
+            // apiArca's generic external fiscal identity. business_id is kept
+            // below only while older apiArca deployments still require it.
+            'external_fiscal_id' => $this->externalBusinessIdForSettings($business, $settings),
             'business_id' => $this->externalBusinessIdForSettings($business, $settings),
             'sale_id' => $sale->sale_number ?: (string) $sale->id,
             'origin' => [
@@ -53,6 +56,12 @@ class FiscalSalePayloadBuilder
                 ->values()
                 ->all(),
             'idempotency_key' => $idempotencyKey,
+            'metadata' => [
+                'source' => 'comerstock',
+                'business_id' => $business->id,
+                'branch_id' => $sale->branch_id,
+                'sale_id' => $sale->id,
+            ],
         ];
 
         $activities = $this->activities($settings);
