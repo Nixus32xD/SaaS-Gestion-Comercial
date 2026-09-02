@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\BranchFiscalSetting;
 use App\Models\Business;
 use App\Models\BusinessFeature;
+use App\Models\FiscalIdentity;
 use App\Services\Fiscal\FiscalCompanySyncService;
 use App\Services\Payments\MercadoPago\MercadoPagoCredentialService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class BusinessSalesConfigurationService
 {
@@ -64,6 +67,39 @@ class BusinessSalesConfigurationService
                 'fiscal_caea_report_deadline' => $payload['fiscal_caea_report_deadline'] ?: null,
                 'fiscal_activities' => $payload['fiscal_activities'] ?: null,
             ]);
+
+            if ($business->fiscal_enabled && filled($business->fiscal_cuit)) {
+                $externalFiscalId = trim((string) $business->fiscal_external_business_id) ?: (string) $business->id;
+                $identity = FiscalIdentity::query()->firstOrCreate(
+                    ['external_fiscal_id' => $externalFiscalId],
+                    [
+                        'business_id' => $business->id,
+                        'cuit' => $business->fiscal_cuit,
+                        'environment' => $business->fiscal_environment,
+                        'fiscal_condition' => $business->fiscal_condition,
+                        'legal_name' => $business->name,
+                        'fiscal_activities' => $business->fiscal_activities,
+                    ],
+                );
+                if ((int) $identity->business_id !== (int) $business->id) {
+                    throw ValidationException::withMessages([
+                        'fiscal_external_business_id' => 'La identidad fiscal externa ya pertenece a otro comercio.',
+                    ]);
+                }
+                $defaultBranch = $business->branches()->where('is_default', true)->firstOrFail();
+                BranchFiscalSetting::query()->updateOrCreate(
+                    ['business_id' => $business->id, 'branch_id' => $defaultBranch->id],
+                    [
+                        'fiscal_identity_id' => $identity->id,
+                        'is_enabled' => true,
+                        'fiscal_point_of_sale' => $business->fiscal_point_of_sale,
+                        'fiscal_document_type' => $business->fiscal_document_type,
+                        'fiscal_cbte_type' => $business->fiscal_cbte_type,
+                        'fiscal_concept' => $business->fiscal_concept,
+                        'fiscal_authorization_mode' => $business->fiscal_authorization_mode,
+                    ],
+                );
+            }
 
             $this->mercadoPagoCredentialService->updateForBusiness($business, [
                 'is_enabled' => $payload['mercadopago_enabled'] ?? false,

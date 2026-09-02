@@ -29,12 +29,12 @@
         <table class="grid">
             <tr>
                 <td>
-                    <p class="title">{{ $business->name }}</p>
+                    <p class="title">{{ $issuerLegalName }}</p>
                     <div>CUIT: {{ $issuerCuit }}</div>
                     @if($business->address)
                         <div>Domicilio: {{ $business->address }}</div>
                     @endif
-                    <div class="muted">Condicion IVA: {{ $business->fiscal_document_type ? strtoupper(str_replace('_', ' ', $business->fiscal_document_type)) : 'No informada' }}</div>
+                    <div class="muted">Condicion IVA: {{ $issuerFiscalCondition ? strtoupper(str_replace('_', ' ', $issuerFiscalCondition)) : 'No informada' }}</div>
                 </td>
                 <td class="right">
                     <p class="title">{{ $voucherLabel }}</p>

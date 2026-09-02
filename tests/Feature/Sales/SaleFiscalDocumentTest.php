@@ -23,6 +23,7 @@ function fiscalSaleFixture(array $businessOverrides = []): array
     $business = Business::factory()->create([
         'fiscal_enabled' => true,
         'fiscal_external_business_id' => 'empresa-demo-prod',
+        'fiscal_cuit' => '20123456786',
         'fiscal_point_of_sale' => 2,
         'fiscal_document_type' => 'invoice_c',
         'fiscal_cbte_type' => 11,
@@ -81,6 +82,7 @@ function fiscalSaleStoreFixture(array $businessOverrides = []): array
     $business = Business::factory()->create([
         'fiscal_enabled' => true,
         'fiscal_external_business_id' => 'empresa-demo-prod',
+        'fiscal_cuit' => '20123456786',
         'fiscal_point_of_sale' => 2,
         'fiscal_document_type' => 'invoice_c',
         'fiscal_cbte_type' => 11,
@@ -908,6 +910,69 @@ test('authorized fiscal document pdf can be downloaded', function () {
         'authorized_at' => now(),
     ]);
 
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents/fdoc-pdf-001/pdf' => Http::response(
+            '%PDF-apiarca-authorized-document',
+            200,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="comprobante-apiarca.pdf"',
+                'X-Fiscal-PDF-SHA256' => 'apiarca-sha256',
+            ],
+        ),
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->get(route('sales.fiscal-documents.pdf', [
+            'sale' => $sale,
+            'saleFiscalDocument' => $document,
+        ]));
+
+    $response
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition', 'inline; filename="comprobante-apiarca.pdf"')
+        ->assertHeader('x-fiscal-pdf-sha256', 'apiarca-sha256')
+        ->assertSee('%PDF-apiarca-authorized-document', false);
+
+    Http::assertSent(function (Request $request): bool {
+        return $request->url() === 'http://127.0.0.1:8000/api/fiscal/documents/fdoc-pdf-001/pdf'
+            && $request->hasHeader('Authorization', 'Bearer testing-fiscal-token')
+            && $request->hasHeader('Accept', 'application/pdf');
+    });
+});
+
+test('historical fiscal document without remote id uses the legacy pdf renderer', function () {
+    [$business, $admin, $sale] = fiscalSaleFixture([
+        'fiscal_cuit' => '20440587780',
+    ]);
+
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_status' => SaleFiscalDocument::STATUS_AUTHORIZED,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_number' => 2,
+        'fiscal_cae' => '86173407873027',
+        'fiscal_cae_expires_at' => '2026-05-01',
+        'authorization_type' => SaleFiscalDocument::AUTHORIZATION_CAE,
+        'authorization_code' => '86173407873027',
+        'authorization_expires_at' => '2026-05-01',
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'fiscal_payload' => [
+            'voucher_date' => '2026-04-21',
+            'currency' => 'PES',
+            'currency_rate' => 1,
+        ],
+        'attempted_at' => now(),
+        'authorized_at' => now(),
+    ]);
+
+    Http::fake();
+
     $this
         ->actingAs($admin)
         ->get(route('sales.fiscal-documents.pdf', [
@@ -916,6 +981,44 @@ test('authorized fiscal document pdf can be downloaded', function () {
         ]))
         ->assertOk()
         ->assertHeader('content-type', 'application/pdf');
+
+    Http::assertNothingSent();
+});
+
+test('remote fiscal pdf failures do not fall back to a locally reconstructed document', function () {
+    [$business, $admin, $sale] = fiscalSaleFixture();
+
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_document_id' => 'fdoc-pdf-unavailable',
+        'fiscal_status' => SaleFiscalDocument::STATUS_AUTHORIZED,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_number' => 2,
+        'fiscal_cae' => '86173407873027',
+        'fiscal_cae_expires_at' => '2026-05-01',
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'attempted_at' => now(),
+        'authorized_at' => now(),
+    ]);
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents/fdoc-pdf-unavailable/pdf' => Http::response([
+            'message' => 'PDF fiscal no disponible.',
+        ], 502),
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->get(route('sales.fiscal-documents.pdf', [
+            'sale' => $sale,
+            'saleFiscalDocument' => $document,
+        ]))
+        ->assertStatus(502);
+
+    Http::assertSentCount(1);
 });
 
 test('fiscal document pdf is blocked when document is not authorized', function () {

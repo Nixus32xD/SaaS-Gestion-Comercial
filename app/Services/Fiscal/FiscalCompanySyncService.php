@@ -2,8 +2,9 @@
 
 namespace App\Services\Fiscal;
 
-use App\Models\Business;
 use App\Models\BranchFiscalSetting;
+use App\Models\Business;
+use App\Models\FiscalIdentity;
 use Illuminate\Validation\ValidationException;
 
 class FiscalCompanySyncService
@@ -13,6 +14,34 @@ class FiscalCompanySyncService
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
         private readonly FiscalApiErrorMapper $errorMapper,
     ) {}
+
+    public function syncIdentity(FiscalIdentity $identity): void
+    {
+        if (! (bool) config('fiscal.enabled')) {
+            return;
+        }
+
+        try {
+            $response = $this->client->upsertCompany([
+                'external_fiscal_id' => $identity->external_fiscal_id,
+                'cuit' => $identity->cuit,
+                'legal_name' => $identity->legal_name ?: 'Identidad fiscal',
+                'fiscal_condition' => $identity->fiscal_condition,
+                'environment' => $identity->environment,
+                'enabled' => true,
+                'onboarding_metadata' => ['source' => 'comerstock', 'business_id' => (string) $identity->business_id],
+            ]);
+        } catch (FiscalApiTimeoutException) {
+            throw ValidationException::withMessages(['fiscal_identity' => 'La API fiscal no respondió al guardar la identidad. Intenta nuevamente.']);
+        } catch (FiscalApiException $exception) {
+            throw ValidationException::withMessages(['fiscal_identity' => $exception->getMessage()]);
+        }
+
+        if (($error = $this->apiError($response)) !== null) {
+            $mapped = $this->errorMapper->fromResponse($response);
+            throw ValidationException::withMessages(['fiscal_identity' => $mapped['message'] ?? $this->friendlyApiErrorMessage($error->code, $error->message)]);
+        }
+    }
 
     /**
      * @param  array<string, mixed>  $payload

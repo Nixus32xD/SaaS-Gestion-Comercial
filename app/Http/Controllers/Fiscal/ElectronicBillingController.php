@@ -3,16 +3,16 @@
 namespace App\Http\Controllers\Fiscal;
 
 use App\Http\Controllers\Controller;
-use App\Models\Business;
 use App\Models\Branch;
 use App\Models\BranchFiscalSetting;
+use App\Models\Business;
 use App\Models\SaleFiscalDocument;
+use App\Services\Fiscal\BranchFiscalSettingsResolver;
 use App\Services\Fiscal\FiscalApiClient;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalApiException;
 use App\Services\Fiscal\FiscalApiTimeoutException;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
-use App\Services\Fiscal\BranchFiscalSettingsResolver;
 use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use Carbon\CarbonImmutable;
@@ -79,12 +79,14 @@ class ElectronicBillingController extends Controller
      */
     private function configuration(BranchFiscalSetting|Business $settings, Branch $branch, string $externalBusinessId): array
     {
+        $identity = $settings instanceof BranchFiscalSetting ? $settings->fiscalIdentity : null;
+
         return [
             'branch_name' => $branch->name,
             'branch_code' => $branch->code,
             'external_business_id' => $externalBusinessId,
-            'fiscal_cuit' => $settings->fiscal_cuit,
-            'fiscal_condition' => $settings->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+            'fiscal_cuit' => $identity?->cuit ?? $settings->fiscal_cuit,
+            'fiscal_condition' => $identity?->fiscal_condition ?? $settings->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
             'point_of_sale' => $settings->fiscal_point_of_sale ?? config('fiscal.defaults.point_of_sale'),
             'document_type' => $settings->fiscal_document_type ?: config('fiscal.defaults.document_type'),
             'cbte_type' => $settings->fiscal_cbte_type ?? config('fiscal.defaults.cbte_type'),
@@ -100,7 +102,7 @@ class ElectronicBillingController extends Controller
                 'due_date' => $settings->fiscal_caea_due_date?->format('Y-m-d'),
                 'report_deadline' => $settings->fiscal_caea_report_deadline?->format('Y-m-d'),
             ],
-            'activities' => $settings->fiscal_activities ?: config('fiscal.defaults.activities', []),
+            'activities' => $identity?->fiscal_activities ?? $settings->fiscal_activities ?: config('fiscal.defaults.activities', []),
         ];
     }
 

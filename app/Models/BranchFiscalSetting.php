@@ -16,6 +16,7 @@ class BranchFiscalSetting extends Model
     protected $fillable = [
         'business_id',
         'branch_id',
+        'fiscal_identity_id',
         'is_enabled',
         'fiscal_external_business_id',
         'fiscal_environment',
@@ -61,5 +62,11 @@ class BranchFiscalSetting extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** @return BelongsTo<FiscalIdentity, $this> */
+    public function fiscalIdentity(): BelongsTo
+    {
+        return $this->belongsTo(FiscalIdentity::class);
     }
 }

@@ -3,6 +3,7 @@
 use App\Models\Branch;
 use App\Models\BranchFiscalSetting;
 use App\Models\Business;
+use App\Models\FiscalIdentity;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Models\User;
@@ -39,9 +40,9 @@ test('superadmin can store an independent ARCA configuration for a branch', func
     $setting = BranchFiscalSetting::query()->where('branch_id', $branch->id)->firstOrFail();
 
     expect($setting->business_id)->toBe($business->id)
-        ->and($setting->fiscal_external_business_id)->toBe('sucursal-fiscal')
+        ->and($setting->fiscal_identity_id)->toBeNull()
         ->and($setting->fiscal_point_of_sale)->toBe(8)
-        ->and($setting->fiscal_activities)->toBe([471120, 492140]);
+        ->and($setting->fiscal_activities)->toBeNull();
 });
 
 test('a sale uses the ARCA configuration from its own branch', function () {
@@ -60,9 +61,14 @@ test('a sale uses the ARCA configuration from its own branch', function () {
         'is_active' => true,
         'is_default' => false,
     ]);
+    $northIdentity = FiscalIdentity::query()->create([
+        'business_id' => $business->id, 'external_fiscal_id' => 'comercio-norte', 'cuit' => '20123456786',
+        'environment' => 'testing', 'fiscal_condition' => 'monotributo', 'legal_name' => 'Sucursal Norte',
+    ]);
     BranchFiscalSetting::query()->create([
         'business_id' => $business->id,
         'branch_id' => $branch->id,
+        'fiscal_identity_id' => $northIdentity->id,
         'is_enabled' => true,
         'fiscal_external_business_id' => 'comercio-norte',
         'fiscal_environment' => 'testing',
@@ -104,9 +110,14 @@ test('fiscal QR uses the CUIT configured for the sale branch', function () {
         'is_active' => true,
         'is_default' => false,
     ]);
+    $northIdentity = FiscalIdentity::query()->create([
+        'business_id' => $business->id, 'external_fiscal_id' => 'norte-qr', 'cuit' => '20123456786',
+        'environment' => 'testing', 'fiscal_condition' => 'monotributo', 'legal_name' => 'Sucursal Norte',
+    ]);
     BranchFiscalSetting::query()->create([
         'business_id' => $business->id,
         'branch_id' => $branch->id,
+        'fiscal_identity_id' => $northIdentity->id,
         'is_enabled' => true,
         'fiscal_cuit' => '20123456786',
         'fiscal_point_of_sale' => 7,
@@ -126,6 +137,7 @@ test('fiscal QR uses the CUIT configured for the sale branch', function () {
         'sale_id' => $sale->id,
         'attempt_number' => 1,
         'fiscal_status' => SaleFiscalDocument::STATUS_AUTHORIZED,
+        'issuer_cuit' => '20123456786',
         'fiscal_point_of_sale' => 7,
         'fiscal_cbte_type' => 11,
         'fiscal_number' => 1,

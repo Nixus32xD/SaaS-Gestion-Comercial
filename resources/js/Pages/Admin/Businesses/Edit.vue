@@ -28,6 +28,14 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    fiscal_identities: {
+        type: Array,
+        default: () => [],
+    },
+    fiscal_identity_point_of_sale_options: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 const makeSector = () => ({
@@ -135,10 +143,15 @@ const branchForm = useForm({
 });
 const branchFiscalForm = useForm({
     is_enabled: false,
-    fiscal_external_business_id: '',
-    fiscal_environment: 'testing',
-    fiscal_cuit: '',
-    fiscal_condition: 'monotributo',
+    fiscal_identity_id: '',
+    fiscal_identity: {
+        external_fiscal_id: '',
+        environment: 'testing',
+        cuit: '',
+        fiscal_condition: 'monotributo',
+        legal_name: '',
+        fiscal_activities: [],
+    },
     fiscal_point_of_sale: 2,
     fiscal_document_type: 'invoice_c',
     fiscal_cbte_type: 11,
@@ -182,6 +195,18 @@ const fiscalVoucherTypeOptions = computed(() => props.fiscal_catalog?.voucher_ty
 const fiscalAuthorizationModeOptions = computed(() => props.fiscal_catalog?.authorization_modes || []);
 const fiscalEnvironmentOptions = computed(() => props.fiscal_catalog?.environments || []);
 const fiscalConditionOptions = computed(() => props.fiscal_catalog?.fiscal_conditions || []);
+const fiscalIdentities = computed(() => props.fiscal_identities || []);
+const selectedFiscalIdentity = computed(() => fiscalIdentities.value.find(
+    (identity) => Number(identity.id) === Number(branchFiscalForm.fiscal_identity_id)
+) || null);
+const branchFiscalPointOfSaleOptions = computed(() => {
+    const identityId = branchFiscalForm.fiscal_identity_id;
+    return identityId ? props.fiscal_identity_point_of_sale_options?.[identityId]?.options || [] : [];
+});
+const branchFiscalPointOfSaleMessage = computed(() => {
+    const identityId = branchFiscalForm.fiscal_identity_id;
+    return identityId ? props.fiscal_identity_point_of_sale_options?.[identityId]?.message || null : null;
+});
 const fiscalPointOfSaleOptions = computed(() => props.sales_settings.fiscal_point_of_sale_options?.options || []);
 const fiscalPointOfSaleMessage = computed(() => props.sales_settings.fiscal_point_of_sale_options?.message || null);
 const hasFiscalPointOfSaleOptions = computed(() => fiscalPointOfSaleOptions.value.length > 0);
@@ -251,13 +276,19 @@ const submitBranch = () => {
 
 const configureBranchFiscal = (branch) => {
     const settings = branch.fiscal_setting || props.sales_settings;
+    const identity = settings.fiscal_identity || null;
 
     fiscalBranch.value = branch;
     branchFiscalForm.is_enabled = Boolean(settings.is_enabled ?? settings.fiscal_enabled);
-    branchFiscalForm.fiscal_external_business_id = settings.fiscal_external_business_id || '';
-    branchFiscalForm.fiscal_environment = settings.fiscal_environment || 'testing';
-    branchFiscalForm.fiscal_cuit = settings.fiscal_cuit || '';
-    branchFiscalForm.fiscal_condition = settings.fiscal_condition || 'monotributo';
+    branchFiscalForm.fiscal_identity_id = settings.fiscal_identity_id || '';
+    branchFiscalForm.fiscal_identity = {
+        external_fiscal_id: identity?.external_fiscal_id || settings.fiscal_external_business_id || '',
+        environment: identity?.environment || settings.fiscal_environment || 'testing',
+        cuit: identity?.cuit || settings.fiscal_cuit || '',
+        fiscal_condition: identity?.fiscal_condition || settings.fiscal_condition || 'monotributo',
+        legal_name: identity?.legal_name || props.business.name || '',
+        fiscal_activities: identity?.fiscal_activities || settings.fiscal_activities || '',
+    };
     branchFiscalForm.fiscal_point_of_sale = settings.fiscal_point_of_sale ?? 2;
     branchFiscalForm.fiscal_document_type = settings.fiscal_document_type || 'invoice_c';
     branchFiscalForm.fiscal_cbte_type = settings.fiscal_cbte_type ?? 11;
@@ -273,6 +304,18 @@ const configureBranchFiscal = (branch) => {
     branchFiscalForm.fiscal_activities = settings.fiscal_activities || '';
     branchFiscalForm.clearErrors();
     showingBranchFiscalForm.value = true;
+};
+
+const createFiscalIdentity = () => {
+    branchFiscalForm.fiscal_identity_id = '';
+    branchFiscalForm.fiscal_identity = {
+        external_fiscal_id: '',
+        environment: 'testing',
+        cuit: '',
+        fiscal_condition: 'monotributo',
+        legal_name: props.business.name || '',
+        fiscal_activities: '',
+    };
 };
 
 const cancelBranchFiscalEdition = () => {
@@ -1289,31 +1332,47 @@ const openSection = (sectionId) => {
                     </div>
 
                     <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">ID empresa en API ARCA</label>
-                            <input v-model="branchFiscalForm.fiscal_external_business_id" type="text" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Comparte el del comercio si usa el mismo CUIT" />
-                            <p v-if="branchFiscalForm.errors.fiscal_external_business_id" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_external_business_id }}</p>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">Ambiente</label>
-                            <select v-model="branchFiscalForm.fiscal_environment" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
-                                <option v-for="option in fiscalEnvironmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        <div class="space-y-1 xl:col-span-2">
+                            <label class="text-sm font-medium text-slate-300">Identidad fiscal</label>
+                            <select v-model="branchFiscalForm.fiscal_identity_id" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
+                                <option value="">Crear nueva identidad fiscal</option>
+                                <option v-for="identity in fiscalIdentities" :key="identity.id" :value="identity.id">
+                                    {{ identity.legal_name || identity.external_fiscal_id }} — CUIT {{ identity.cuit }} ({{ identity.environment }})
+                                </option>
                             </select>
+                            <p v-if="selectedFiscalIdentity" class="text-xs text-slate-400">Compartida por: {{ selectedFiscalIdentity.branch_names?.join(', ') || 'ninguna otra sucursal' }}.</p>
+                            <p v-if="branchFiscalForm.errors.fiscal_identity_id || branchFiscalForm.errors.fiscal_identity" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_identity_id || branchFiscalForm.errors.fiscal_identity }}</p>
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">CUIT emisor</label>
-                            <input v-model="branchFiscalForm.fiscal_cuit" type="text" inputmode="numeric" maxlength="11" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
-                            <p v-if="branchFiscalForm.errors.fiscal_cuit" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_cuit }}</p>
+                        <div class="flex items-end">
+                            <button type="button" class="w-full rounded-lg border border-amber-100/25 px-3 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/10" @click="createFiscalIdentity">Crear nueva</button>
                         </div>
+                        <template v-if="!branchFiscalForm.fiscal_identity_id">
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">Nombre o razón social</label>
+                                <input v-model="branchFiscalForm.fiscal_identity.legal_name" type="text" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">ID fiscal en API ARCA</label>
+                                <input v-model="branchFiscalForm.fiscal_identity.external_fiscal_id" type="text" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. fiscal-nicolas" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">CUIT emisor</label>
+                                <input v-model="branchFiscalForm.fiscal_identity.cuit" type="text" inputmode="numeric" maxlength="11" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">Ambiente</label>
+                                <select v-model="branchFiscalForm.fiscal_identity.environment" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"><option v-for="option in fiscalEnvironmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-sm font-medium text-slate-300">Condición fiscal</label>
+                                <select v-model="branchFiscalForm.fiscal_identity.fiscal_condition" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"><option v-for="option in fiscalConditionOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
+                            </div>
+                        </template>
                         <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">Condición fiscal</label>
-                            <select v-model="branchFiscalForm.fiscal_condition" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
-                                <option v-for="option in fiscalConditionOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                            </select>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-sm font-medium text-slate-300">Punto de venta</label>
-                            <input v-model.number="branchFiscalForm.fiscal_point_of_sale" type="number" min="1" max="99999" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            <label class="text-sm font-medium text-slate-300">Punto de venta de esta sucursal</label>
+                            <select v-if="branchFiscalPointOfSaleOptions.length" v-model.number="branchFiscalForm.fiscal_point_of_sale" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"><option v-for="option in branchFiscalPointOfSaleOptions" :key="option.value" :value="option.value" :disabled="!option.selectable">{{ option.label }}{{ option.disabled_reason ? ` — ${option.disabled_reason}` : '' }}</option></select>
+                            <input v-else v-model.number="branchFiscalForm.fiscal_point_of_sale" type="number" min="1" max="99999" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            <p v-if="branchFiscalPointOfSaleMessage" class="text-xs text-amber-100/80">{{ branchFiscalPointOfSaleMessage }} Se conserva el ingreso manual administrativo.</p>
                             <p v-if="branchFiscalForm.errors.fiscal_point_of_sale" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_point_of_sale }}</p>
                         </div>
                         <div class="space-y-1">
@@ -1340,9 +1399,9 @@ const openSection = (sectionId) => {
                                 <option v-for="option in fiscalAuthorizationModeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                         </div>
-                        <div class="space-y-1 xl:col-span-2">
+                        <div v-if="!branchFiscalForm.fiscal_identity_id" class="space-y-1 xl:col-span-2">
                             <label class="text-sm font-medium text-slate-300">Actividades ARCA</label>
-                            <input v-model="branchFiscalForm.fiscal_activities" type="text" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. 492140, 471120" />
+                            <input v-model="branchFiscalForm.fiscal_identity.fiscal_activities" type="text" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" placeholder="Ej. 492140, 471120" />
                         </div>
                     </div>
 

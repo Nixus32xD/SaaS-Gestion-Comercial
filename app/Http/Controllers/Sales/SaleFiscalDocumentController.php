@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Sales;
 use App\Http\Controllers\Controller;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
+use App\Services\Fiscal\FiscalApiException;
+use App\Services\Fiscal\FiscalApiTimeoutException;
 use App\Services\Fiscal\FiscalPdfService;
 use App\Services\Fiscal\FiscalSaleDocumentService;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
@@ -64,6 +66,10 @@ class SaleFiscalDocumentController extends Controller
 
         try {
             return $this->fiscalPdfService->download($saleFiscalDocument);
+        } catch (FiscalApiTimeoutException) {
+            abort(503, 'La API fiscal no respondió al recuperar el PDF autorizado. Intenta nuevamente.');
+        } catch (FiscalApiException) {
+            abort(502, 'La API fiscal no pudo entregar el PDF autorizado. Intenta nuevamente.');
         } catch (ValidationException $exception) {
             abort(422, collect($exception->errors())->flatten()->first() ?: 'No se pudo generar el PDF fiscal.');
         }

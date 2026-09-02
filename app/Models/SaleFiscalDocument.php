@@ -36,6 +36,12 @@ class SaleFiscalDocument extends Model
     protected $fillable = [
         'business_id',
         'sale_id',
+        'fiscal_identity_id',
+        'fiscal_external_id',
+        'issuer_cuit',
+        'issuer_legal_name',
+        'issuer_fiscal_condition',
+        'fiscal_environment',
         'attempt_number',
         'fiscal_document_id',
         'fiscal_status',
@@ -89,6 +95,12 @@ class SaleFiscalDocument extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    /** @return BelongsTo<FiscalIdentity, $this> */
+    public function fiscalIdentity(): BelongsTo
+    {
+        return $this->belongsTo(FiscalIdentity::class);
     }
 
     public function isAuthorized(): bool

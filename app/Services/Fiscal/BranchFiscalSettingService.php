@@ -5,11 +5,13 @@ namespace App\Services\Fiscal;
 use App\Models\Branch;
 use App\Models\BranchFiscalSetting;
 use App\Models\Business;
+use App\Models\FiscalIdentity;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class BranchFiscalSettingService
 {
-    public function __construct(private readonly FiscalCompanySyncService $companySync) {}
+    public function __construct(private readonly FiscalIdentityService $identityService) {}
 
     public function forBranch(Branch $branch): BranchFiscalSetting
     {
@@ -31,13 +33,50 @@ class BranchFiscalSettingService
     {
         $setting = $this->forBranch($branch);
 
-        $this->companySync->syncFromBranchSettings($business, $setting, $payload);
+        $identityId = (bool) ($payload['is_enabled'] ?? false)
+            ? $this->resolveIdentityId($business, $payload)
+            : ($payload['fiscal_identity_id'] ?? $setting->fiscal_identity_id);
+        if ((bool) ($payload['is_enabled'] ?? false) && $identityId === null) {
+            throw ValidationException::withMessages([
+                'fiscal_identity_id' => 'Selecciona o crea una identidad fiscal antes de habilitar la sucursal.',
+            ]);
+        }
 
-        DB::transaction(function () use ($setting, $payload): void {
-            $setting->update($payload);
+        $settingPayload = collect($payload)->only([
+            'is_enabled', 'fiscal_point_of_sale', 'fiscal_document_type', 'fiscal_cbte_type', 'fiscal_concept',
+            'fiscal_authorization_mode', 'fiscal_caea_code', 'fiscal_caea_period', 'fiscal_caea_order',
+            'fiscal_caea_from', 'fiscal_caea_to', 'fiscal_caea_due_date', 'fiscal_caea_report_deadline',
+        ])->all();
+        $settingPayload['fiscal_identity_id'] = $identityId;
+
+        DB::transaction(function () use ($setting, $settingPayload): void {
+            $setting->update($settingPayload);
         });
 
-        return $setting->refresh();
+        return $setting->refresh()->load('fiscalIdentity');
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function resolveIdentityId(Business $business, array $payload): ?int
+    {
+        if (filled($payload['fiscal_identity_id'] ?? null)) {
+            $identity = FiscalIdentity::query()
+                ->where('business_id', $business->id)
+                ->find($payload['fiscal_identity_id']);
+
+            if ($identity === null) {
+                throw ValidationException::withMessages(['fiscal_identity_id' => 'La identidad fiscal no pertenece a este comercio.']);
+            }
+
+            return $identity->id;
+        }
+
+        $identity = $payload['fiscal_identity'] ?? [];
+        if (! is_array($identity) || blank($identity['external_fiscal_id'] ?? null)) {
+            return null;
+        }
+
+        return $this->identityService->create($business, $identity)->id;
     }
 
     /**

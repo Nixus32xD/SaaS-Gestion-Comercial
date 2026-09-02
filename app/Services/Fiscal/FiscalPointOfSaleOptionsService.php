@@ -3,6 +3,7 @@
 namespace App\Services\Fiscal;
 
 use App\Models\Business;
+use App\Models\FiscalIdentity;
 
 class FiscalPointOfSaleOptionsService
 {
@@ -73,6 +74,36 @@ class FiscalPointOfSaleOptionsService
             'message' => null,
             'options' => $options,
         ];
+    }
+
+    /** @return array{status: string, message: string|null, options: list<array<string, mixed>>} */
+    public function forIdentity(FiscalIdentity $identity): array
+    {
+        if (! (bool) config('fiscal.enabled')) {
+            return $this->unavailable('disabled', 'La integracion fiscal esta desactivada en el entorno.');
+        }
+
+        try {
+            $response = $this->client->companyPointsOfSale($identity->external_fiscal_id);
+        } catch (FiscalApiTimeoutException) {
+            return $this->unavailable('offline', 'La API fiscal no respondio al consultar puntos de venta.');
+        } catch (FiscalApiException $exception) {
+            return $this->unavailable('error', $exception->getMessage());
+        }
+
+        if (($apiError = $this->apiError($response)) !== null) {
+            $mappedError = $this->errorMapper->fromResponse($response);
+
+            return $this->unavailable('error', $mappedError['message'] ?? $this->friendlyMessage($apiError['code'], $apiError['message']));
+        }
+
+        $options = collect($this->pointOfSaleRows($response))
+            ->map(fn (array $row): ?array => $this->pointOfSaleOption($row))
+            ->filter()->sortBy('value')->values()->all();
+
+        return $options === []
+            ? $this->unavailable('empty', 'La API fiscal no devolvio puntos de venta electronicos para esta identidad.')
+            : ['status' => 'ok', 'message' => null, 'options' => $options];
     }
 
     /**

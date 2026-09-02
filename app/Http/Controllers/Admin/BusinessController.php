@@ -174,9 +174,10 @@ class BusinessController extends Controller
                 ->latest('id')
                 ->limit(20),
             'mercadoPagoCredential',
+            'fiscalIdentities.branchFiscalSettings.branch',
             'branches' => fn ($query) => $query
                 ->with([
-                    'fiscalSetting',
+                    'fiscalSetting.fiscalIdentity',
                     'commercialSetting',
                     'saleSectors' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
                     'paymentDestinations' => fn ($query) => $query->orderBy('sort_order')->orderBy('name'),
@@ -215,6 +216,16 @@ class BusinessController extends Controller
                 'is_default' => $branch->is_default,
                 'fiscal_setting' => $branch->fiscalSetting === null ? null : [
                     'is_enabled' => $branch->fiscalSetting->is_enabled,
+                    'fiscal_identity_id' => $branch->fiscalSetting->fiscal_identity_id,
+                    'fiscal_identity' => $branch->fiscalSetting->fiscalIdentity === null ? null : [
+                        'id' => $branch->fiscalSetting->fiscalIdentity->id,
+                        'external_fiscal_id' => $branch->fiscalSetting->fiscalIdentity->external_fiscal_id,
+                        'cuit' => $branch->fiscalSetting->fiscalIdentity->cuit,
+                        'environment' => $branch->fiscalSetting->fiscalIdentity->environment,
+                        'fiscal_condition' => $branch->fiscalSetting->fiscalIdentity->fiscal_condition,
+                        'legal_name' => $branch->fiscalSetting->fiscalIdentity->legal_name,
+                        'fiscal_activities' => implode(', ', $branch->fiscalSetting->fiscalIdentity->fiscal_activities ?? []),
+                    ],
                     'fiscal_external_business_id' => $branch->fiscalSetting->fiscal_external_business_id,
                     'fiscal_environment' => $branch->fiscalSetting->fiscal_environment,
                     'fiscal_cuit' => $branch->fiscalSetting->fiscal_cuit,
@@ -251,6 +262,19 @@ class BusinessController extends Controller
                     ])->values()->all(),
                 ],
             ])->values()->all(),
+            'fiscal_identities' => $business->fiscalIdentities->map(fn ($identity): array => [
+                'id' => $identity->id,
+                'external_fiscal_id' => $identity->external_fiscal_id,
+                'cuit' => $identity->cuit,
+                'environment' => $identity->environment,
+                'fiscal_condition' => $identity->fiscal_condition,
+                'legal_name' => $identity->legal_name,
+                'fiscal_activities' => implode(', ', $identity->fiscal_activities ?? []),
+                'branch_names' => $identity->branchFiscalSettings->map(fn ($setting) => $setting->branch?->name)->filter()->values()->all(),
+            ])->values()->all(),
+            'fiscal_identity_point_of_sale_options' => $business->fiscalIdentities
+                ->mapWithKeys(fn ($identity): array => [$identity->id => $this->fiscalPointOfSaleOptions->forIdentity($identity)])
+                ->all(),
             'sales_settings' => [
                 'advanced_sale_settings_enabled' => $business->hasAdvancedSaleSettings(),
                 'global_product_catalog_enabled' => $business->hasGlobalProductCatalog(),

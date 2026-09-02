@@ -20,10 +20,20 @@ class UpdateBranchFiscalSettingRequest extends FormRequest
     {
         return [
             'is_enabled' => ['required', 'boolean'],
+            'fiscal_identity_id' => ['nullable', 'integer'],
+            'fiscal_identity' => ['nullable', 'array'],
+            'fiscal_identity.external_fiscal_id' => ['nullable', 'string', 'max:120'],
+            'fiscal_identity.cuit' => ['nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
+            'fiscal_identity.environment' => ['nullable', Rule::in(['testing', 'production'])],
+            'fiscal_identity.fiscal_condition' => ['nullable', Rule::in(['monotributo', 'responsable_inscripto', 'exento'])],
+            'fiscal_identity.legal_name' => ['nullable', 'string', 'max:255'],
+            'fiscal_identity.fiscal_activities' => ['nullable', 'array'],
+            'fiscal_identity.fiscal_activities.*' => ['integer', 'min:1'],
+            // Deprecated input aliases are accepted only to transition existing integrations.
             'fiscal_external_business_id' => ['nullable', 'string', 'max:120'],
-            'fiscal_environment' => [Rule::requiredIf(fn (): bool => $this->boolean('is_enabled')), 'nullable', Rule::in(['testing', 'production'])],
-            'fiscal_cuit' => [Rule::requiredIf(fn (): bool => $this->boolean('is_enabled')), 'nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
-            'fiscal_condition' => [Rule::requiredIf(fn (): bool => $this->boolean('is_enabled')), 'nullable', Rule::in(['monotributo', 'responsable_inscripto', 'exento'])],
+            'fiscal_environment' => ['nullable', Rule::in(['testing', 'production'])],
+            'fiscal_cuit' => ['nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
+            'fiscal_condition' => ['nullable', Rule::in(['monotributo', 'responsable_inscripto', 'exento'])],
             'fiscal_point_of_sale' => [Rule::requiredIf(fn (): bool => $this->boolean('is_enabled')), 'nullable', 'integer', 'min:1', 'max:99999'],
             'fiscal_document_type' => ['nullable', 'string', 'max:40'],
             'fiscal_cbte_type' => ['nullable', 'integer', 'min:1', 'max:999'],
@@ -67,6 +77,30 @@ class UpdateBranchFiscalSettingRequest extends FormRequest
                 ->values()
                 ->all(),
         ]);
+
+        if (! $this->filled('fiscal_identity_id') && blank(data_get($this->input('fiscal_identity'), 'external_fiscal_id'))) {
+            $this->merge(['fiscal_identity' => [
+                'external_fiscal_id' => $this->input('fiscal_external_business_id'),
+                'cuit' => $this->input('fiscal_cuit'),
+                'environment' => $this->input('fiscal_environment'),
+                'fiscal_condition' => $this->input('fiscal_condition'),
+                'fiscal_activities' => $this->input('fiscal_activities'),
+            ]]);
+        }
+
+        $identity = (array) $this->input('fiscal_identity', []);
+        $this->merge(['fiscal_identity' => [
+            'external_fiscal_id' => trim((string) ($identity['external_fiscal_id'] ?? '')) ?: null,
+            'cuit' => preg_replace('/\D+/', '', (string) ($identity['cuit'] ?? '')) ?: null,
+            'environment' => strtolower(trim((string) ($identity['environment'] ?? ''))) ?: null,
+            'fiscal_condition' => strtolower(trim((string) ($identity['fiscal_condition'] ?? ''))) ?: null,
+            'legal_name' => trim((string) ($identity['legal_name'] ?? '')) ?: null,
+            'fiscal_activities' => collect(is_array($identity['fiscal_activities'] ?? null)
+                ? $identity['fiscal_activities']
+                : explode(',', (string) ($identity['fiscal_activities'] ?? '')))
+                ->map(fn (mixed $activity): int => (int) trim((string) $activity))
+                ->filter(fn (int $activity): bool => $activity > 0)->values()->all(),
+        ]]);
     }
 
     public function withValidator(Validator $validator): void
@@ -76,8 +110,25 @@ class UpdateBranchFiscalSettingRequest extends FormRequest
                 return;
             }
 
-            $cuit = (string) $this->input('fiscal_cuit');
-            if ($cuit === '' || $validator->errors()->has('fiscal_cuit')) {
+            if (! $this->filled('fiscal_identity_id') && blank(data_get($this->input('fiscal_identity'), 'external_fiscal_id'))) {
+                $validator->errors()->add('fiscal_identity_id', 'Selecciona o crea una identidad fiscal.');
+
+                return;
+            }
+
+            if ($this->filled('fiscal_identity_id')) {
+                return;
+            }
+
+            $identity = (array) $this->input('fiscal_identity');
+            $cuit = (string) ($identity['cuit'] ?? '');
+            foreach (['external_fiscal_id', 'cuit', 'environment', 'fiscal_condition'] as $field) {
+                if (blank($identity[$field] ?? null)) {
+                    $validator->errors()->add("fiscal_identity.{$field}", 'Este dato es obligatorio para crear la identidad fiscal.');
+                }
+            }
+
+            if ($cuit === '' || $validator->errors()->has('fiscal_identity.cuit')) {
                 return;
             }
 

@@ -2,8 +2,9 @@
 
 namespace App\Services\Fiscal;
 
-use App\Models\Business;
 use App\Models\BranchFiscalSetting;
+use App\Models\Business;
+use App\Models\FiscalIdentity;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Support\ProductMeasurement;
@@ -20,11 +21,12 @@ class FiscalSalePayloadBuilder
      */
     public function build(Sale $sale, string $idempotencyKey): array
     {
-        $sale->loadMissing(['business', 'branch.fiscalSetting', 'items.product']);
+        $sale->loadMissing(['business', 'branch.fiscalSetting.fiscalIdentity', 'items.product']);
 
         /** @var Business $business */
         $business = $sale->business;
         $settings = $this->branchFiscalSettings->forSale($sale);
+        $identity = $this->branchFiscalSettings->identityForSale($sale);
         $voucherDate = $sale->sold_at?->toDateString() ?? now()->toDateString();
         $concept = $this->concept($settings);
 
@@ -32,8 +34,8 @@ class FiscalSalePayloadBuilder
         $payload = [
             // apiArca's generic external fiscal identity. business_id is kept
             // below only while older apiArca deployments still require it.
-            'external_fiscal_id' => $this->externalBusinessIdForSettings($business, $settings),
-            'business_id' => $this->externalBusinessIdForSettings($business, $settings),
+            'external_fiscal_id' => $identity->external_fiscal_id,
+            'business_id' => $identity->external_fiscal_id,
             'sale_id' => $sale->sale_number ?: (string) $sale->id,
             'origin' => [
                 'type' => 'sale',
@@ -48,7 +50,7 @@ class FiscalSalePayloadBuilder
             'authorization_mode' => $authorizationMode,
             'authorization_type' => $authorizationMode === 'caea' ? 'CAEA' : 'CAE',
             'customer' => $this->customer($sale),
-            'amounts' => $this->amounts($sale, $settings),
+            'amounts' => $this->amounts($sale, $settings, $identity),
             'currency' => (string) config('fiscal.defaults.currency', 'PES'),
             'currency_rate' => (float) config('fiscal.defaults.currency_rate', 1),
             'items' => $sale->items
@@ -64,7 +66,7 @@ class FiscalSalePayloadBuilder
             ],
         ];
 
-        $activities = $this->activities($settings);
+        $activities = $this->activities($settings, $identity);
         if ($activities !== []) {
             $payload['activities'] = $activities;
         }
@@ -93,28 +95,34 @@ class FiscalSalePayloadBuilder
 
     public function externalBusinessIdForSale(Sale $sale): string
     {
-        $settings = $this->configurationForSale($sale);
+        return $this->branchFiscalSettings->identityForSale($sale)->external_fiscal_id;
+    }
 
-        return $this->externalBusinessIdForSettings($sale->business, $settings);
+    public function identityForSale(Sale $sale): FiscalIdentity
+    {
+        return $this->branchFiscalSettings->identityForSale($sale);
     }
 
     public function externalBusinessIdForConfiguration(Business $business, BranchFiscalSetting|Business $settings): string
     {
+        if ($settings instanceof BranchFiscalSetting && $settings->fiscalIdentity !== null) {
+            return $settings->fiscalIdentity->external_fiscal_id;
+        }
+
         return $this->externalBusinessIdForSettings($business, $settings);
     }
 
     public function isEnabledForSale(Sale $sale): bool
     {
-        $settings = $this->configurationForSale($sale);
+        $sale->loadMissing(['business', 'branch.fiscalSetting.fiscalIdentity']);
 
-        return $settings instanceof BranchFiscalSetting
-            ? $settings->is_enabled
-            : $settings->fiscal_enabled;
+        return $sale->branch !== null
+            && $this->branchFiscalSettings->isEnabledForBranch($sale->business, $sale->branch);
     }
 
     public function configurationForSale(Sale $sale): BranchFiscalSetting|Business
     {
-        $sale->loadMissing(['business', 'branch.fiscalSetting']);
+        $sale->loadMissing(['business', 'branch.fiscalSetting.fiscalIdentity']);
 
         return $this->branchFiscalSettings->forSale($sale);
     }
@@ -199,7 +207,7 @@ class FiscalSalePayloadBuilder
     /**
      * @return array<string, float>
      */
-    private function amounts(Sale $sale, BranchFiscalSetting|Business $settings): array
+    private function amounts(Sale $sale, BranchFiscalSetting|Business $settings, ?FiscalIdentity $identity = null): array
     {
         $breakdown = $this->vatCalculator->saleBreakdown(
             $sale->items->map(fn (SaleItem $item): array => [
@@ -208,7 +216,7 @@ class FiscalSalePayloadBuilder
                 'vat_rate' => $item->vat_rate ?: $item->product?->vat_rate,
             ]),
             (float) $sale->discount,
-            $settings->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
+            $identity?->fiscal_condition ?? $settings->fiscal_condition ?: config('fiscal.defaults.fiscal_condition', 'monotributo'),
         );
 
         return $breakdown['totals'];
@@ -247,9 +255,9 @@ class FiscalSalePayloadBuilder
     /**
      * @return list<int>
      */
-    private function activities(BranchFiscalSetting|Business $settings): array
+    private function activities(BranchFiscalSetting|Business $settings, ?FiscalIdentity $identity = null): array
     {
-        $activities = $settings->fiscal_activities ?: config('fiscal.defaults.activities', []);
+        $activities = $identity?->fiscal_activities ?? $settings->fiscal_activities ?: config('fiscal.defaults.activities', []);
 
         return collect($activities)
             ->map(fn (mixed $activity): int => (int) $activity)

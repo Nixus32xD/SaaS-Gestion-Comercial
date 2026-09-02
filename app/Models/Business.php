@@ -80,7 +80,7 @@ class Business extends Model
     protected static function booted(): void
     {
         static::created(function (Business $business): void {
-            Branch::query()->firstOrCreate(
+            $branch = Branch::query()->firstOrCreate(
                 [
                     'business_id' => $business->id,
                     'code' => Branch::DEFAULT_CODE,
@@ -91,6 +91,45 @@ class Business extends Model
                     'is_default' => true,
                 ]
             );
+
+            // Preserve the single-branch onboarding flow while making the resulting
+            // configuration explicit before any sale can emit a document.
+            if ($business->fiscal_enabled && filled($business->fiscal_cuit)) {
+                $identity = FiscalIdentity::query()->firstOrCreate(
+                    ['external_fiscal_id' => trim((string) $business->fiscal_external_business_id) ?: (string) $business->id],
+                    [
+                        'business_id' => $business->id,
+                        'cuit' => preg_replace('/\D+/', '', (string) $business->fiscal_cuit),
+                        'environment' => in_array($business->fiscal_environment, ['testing', 'production'], true) ? $business->fiscal_environment : 'testing',
+                        'fiscal_condition' => $business->fiscal_condition ?: 'monotributo',
+                        'legal_name' => $business->name,
+                        'fiscal_activities' => $business->fiscal_activities,
+                    ],
+                );
+                if ((int) $identity->business_id !== (int) $business->id) {
+                    throw new \LogicException('La identidad fiscal externa ya pertenece a otro comercio.');
+                }
+
+                BranchFiscalSetting::query()->firstOrCreate(
+                    ['business_id' => $business->id, 'branch_id' => $branch->id],
+                    [
+                        'fiscal_identity_id' => $identity->id,
+                        'is_enabled' => true,
+                        'fiscal_point_of_sale' => $business->fiscal_point_of_sale,
+                        'fiscal_document_type' => $business->fiscal_document_type,
+                        'fiscal_cbte_type' => $business->fiscal_cbte_type,
+                        'fiscal_concept' => $business->fiscal_concept,
+                        'fiscal_authorization_mode' => $business->fiscal_authorization_mode,
+                        'fiscal_caea_code' => $business->fiscal_caea_code,
+                        'fiscal_caea_period' => $business->fiscal_caea_period,
+                        'fiscal_caea_order' => $business->fiscal_caea_order,
+                        'fiscal_caea_from' => $business->fiscal_caea_from,
+                        'fiscal_caea_to' => $business->fiscal_caea_to,
+                        'fiscal_caea_due_date' => $business->fiscal_caea_due_date,
+                        'fiscal_caea_report_deadline' => $business->fiscal_caea_report_deadline,
+                    ],
+                );
+            }
         });
     }
 
@@ -260,6 +299,12 @@ class Business extends Model
     public function branchFiscalSettings(): HasMany
     {
         return $this->hasMany(BranchFiscalSetting::class);
+    }
+
+    /** @return HasMany<FiscalIdentity, $this> */
+    public function fiscalIdentities(): HasMany
+    {
+        return $this->hasMany(FiscalIdentity::class);
     }
 
     /**

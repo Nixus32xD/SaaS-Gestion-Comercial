@@ -8,9 +8,44 @@ use Symfony\Component\HttpFoundation\Response;
 
 class FiscalPdfService
 {
-    public function __construct(private readonly FiscalQrService $qrService) {}
+    public function __construct(
+        private readonly FiscalApiClient $client,
+        private readonly FiscalQrService $qrService,
+    ) {}
 
     public function download(SaleFiscalDocument $document): Response
+    {
+        if ($document->fiscal_document_id !== null && $document->fiscal_document_id !== '') {
+            return $this->downloadFromFiscalApi($document);
+        }
+
+        return $this->downloadLegacyDocument($document);
+    }
+
+    private function downloadFromFiscalApi(SaleFiscalDocument $document): Response
+    {
+        $response = $this->client->documentPdf($document->fiscal_document_id);
+        $headers = [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $response->header(
+                'Content-Disposition',
+                'inline; filename="'.$this->filename($document).'"'
+            ),
+        ];
+        $hash = $response->header('X-Fiscal-PDF-SHA256');
+
+        if ($hash !== null && $hash !== '') {
+            $headers['X-Fiscal-PDF-SHA256'] = $hash;
+        }
+
+        return response($response->body(), 200, $headers);
+    }
+
+    /**
+     * Documents issued before apiArca stored a remote id have no canonical
+     * remote PDF to retrieve. Keep this renderer only for that historical data.
+     */
+    private function downloadLegacyDocument(SaleFiscalDocument $document): Response
     {
         $document->loadMissing(['sale.business', 'sale.customer', 'sale.items.product']);
 
@@ -19,6 +54,11 @@ class FiscalPdfService
             'sale' => $document->sale,
             'business' => $document->sale->business,
             'issuerCuit' => $this->qrService->issuerCuit($document),
+            'issuerLegalName' => $document->issuer_legal_name
+                ?? data_get($document->fiscal_response ?? [], 'data.company.legal_name')
+                ?? $document->sale->business->name,
+            'issuerFiscalCondition' => $document->issuer_fiscal_condition
+                ?? data_get($document->fiscal_response ?? [], 'data.company.fiscal_condition'),
             'qrUrl' => $this->qrService->url($document),
             'qrImage' => $this->qrService->imageDataUri($document),
             'voucherLabel' => $this->voucherLabel($document),

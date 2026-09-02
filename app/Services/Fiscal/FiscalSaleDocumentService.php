@@ -20,7 +20,7 @@ class FiscalSaleDocumentService
     {
         [$document, $payload] = DB::transaction(function () use ($sale): array {
             $lockedSale = Sale::query()
-                ->with(['business', 'branch.fiscalSetting', 'items.product'])
+                ->with(['business', 'branch.fiscalSetting.fiscalIdentity', 'items.product'])
                 ->lockForUpdate()
                 ->findOrFail($sale->id);
 
@@ -48,6 +48,7 @@ class FiscalSaleDocumentService
             $attemptNumber = $this->nextAttemptNumber($lockedSale);
             $idempotencyKey = $this->idempotencyKey($lockedSale, $attemptNumber);
             $payload = $this->payloadBuilder->build($lockedSale, $idempotencyKey);
+            $identity = $this->payloadBuilder->identityForSale($lockedSale);
             if (($payload['authorization_type'] ?? null) === SaleFiscalDocument::AUTHORIZATION_CAEA && ! filled(data_get($payload, 'caea.code'))) {
                 throw ValidationException::withMessages(['fiscal' => 'El comercio esta configurado para CAEA pero no tiene un CAEA vigente cargado.']);
             }
@@ -55,6 +56,12 @@ class FiscalSaleDocumentService
             $document = SaleFiscalDocument::query()->create([
                 'business_id' => $lockedSale->business_id,
                 'sale_id' => $lockedSale->id,
+                'fiscal_identity_id' => $identity->id,
+                'fiscal_external_id' => $identity->external_fiscal_id,
+                'issuer_cuit' => $identity->cuit,
+                'issuer_legal_name' => $identity->legal_name,
+                'issuer_fiscal_condition' => $identity->fiscal_condition,
+                'fiscal_environment' => $identity->environment,
                 'attempt_number' => $attemptNumber,
                 'fiscal_status' => SaleFiscalDocument::STATUS_PROCESSING,
                 'fiscal_point_of_sale' => $payload['point_of_sale'],
@@ -135,7 +142,7 @@ class FiscalSaleDocumentService
             }
         }
 
-        $document->fill([
+        $updates = [
             'fiscal_document_id' => data_get($payload, 'id')
                 ?? data_get($payload, 'document_id')
                 ?? data_get($payload, 'fiscal_document_id')
@@ -171,7 +178,21 @@ class FiscalSaleDocumentService
             'fiscal_response' => $response,
             'fiscal_observations' => data_get($payload, 'observations'),
             'authorized_at' => $status === SaleFiscalDocument::STATUS_AUTHORIZED ? now() : null,
-        ]);
+        ];
+
+        if ($status === SaleFiscalDocument::STATUS_AUTHORIZED) {
+            $updates = array_merge($updates, [
+                'fiscal_external_id' => data_get($payload, 'business_id')
+                    ?? data_get($payload, 'external_fiscal_id')
+                    ?? $document->fiscal_external_id,
+                'issuer_cuit' => data_get($payload, 'company.cuit') ?? $document->issuer_cuit,
+                'issuer_legal_name' => data_get($payload, 'company.legal_name') ?? $document->issuer_legal_name,
+                'issuer_fiscal_condition' => data_get($payload, 'company.fiscal_condition') ?? $document->issuer_fiscal_condition,
+                'fiscal_environment' => data_get($payload, 'company.environment') ?? $document->fiscal_environment,
+            ]);
+        }
+
+        $document->fill($updates);
 
         $document->save();
 

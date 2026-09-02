@@ -66,6 +66,17 @@ class FiscalQrService
 
     public function issuerCuit(SaleFiscalDocument $document): ?string
     {
+        if (filled($document->issuer_cuit)) {
+            return $document->issuer_cuit;
+        }
+
+        $responseCuit = data_get($document->fiscal_response ?? [], 'data.company.cuit')
+            ?? data_get($document->fiscal_response ?? [], 'company.cuit');
+        if (filled($responseCuit)) {
+            return (string) $responseCuit;
+        }
+
+        // Compatibility fallback only for documents issued before the immutable snapshot existed.
         $document->loadMissing(['sale.business', 'sale.branch.fiscalSetting']);
 
         $sale = $document->sale;

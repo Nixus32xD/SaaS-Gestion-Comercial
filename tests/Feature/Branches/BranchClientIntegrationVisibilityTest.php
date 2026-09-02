@@ -6,6 +6,7 @@ use App\Models\BranchMercadoPagoPointSetting;
 use App\Models\Business;
 use App\Models\BusinessFeature;
 use App\Models\BusinessMercadoPagoCredential;
+use App\Models\FiscalIdentity;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
 use App\Models\User;
@@ -18,9 +19,18 @@ test('ARCA module is hidden and blocked when the active branch is disabled', fun
     $business = Business::factory()->create(['fiscal_enabled' => true]);
     $admin = User::factory()->businessAdmin($business->id)->create();
     $branch = $business->defaultBranch;
+    $identity = FiscalIdentity::query()->create([
+        'business_id' => $business->id,
+        'external_fiscal_id' => 'empresa-norte',
+        'cuit' => '20123456786',
+        'environment' => 'testing',
+        'fiscal_condition' => 'monotributo',
+        'legal_name' => 'Sucursal Norte',
+    ]);
     BranchFiscalSetting::query()->create([
         'business_id' => $business->id,
         'branch_id' => $branch->id,
+        'fiscal_identity_id' => $identity->id,
         'is_enabled' => false,
     ]);
 
@@ -53,9 +63,18 @@ test('ARCA screen uses the active branch profile and only its fiscal documents',
         'is_active' => true,
         'is_default' => false,
     ]);
+    $identity = FiscalIdentity::query()->create([
+        'business_id' => $business->id,
+        'external_fiscal_id' => 'empresa-norte',
+        'cuit' => '20123456786',
+        'environment' => 'testing',
+        'fiscal_condition' => 'monotributo',
+        'legal_name' => 'Sucursal Norte',
+    ]);
     BranchFiscalSetting::query()->create([
         'business_id' => $business->id,
         'branch_id' => $branch->id,
+        'fiscal_identity_id' => $identity->id,
         'is_enabled' => true,
         'fiscal_external_business_id' => 'empresa-norte',
         'fiscal_cuit' => '20123456786',
