@@ -45,6 +45,48 @@ test('superadmin can store an independent ARCA configuration for a branch', func
         ->and($setting->fiscal_activities)->toBeNull();
 });
 
+test('branch fiscal point of sale uses the WSFEv1 range', function (): void {
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create();
+    $branch = $business->defaultBranch;
+
+    $payload = [
+        'is_enabled' => false,
+        'fiscal_point_of_sale' => 99998,
+    ];
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.branches.fiscal-settings.update', [$business, $branch]), $payload)
+        ->assertRedirect();
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.branches.fiscal-settings.update', [$business, $branch]), [...$payload, 'fiscal_point_of_sale' => 0])
+        ->assertSessionHasErrors('fiscal_point_of_sale');
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.branches.fiscal-settings.update', [$business, $branch]), [...$payload, 'fiscal_point_of_sale' => 99999])
+        ->assertSessionHasErrors('fiscal_point_of_sale');
+});
+
+test('nested fiscal identity CUIT errors are returned to the nested field', function (): void {
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create();
+    $branch = $business->defaultBranch;
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.branches.fiscal-settings.update', [$business, $branch]), [
+            'is_enabled' => true,
+            'fiscal_point_of_sale' => 2,
+            'fiscal_identity' => [
+                'external_fiscal_id' => 'invalid-cuit-identity',
+                'cuit' => '20123456787',
+                'environment' => 'testing',
+                'fiscal_condition' => 'monotributo',
+            ],
+        ])
+        ->assertSessionHasErrors('fiscal_identity.cuit')
+        ->assertSessionDoesntHaveErrors('fiscal_cuit');
+});
+
 test('a sale uses the ARCA configuration from its own branch', function () {
     $business = Business::factory()->create([
         'fiscal_enabled' => true,

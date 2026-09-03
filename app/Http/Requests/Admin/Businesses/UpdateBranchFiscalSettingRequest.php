@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin\Businesses;
 
+use App\Support\FiscalPointOfSale;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -34,7 +35,7 @@ class UpdateBranchFiscalSettingRequest extends FormRequest
             'fiscal_environment' => ['nullable', Rule::in(['testing', 'production'])],
             'fiscal_cuit' => ['nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
             'fiscal_condition' => ['nullable', Rule::in(['monotributo', 'responsable_inscripto', 'exento'])],
-            'fiscal_point_of_sale' => [Rule::requiredIf(fn (): bool => $this->boolean('is_enabled')), 'nullable', 'integer', 'min:1', 'max:99999'],
+            'fiscal_point_of_sale' => [Rule::requiredIf(fn (): bool => $this->boolean('is_enabled')), ...FiscalPointOfSale::nullableRules()],
             'fiscal_document_type' => ['nullable', 'string', 'max:40'],
             'fiscal_cbte_type' => ['nullable', 'integer', 'min:1', 'max:999'],
             'fiscal_concept' => ['nullable', 'integer', 'in:1,2,3'],
@@ -143,7 +144,7 @@ class UpdateBranchFiscalSettingRequest extends FormRequest
             $checkDigit = $checkDigit === 11 ? 0 : ($checkDigit === 10 ? 9 : $checkDigit);
 
             if ($checkDigit !== (int) $cuit[10]) {
-                $validator->errors()->add('fiscal_cuit', 'El CUIT fiscal no es valido.');
+                $validator->errors()->add('fiscal_identity.cuit', 'El CUIT fiscal no es valido.');
             }
         });
     }

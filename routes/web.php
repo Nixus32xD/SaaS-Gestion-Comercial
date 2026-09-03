@@ -53,6 +53,7 @@ Route::middleware(['auth', 'superadmin'])
         Route::post('/businesses/{business}/branches', [BusinessBranchController::class, 'store'])->name('businesses.branches.store');
         Route::put('/businesses/{business}/branches/{branch}', [BusinessBranchController::class, 'update'])->name('businesses.branches.update');
         Route::put('/businesses/{business}/branches/{branch}/fiscal-settings', [BusinessBranchFiscalSettingController::class, 'update'])->name('businesses.branches.fiscal-settings.update');
+        Route::post('/businesses/{business}/fiscal-identities/{identity}/sync', [BusinessBranchFiscalSettingController::class, 'retryIdentitySync'])->name('businesses.fiscal-identities.sync');
         Route::put('/businesses/{business}/branches/{branch}/commercial-settings', [BusinessBranchCommercialSettingController::class, 'update'])->name('businesses.branches.commercial-settings.update');
         Route::put('/businesses/{business}/billing', [BusinessBillingController::class, 'update'])->name('businesses.billing.update');
         Route::post('/businesses/{business}/payments', [BusinessBillingController::class, 'storePayment'])->name('businesses.payments.store');

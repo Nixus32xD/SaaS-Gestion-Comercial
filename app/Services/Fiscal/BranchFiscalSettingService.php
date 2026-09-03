@@ -68,6 +68,10 @@ class BranchFiscalSettingService
                 throw ValidationException::withMessages(['fiscal_identity_id' => 'La identidad fiscal no pertenece a este comercio.']);
             }
 
+            if ((bool) config('fiscal.enabled') && ! $identity->isSynced()) {
+                throw ValidationException::withMessages(['fiscal_identity_id' => 'La identidad fiscal debe sincronizarse con ARCA antes de habilitar la sucursal.']);
+            }
+
             return $identity->id;
         }
 

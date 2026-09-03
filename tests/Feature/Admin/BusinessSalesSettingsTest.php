@@ -80,6 +80,26 @@ test('superadmin can configure fiscal cuit for a business', function () {
     expect($business->fiscal_activities)->toBe([492140]);
 });
 
+test('business fiscal point of sale rejects values outside the WSFEv1 range', function (): void {
+    $superAdmin = User::factory()->superadmin()->create();
+    $business = Business::factory()->create();
+    $payload = [
+        'fiscal_enabled' => false,
+        'fiscal_point_of_sale' => 99998,
+    ];
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.sales-settings.update', $business), $payload)
+        ->assertRedirect();
+
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.sales-settings.update', $business), [...$payload, 'fiscal_point_of_sale' => 0])
+        ->assertSessionHasErrors('fiscal_point_of_sale');
+    $this->actingAs($superAdmin)
+        ->put(route('admin.businesses.sales-settings.update', $business), [...$payload, 'fiscal_point_of_sale' => 99999])
+        ->assertSessionHasErrors('fiscal_point_of_sale');
+});
+
 test('enabling fiscal billing syncs the external fiscal company', function () {
     config()->set('fiscal.enabled', true);
     config()->set('fiscal.base_url', 'http://127.0.0.1:8000/api');

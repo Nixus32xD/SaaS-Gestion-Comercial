@@ -225,6 +225,8 @@ class BusinessController extends Controller
                         'fiscal_condition' => $branch->fiscalSetting->fiscalIdentity->fiscal_condition,
                         'legal_name' => $branch->fiscalSetting->fiscalIdentity->legal_name,
                         'fiscal_activities' => implode(', ', $branch->fiscalSetting->fiscalIdentity->fiscal_activities ?? []),
+                        'sync_status' => $branch->fiscalSetting->fiscalIdentity->sync_status,
+                        'sync_error' => $branch->fiscalSetting->fiscalIdentity->sync_error,
                     ],
                     'fiscal_external_business_id' => $branch->fiscalSetting->fiscal_external_business_id,
                     'fiscal_environment' => $branch->fiscalSetting->fiscal_environment,
@@ -271,6 +273,8 @@ class BusinessController extends Controller
                 'legal_name' => $identity->legal_name,
                 'fiscal_activities' => implode(', ', $identity->fiscal_activities ?? []),
                 'branch_names' => $identity->branchFiscalSettings->map(fn ($setting) => $setting->branch?->name)->filter()->values()->all(),
+                'sync_status' => $identity->sync_status,
+                'sync_error' => $identity->sync_error,
             ])->values()->all(),
             'fiscal_identity_point_of_sale_options' => $business->fiscalIdentities
                 ->mapWithKeys(fn ($identity): array => [$identity->id => $this->fiscalPointOfSaleOptions->forIdentity($identity)])

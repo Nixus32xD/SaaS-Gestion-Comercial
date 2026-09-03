@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
     business: {
@@ -329,6 +329,10 @@ const submitBranchFiscal = () => {
     if (!fiscalBranch.value) return;
 
     branchFiscalForm.put(route('admin.businesses.branches.fiscal-settings.update', [props.business.id, fiscalBranch.value.id]));
+};
+
+const retryFiscalIdentitySync = (identity) => {
+    router.post(route('admin.businesses.fiscal-identities.sync', [props.business.id, identity.id]));
 };
 
 const configureBranchCommercial = (branch) => {
@@ -1337,10 +1341,14 @@ const openSection = (sectionId) => {
                             <select v-model="branchFiscalForm.fiscal_identity_id" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100">
                                 <option value="">Crear nueva identidad fiscal</option>
                                 <option v-for="identity in fiscalIdentities" :key="identity.id" :value="identity.id">
-                                    {{ identity.legal_name || identity.external_fiscal_id }} — CUIT {{ identity.cuit }} ({{ identity.environment }})
+                                    {{ identity.legal_name || identity.external_fiscal_id }} — CUIT {{ identity.cuit }} ({{ identity.environment }}, {{ identity.sync_status === 'synced' ? 'sincronizada' : identity.sync_status === 'pending' ? 'pendiente' : 'con error' }})
                                 </option>
                             </select>
                             <p v-if="selectedFiscalIdentity" class="text-xs text-slate-400">Compartida por: {{ selectedFiscalIdentity.branch_names?.join(', ') || 'ninguna otra sucursal' }}.</p>
+                            <div v-if="selectedFiscalIdentity && selectedFiscalIdentity.sync_status !== 'synced'" class="mt-2 flex items-center gap-2 text-xs text-amber-100">
+                                <span>{{ selectedFiscalIdentity.sync_error || 'La identidad todavía no está sincronizada con ARCA y no puede emitir.' }}</span>
+                                <button type="button" class="font-semibold underline" @click="retryFiscalIdentitySync(selectedFiscalIdentity)">Reintentar sincronización</button>
+                            </div>
                             <p v-if="branchFiscalForm.errors.fiscal_identity_id || branchFiscalForm.errors.fiscal_identity" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_identity_id || branchFiscalForm.errors.fiscal_identity }}</p>
                         </div>
                         <div class="flex items-end">
@@ -1357,7 +1365,8 @@ const openSection = (sectionId) => {
                             </div>
                             <div class="space-y-1">
                                 <label class="text-sm font-medium text-slate-300">CUIT emisor</label>
-                                <input v-model="branchFiscalForm.fiscal_identity.cuit" type="text" inputmode="numeric" maxlength="11" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            <input v-model="branchFiscalForm.fiscal_identity.cuit" type="text" inputmode="numeric" maxlength="11" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            <p v-if="branchFiscalForm.errors['fiscal_identity.cuit']" class="text-xs text-rose-200">{{ branchFiscalForm.errors['fiscal_identity.cuit'] }}</p>
                             </div>
                             <div class="space-y-1">
                                 <label class="text-sm font-medium text-slate-300">Ambiente</label>
@@ -1371,7 +1380,7 @@ const openSection = (sectionId) => {
                         <div class="space-y-1">
                             <label class="text-sm font-medium text-slate-300">Punto de venta de esta sucursal</label>
                             <select v-if="branchFiscalPointOfSaleOptions.length" v-model.number="branchFiscalForm.fiscal_point_of_sale" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100"><option v-for="option in branchFiscalPointOfSaleOptions" :key="option.value" :value="option.value" :disabled="!option.selectable">{{ option.label }}{{ option.disabled_reason ? ` — ${option.disabled_reason}` : '' }}</option></select>
-                            <input v-else v-model.number="branchFiscalForm.fiscal_point_of_sale" type="number" min="1" max="99999" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
+                            <input v-else v-model.number="branchFiscalForm.fiscal_point_of_sale" type="number" min="1" max="99998" class="w-full rounded-xl border-amber-100/25 bg-slate-950/35 text-sm text-slate-100" />
                             <p v-if="branchFiscalPointOfSaleMessage" class="text-xs text-amber-100/80">{{ branchFiscalPointOfSaleMessage }} Se conserva el ingreso manual administrativo.</p>
                             <p v-if="branchFiscalForm.errors.fiscal_point_of_sale" class="text-xs text-rose-200">{{ branchFiscalForm.errors.fiscal_point_of_sale }}</p>
                         </div>

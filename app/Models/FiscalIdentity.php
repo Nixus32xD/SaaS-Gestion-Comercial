@@ -11,13 +11,25 @@ class FiscalIdentity extends Model
 {
     use BelongsToBusiness;
 
+    public const SYNC_PENDING = 'pending';
+
+    public const SYNC_SYNCED = 'synced';
+
+    public const SYNC_FAILED = 'sync_failed';
+
     protected $fillable = [
         'business_id', 'external_fiscal_id', 'cuit', 'environment', 'fiscal_condition', 'legal_name', 'fiscal_activities',
+        'sync_status', 'sync_error', 'synced_at',
     ];
 
     protected function casts(): array
     {
-        return ['fiscal_activities' => 'array'];
+        return ['fiscal_activities' => 'array', 'synced_at' => 'datetime'];
+    }
+
+    public function isSynced(): bool
+    {
+        return $this->sync_status === self::SYNC_SYNCED;
     }
 
     public function business(): BelongsTo

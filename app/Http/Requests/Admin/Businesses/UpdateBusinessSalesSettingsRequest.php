@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin\Businesses;
 
+use App\Support\FiscalPointOfSale;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -54,7 +55,7 @@ class UpdateBusinessSalesSettingsRequest extends FormRequest
             'fiscal_environment' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', Rule::in($fiscalEnvironments)],
             'fiscal_cuit' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', 'size:11', 'regex:/^\d{11}$/'],
             'fiscal_condition' => [Rule::requiredIf(fn (): bool => $this->boolean('fiscal_enabled')), 'nullable', 'string', Rule::in($fiscalConditions)],
-            'fiscal_point_of_sale' => ['nullable', 'integer', 'min:1', 'max:99999'],
+            'fiscal_point_of_sale' => FiscalPointOfSale::nullableRules(),
             'fiscal_document_type' => ['nullable', 'string', 'max:40', Rule::in($documentTypes)],
             'fiscal_cbte_type' => ['nullable', 'integer', 'min:1', 'max:999', Rule::in($voucherTypes)],
             'fiscal_concept' => ['nullable', 'integer', 'in:1,2,3'],

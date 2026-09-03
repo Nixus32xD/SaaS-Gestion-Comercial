@@ -38,7 +38,7 @@ class BranchFiscalSettingsResolver
 
         return $setting instanceof BranchFiscalSetting
             && $setting->is_enabled
-            && $setting->fiscal_identity_id !== null;
+            && $setting->fiscalIdentity?->isSynced();
     }
 
     public function identityForSale(Sale $sale): FiscalIdentity
@@ -46,7 +46,7 @@ class BranchFiscalSettingsResolver
         $sale->loadMissing(['branch.fiscalSetting.fiscalIdentity']);
         $setting = $sale->branch?->fiscalSetting;
 
-        if (! $setting?->is_enabled || $setting->fiscalIdentity === null) {
+        if (! $setting?->is_enabled || $setting->fiscalIdentity === null || ! $setting->fiscalIdentity->isSynced()) {
             throw ValidationException::withMessages([
                 'fiscal' => 'La sucursal no tiene una identidad fiscal explícita habilitada.',
             ]);
