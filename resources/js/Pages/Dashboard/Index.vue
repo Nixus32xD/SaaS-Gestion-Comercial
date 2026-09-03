@@ -667,7 +667,7 @@ const priorityCards = computed(() => ([
                     <h3 class="text-base font-semibold text-slate-100">Productos con stock bajo</h3>
                     <ul v-if="low_stock_products.length" class="mt-3 space-y-2 text-sm">
                         <li v-for="product in low_stock_products" :key="product.id" class="rounded-lg border border-rose-300/40 bg-rose-400/12 px-3 py-2 text-rose-100">
-                            <span class="break-words">{{ product.name }} - actual {{ product.stock }} / minimo {{ product.min_stock }}</span>
+                            <span class="break-words">{{ product.name }}<template v-if="product.branch_name"> ({{ product.branch_name }})</template> - disponible {{ product.available_stock }} / minimo {{ product.min_stock }}</span>
                         </li>
                     </ul>
                     <p v-else class="mt-3 text-sm text-slate-300">No hay alertas de stock bajo.</p>

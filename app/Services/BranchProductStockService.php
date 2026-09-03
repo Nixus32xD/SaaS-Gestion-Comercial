@@ -32,6 +32,7 @@ class BranchProductStockService
     public function reserve(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
+            $product = $this->lockProduct($product);
             $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
@@ -56,6 +57,7 @@ class BranchProductStockService
     public function consume(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
+            $product = $this->lockProduct($product);
             $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
@@ -80,6 +82,7 @@ class BranchProductStockService
     public function consumeReserved(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
+            $product = $this->lockProduct($product);
             $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
@@ -105,6 +108,7 @@ class BranchProductStockService
     public function release(Branch $branch, Product $product, float $quantity): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity): BranchProductStock {
+            $product = $this->lockProduct($product);
             $stock = $this->lockStock($branch, $product);
             $normalizedQuantity = $this->normalizedQuantity($quantity);
 
@@ -112,7 +116,13 @@ class BranchProductStockService
                 return $stock;
             }
 
-            $stock->reserved_stock = max(0, round((float) $stock->reserved_stock - $normalizedQuantity, 3));
+            if ((float) $stock->reserved_stock < $normalizedQuantity) {
+                throw ValidationException::withMessages([
+                    'stock' => "La reserva de {$product->name} no puede liberarse en {$branch->name} porque el stock reservado es insuficiente.",
+                ]);
+            }
+
+            $stock->reserved_stock = round((float) $stock->reserved_stock - $normalizedQuantity, 3);
             $stock->save();
             $this->syncLegacyProductStock($product);
 
@@ -123,6 +133,7 @@ class BranchProductStockService
     public function adjust(Branch $branch, Product $product, float $quantity, ?float $minStock = null): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $quantity, $minStock): BranchProductStock {
+            $product = $this->lockProduct($product);
             $stock = $this->lockStock($branch, $product, $minStock);
             $stock = $this->adjustLockedStock($stock, $product, $quantity);
 
@@ -137,6 +148,7 @@ class BranchProductStockService
     public function setMinStock(Branch $branch, Product $product, float $minStock): BranchProductStock
     {
         return $this->withinTransaction(function () use ($branch, $product, $minStock): BranchProductStock {
+            $product = $this->lockProduct($product);
             $stock = $this->lockStock($branch, $product, $minStock);
 
             return $this->setLockedMinStock($stock, $minStock)->fresh();
@@ -155,6 +167,7 @@ class BranchProductStockService
         }
 
         $this->withinTransaction(function () use ($fromBranch, $toBranch, $product, $quantity): void {
+            $product = $this->lockProduct($product);
             $orderedBranches = collect([$fromBranch, $toBranch])->sortBy('id')->values();
             $stocks = $orderedBranches->mapWithKeys(fn (Branch $branch): array => [
                 $branch->id => $this->lockStock($branch, $product),
@@ -264,6 +277,15 @@ class BranchProductStockService
             'stock' => round((float) ($totals?->stock ?? 0), 3),
             'reserved_stock' => round((float) ($totals?->reserved_stock ?? 0), 3),
         ])->save();
+    }
+
+    private function lockProduct(Product $product): Product
+    {
+        return Product::query()
+            ->forBusiness($product->business_id)
+            ->whereKey($product->id)
+            ->lockForUpdate()
+            ->firstOrFail();
     }
 
     private function ensureSameBusiness(Branch $branch, Product $product): void

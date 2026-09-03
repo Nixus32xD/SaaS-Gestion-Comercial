@@ -13,42 +13,28 @@ class ProductExpirationAlertService
     public function listForBusiness(int $businessId, int $limit = 10, ?int $daysThreshold = null, ?int $branchId = null): Collection
     {
         $today = now()->startOfDay();
-        $maxDays = $daysThreshold ?? 30;
 
-        return ProductBatch::query()
-            ->forBusiness($businessId)
-            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
-            ->with(['product:id,business_id,name,expiry_alert_days,is_active,stock'])
-            ->available()
+        return $this->operationalBatchQuery($businessId, $branchId)
+            ->with(['product:id,business_id,name,expiry_alert_days,is_active', 'branch:id,business_id,name,is_active'])
             ->whereNotNull('expires_at')
-            ->whereHas('product', function ($query) use ($branchId): void {
-                $query->where('is_active', true);
+            ->where(function ($query) use ($today, $daysThreshold): void {
+                $query->whereDate('expires_at', '<', $today->toDateString())
+                    ->orWhere(function ($upcoming) use ($today, $daysThreshold): void {
+                        if ($daysThreshold !== null) {
+                            $upcoming
+                                ->whereDate('expires_at', '>=', $today->toDateString())
+                                ->whereDate('expires_at', '<=', $today->copy()->addDays($daysThreshold)->toDateString());
 
-                if ($branchId === null) {
-                    $query->where('stock', '>', 0);
-                }
-            })
-            ->where(function ($query) use ($today, $maxDays): void {
-                $query
-                    ->where('expires_at', '<', $today->toDateString())
-                    ->orWhere('expires_at', '<=', $today->copy()->addDays($maxDays)->toDateString());
+                            return;
+                        }
+
+                        $upcoming->withExpirationStatus('upcoming');
+                    });
             })
             ->orderBy('expires_at')
-            ->orderBy('id')
+            ->orderBy('product_batches.id')
             ->limit($limit)
-            ->get()
-            ->filter(function (ProductBatch $batch) use ($today): bool {
-                $product = $batch->product;
-
-                if ($product === null || $batch->expires_at === null) {
-                    return false;
-                }
-
-                $alertDays = max((int) ($product->expiry_alert_days ?? 15), 1);
-
-                return $batch->expires_at->lte($today->copy()->addDays($alertDays));
-            })
-            ->values()
+            ->get(['product_batches.*'])
             ->map(function (ProductBatch $batch) use ($today): array {
                 $daysRemaining = $batch->expires_at !== null
                     ? $today->diffInDays($batch->expires_at, false)
@@ -59,6 +45,8 @@ class ProductExpirationAlertService
                     'batch_id' => $batch->id,
                     'product_id' => $batch->product_id,
                     'product_name' => $batch->product?->name,
+                    'branch_id' => $batch->branch_id,
+                    'branch_name' => $batch->branch?->name,
                     'batch_code' => $batch->batch_code,
                     'expires_at' => $batch->expires_at?->toDateString(),
                     'quantity' => (float) $batch->quantity,
@@ -75,11 +63,9 @@ class ProductExpirationAlertService
     public function summarizeForBusiness(int $businessId, array $thresholds = [7, 15, 30]): array
     {
         $today = now()->startOfDay();
-        $batches = ProductBatch::query()
-            ->forBusiness($businessId)
-            ->available()
+        $batches = $this->operationalBatchQuery($businessId)
             ->whereNotNull('expires_at')
-            ->get(['expires_at']);
+            ->get(['product_batches.expires_at']);
 
         $summary = [
             'expired' => 0,
@@ -108,5 +94,29 @@ class ProductExpirationAlertService
         }
 
         return $summary;
+    }
+
+    private function operationalBatchQuery(int $businessId, ?int $branchId = null)
+    {
+        return ProductBatch::query()
+            ->forBusiness($businessId)
+            ->when($branchId !== null, fn ($query) => $query->where('product_batches.branch_id', $branchId))
+            ->join('products', function ($join) use ($businessId): void {
+                $join->on('products.id', '=', 'product_batches.product_id')
+                    ->where('products.business_id', $businessId);
+            })
+            ->join('branches', function ($join) use ($businessId): void {
+                $join->on('branches.id', '=', 'product_batches.branch_id')
+                    ->where('branches.business_id', $businessId);
+            })
+            ->join('branch_product_stocks as branch_stock', function ($join) use ($businessId): void {
+                $join->on('branch_stock.product_id', '=', 'product_batches.product_id')
+                    ->on('branch_stock.branch_id', '=', 'product_batches.branch_id')
+                    ->where('branch_stock.business_id', $businessId);
+            })
+            ->available()
+            ->where('products.is_active', true)
+            ->where('branches.is_active', true)
+            ->whereRaw('branch_stock.stock - branch_stock.reserved_stock > 0');
     }
 }

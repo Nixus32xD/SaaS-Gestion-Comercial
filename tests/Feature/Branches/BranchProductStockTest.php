@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\BranchProductStockService;
 use App\Services\SaleService;
+use Illuminate\Validation\ValidationException;
 
 test('stock and reservations are independent for each branch', function () {
     $business = Business::factory()->create();
@@ -61,6 +62,49 @@ test('stock transfer moves units without changing the legacy total', function ()
     expect(branchStock($defaultBranch, $product)->stock)->toBe('6.000')
         ->and(branchStock($branch, $product)->stock)->toBe('4.000')
         ->and((float) $product->fresh()->stock)->toBe(10.0);
+});
+
+test('reservation release keeps the sale-level idempotency but rejects an inconsistent branch reservation', function () {
+    $business = Business::factory()->create();
+    $branch = $business->defaultBranch;
+    $product = createStockProduct($business, 5);
+    $stockService = app(BranchProductStockService::class);
+
+    $stockService->reserve($branch, $product, 3);
+
+    expect(fn () => $stockService->release($branch, $product, 4))
+        ->toThrow(ValidationException::class);
+
+    expect(branchStock($branch, $product)->fresh()->reserved_stock)->toBe('3.000')
+        ->and($product->fresh()->reserved_stock)->toBe('3.000');
+
+    $stockService->release($branch, $product, 3);
+
+    expect(branchStock($branch, $product)->fresh()->reserved_stock)->toBe('0.000')
+        ->and($product->fresh()->reserved_stock)->toBe('0.000');
+});
+
+test('transfer respects reserved units and preserves branch and legacy stock invariants', function () {
+    $business = Business::factory()->create();
+    $fromBranch = $business->defaultBranch;
+    $toBranch = createStockBranch($business, 'transferencias');
+    $product = createStockProduct($business, 10);
+    $stockService = app(BranchProductStockService::class);
+
+    $stockService->reserve($fromBranch, $product, 6);
+    $stockService->transfer($fromBranch, $toBranch, $product, 4);
+
+    expect(branchStock($fromBranch, $product)->fresh()->stock)->toBe('6.000')
+        ->and(branchStock($fromBranch, $product)->fresh()->reserved_stock)->toBe('6.000')
+        ->and(branchStock($toBranch, $product)->fresh()->stock)->toBe('4.000')
+        ->and((float) $product->fresh()->stock)->toBe(10.0)
+        ->and((float) $product->fresh()->reserved_stock)->toBe(6.0);
+
+    expect(fn () => $stockService->transfer($fromBranch, $toBranch, $product, 1))
+        ->toThrow(ValidationException::class);
+
+    expect((float) branchStock($fromBranch, $product)->fresh()->stock)
+        ->toBeGreaterThanOrEqual((float) branchStock($fromBranch, $product)->fresh()->reserved_stock);
 });
 
 function createStockBranch(Business $business, string $code): Branch

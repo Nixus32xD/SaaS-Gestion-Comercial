@@ -10,8 +10,9 @@ use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Supplier;
-use App\Services\ProductExpirationAlertService;
 use App\Services\BranchCommercialSettingsResolver;
+use App\Services\LowStockAlertService;
+use App\Services\ProductExpirationAlertService;
 use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\Request;
@@ -28,9 +29,9 @@ class DashboardController extends Controller
         CurrentBusiness $currentBusiness,
         CurrentBranch $currentBranch,
         ProductExpirationAlertService $expirationAlertService,
+        LowStockAlertService $lowStockAlertService,
         BranchCommercialSettingsResolver $commercialSettingsResolver,
-    ): Response
-    {
+    ): Response {
         $business = $currentBusiness->get();
         $branch = $currentBranch->get();
         abort_if($business === null || $branch === null, 404);
@@ -60,23 +61,7 @@ class DashboardController extends Controller
         $productsCount = Product::query()->forBusiness($business->id)->count();
         $suppliersCount = Supplier::query()->forBusiness($business->id)->count();
 
-        $lowStock = Product::query()
-            ->forBusiness($business->id)
-            ->select(['products.id', 'products.name', 'products.stock', 'products.min_stock'])
-            ->when($branchId !== null, function ($query) use ($business, $branchId): void {
-                $query->join('branch_product_stocks as branch_stock', function ($join) use ($business, $branchId): void {
-                    $join->on('branch_stock.product_id', '=', 'products.id')
-                        ->where('branch_stock.business_id', $business->id)
-                        ->where('branch_stock.branch_id', $branchId);
-                })
-                    ->addSelect('branch_stock.stock as branch_stock', 'branch_stock.min_stock as branch_min_stock')
-                    ->whereColumn('branch_stock.stock', '<=', 'branch_stock.min_stock')
-                    ->orderBy('branch_stock.stock');
-            }, function ($query): void {
-                $query->whereColumn('stock', '<=', 'min_stock')->orderBy('stock');
-            })
-            ->limit(8)
-            ->get();
+        $lowStock = $lowStockAlertService->listForBusiness($business->id, 8, $branchId);
 
         $topProducts = SaleItem::query()
             ->select([
@@ -208,11 +193,14 @@ class DashboardController extends Controller
                 ],
             ],
             'daily_totals' => $dailyTotals->all(),
-            'low_stock_products' => $lowStock->map(fn (Product $product) => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'stock' => (float) ($branchId !== null ? $product->branch_stock : $product->stock),
-                'min_stock' => (float) ($branchId !== null ? $product->branch_min_stock : $product->min_stock),
+            'low_stock_products' => $lowStock->map(fn (array $stock) => [
+                'id' => $stock['branch_product_stock_id'],
+                'name' => $stock['product_name'],
+                'branch_name' => $stock['branch_name'],
+                'stock' => $stock['stock'],
+                'reserved_stock' => $stock['reserved_stock'],
+                'available_stock' => $stock['available_stock'],
+                'min_stock' => $stock['min_stock'],
             ]),
             'top_sold_products' => $topProducts->map(fn ($row) => [
                 'product_id' => $row->product_id,

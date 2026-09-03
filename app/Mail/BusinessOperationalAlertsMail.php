@@ -19,8 +19,7 @@ class BusinessOperationalAlertsMail extends Mailable
         public string $businessName,
         public string $subjectLine,
         public array $payload,
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {
@@ -126,7 +125,7 @@ class BusinessOperationalAlertsMail extends Mailable
             $html[] = '<h2 class="section-header" style="color:#991b1b;">Stock bajo o agotado</h2>';
             $html[] = '<p class="section-copy">Estos productos ya estan por debajo del minimo definido por el comercio.</p>';
             $html[] = '<table class="data-table desktop-table">';
-            $html[] = '<thead><tr><th align="left">Producto</th><th align="left">Estado</th><th align="right">Actual</th><th align="right">Minimo</th></tr></thead><tbody>';
+            $html[] = '<thead><tr><th align="left">Producto</th><th align="left">Sucursal</th><th align="left">Estado</th><th align="right">Disponible</th><th align="right">Minimo</th></tr></thead><tbody>';
 
             foreach ($lowStockItems as $item) {
                 $statusLabel = $item['status'] === 'out_of_stock' ? 'Agotado' : 'Bajo stock';
@@ -134,8 +133,9 @@ class BusinessOperationalAlertsMail extends Mailable
 
                 $html[] = '<tr>'
                     .'<td><strong>'.e((string) $item['product_name']).'</strong></td>'
+                    .'<td>'.e((string) ($item['branch_name'] ?? '-')).'</td>'
                     .'<td><span class="'.$statusClass.'">'.e($statusLabel).'</span></td>'
-                    .'<td align="right">'.e((string) $item['stock']).'</td>'
+                    .'<td align="right">'.e((string) ($item['available_stock'] ?? $item['stock'])).'</td>'
                     .'<td align="right">'.e((string) $item['min_stock']).'</td>'
                     .'</tr>';
             }
@@ -149,8 +149,9 @@ class BusinessOperationalAlertsMail extends Mailable
 
                 $html[] = '<div class="mobile-card">'
                     .'<p class="mobile-card-title">'.e((string) $item['product_name']).'</p>'
+                    .'<div class="mobile-card-row"><span class="mobile-card-label">Sucursal</span><span>'.e((string) ($item['branch_name'] ?? '-')).'</span></div>'
                     .'<div class="mobile-card-row"><span class="mobile-card-label">Estado</span><span class="'.$statusClass.'">'.e($statusLabel).'</span></div>'
-                    .'<div class="mobile-card-row"><span class="mobile-card-label">Stock actual</span><span>'.e((string) $item['stock']).'</span></div>'
+                    .'<div class="mobile-card-row"><span class="mobile-card-label">Stock disponible</span><span>'.e((string) ($item['available_stock'] ?? $item['stock'])).'</span></div>'
                     .'<div class="mobile-card-row"><span class="mobile-card-label">Stock minimo</span><span>'.e((string) $item['min_stock']).'</span></div>'
                     .'</div>';
             }
