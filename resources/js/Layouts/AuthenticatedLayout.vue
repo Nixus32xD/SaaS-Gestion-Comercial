@@ -22,7 +22,8 @@ const drawerFocusableSelector = [
 ].join(', ');
 
 const isSuperAdmin = computed(() => Boolean(page.props.auth?.is_super_admin));
-const canManageUsers = computed(() => page.props.auth?.role === 'admin');
+const can = (permission) => Boolean(page.props.auth?.is_owner || page.props.auth?.permissions?.includes(permission));
+const canManageUsers = computed(() => can('users.view'));
 const hasElectronicBilling = computed(() => Boolean(page.props.modules?.electronic_billing?.enabled));
 const hasMultipleBranches = computed(() => (
     Array.isArray(page.props.branches)
@@ -57,28 +58,28 @@ const navigation = computed(() => {
 
     return [
         { label: 'Operación', items: [
-            { label: 'Dashboard', route: 'dashboard', pattern: 'dashboard', icon: 'DB' },
-            { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },
-            { label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' },
-            { label: 'Caja', route: 'cash-register.index', pattern: 'cash-register.*', icon: 'CJ' },
-            { label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' },
+            ...(can('dashboard.view') ? [{ label: 'Dashboard', route: 'dashboard', pattern: 'dashboard', icon: 'DB' }] : []),
+            ...(can('sales.view') ? [{ label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' }] : []),
+            ...(can('purchases.view') ? [{ label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' }] : []),
+            ...(can('cash_register.view') ? [{ label: 'Caja', route: 'cash-register.index', pattern: 'cash-register.*', icon: 'CJ' }] : []),
+            ...(can('suppliers.view') ? [{ label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' }] : []),
         ] },
         { label: 'Inventario', items: [
-            { label: 'Productos', route: 'products.index', pattern: 'products.*', icon: 'PR' },
-            { label: 'Categorías', route: 'categories.index', pattern: 'categories.*', icon: 'CT' },
-            { label: 'Transferencias', route: 'inventory.transfers.index', pattern: 'inventory.transfers.*', icon: 'TR' },
+            ...(can('products.view') ? [{ label: 'Productos', route: 'products.index', pattern: 'products.*', icon: 'PR' }] : []),
+            ...(can('categories.view') ? [{ label: 'Categorías', route: 'categories.index', pattern: 'categories.*', icon: 'CT' }] : []),
+            ...(can('inventory.transfer') ? [{ label: 'Transferencias', route: 'inventory.transfers.index', pattern: 'inventory.transfers.*', icon: 'TR' }] : []),
         ] },
         { label: 'Clientes', items: [
-            { label: 'Clientes', route: 'customers.index', pattern: 'customers.*', icon: 'CL' },
-            { label: 'Cuenta corriente', route: 'customer-accounts.index', pattern: 'customer-accounts.*', icon: 'CC' },
+            ...(can('customers.view') ? [{ label: 'Clientes', route: 'customers.index', pattern: 'customers.*', icon: 'CL' }] : []),
+            ...(can('accounts_receivable.view') ? [{ label: 'Cuenta corriente', route: 'customer-accounts.index', pattern: 'customer-accounts.*', icon: 'CC' }] : []),
         ] },
         { label: 'Integraciones', items: [
-            ...(hasElectronicBilling.value ? [{ label: 'Facturación electrónica', route: 'electronic-billing.index', pattern: 'electronic-billing.*', icon: 'FE' }] : []),
-            ...(canManageUsers.value ? [{ label: 'Mercado Pago', route: 'mercadopago-settings.edit', pattern: 'mercadopago-settings.*', icon: 'MP' }] : []),
+            ...(hasElectronicBilling.value && can('fiscal.view') ? [{ label: 'Facturación electrónica', route: 'electronic-billing.index', pattern: 'electronic-billing.*', icon: 'FE' }] : []),
+            ...(can('mercadopago.settings.view') ? [{ label: 'Mercado Pago', route: 'mercadopago-settings.edit', pattern: 'mercadopago-settings.*', icon: 'MP' }] : []),
         ] },
         { label: 'Administración', items: [
-            ...(canManageUsers.value ? [{ label: 'Usuarios', route: 'users.index', pattern: 'users.*', icon: 'US' }] : []),
-            ...(canManageUsers.value ? [{ label: 'Notificaciones', route: 'notifications.edit', pattern: 'notifications.*', icon: 'NT' }] : []),
+            ...(canManageUsers.value ? [{ label: 'Usuarios y permisos', route: 'users.index', pattern: 'users.*', icon: 'US' }] : []),
+            ...(can('notifications.manage') ? [{ label: 'Notificaciones', route: 'notifications.edit', pattern: 'notifications.*', icon: 'NT' }] : []),
             { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
         ] },
     ].filter((group) => group.items.length > 0);
@@ -200,7 +201,7 @@ const changeBranch = (event) => {
                 <p class="text-xs uppercase tracking-wider text-cyan-100/70">Perfil</p>
                 <p class="mt-1 truncate text-sm font-semibold text-white">{{ $page.props.auth.user?.name }}</p>
                 <p class="mt-2 text-xs uppercase tracking-wider text-cyan-100/70">Rol</p>
-                <p class="mt-1 truncate text-sm text-slate-200">{{ isSuperAdmin ? 'Superadmin' : (page.props.auth?.role === 'staff' ? 'Staff' : 'Admin comercio') }}</p>
+                <p class="mt-1 truncate text-sm text-slate-200">{{ isSuperAdmin ? 'Superadmin' : (page.props.auth?.is_owner ? 'Propietario' : (page.props.auth?.roles ?? []).map((role) => role.name).join(', ') || 'Sin roles') }}</p>
                 <template v-if="!isSuperAdmin">
                     <p class="mt-2 text-xs uppercase tracking-wider text-cyan-100/70">Comercio</p>
                     <p class="mt-1 truncate text-sm text-slate-200">{{ $page.props.business?.name ?? 'Sin comercio' }}</p>

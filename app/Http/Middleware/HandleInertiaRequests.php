@@ -52,7 +52,8 @@ class HandleInertiaRequests extends Middleware
         if ($branch === null && $business !== null) {
             $branch = app(CurrentBranch::class)->resolve(
                 $business,
-                $request->session()->get('branch_id')
+                $request->session()->get('branch_id'),
+                $user,
             );
             $request->session()->put('branch_id', $branch->id);
         }
@@ -61,6 +62,7 @@ class HandleInertiaRequests extends Middleware
         $branches = $business
             ? $business->branches()
                 ->active()
+                ->when($user !== null && ! $user->isOwner(), fn ($query) => $query->whereIn('branches.id', $user->branches()->select('branches.id')))
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(['id', 'name', 'code', 'is_default'])
@@ -76,6 +78,9 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
                 'is_super_admin' => $user?->isSuperAdmin() ?? false,
                 'role' => $user?->role,
+                'is_owner' => $user?->isOwner() ?? false,
+                'roles' => $user?->roles()->orderBy('name')->get(['roles.id', 'roles.name', 'roles.code'])->map(fn ($role) => ['id' => $role->id, 'name' => $role->name, 'code' => $role->code])->all() ?? [],
+                'permissions' => $user?->permissionCodes() ?? [],
             ],
             'business' => $business ? [
                 'id' => $business->id,

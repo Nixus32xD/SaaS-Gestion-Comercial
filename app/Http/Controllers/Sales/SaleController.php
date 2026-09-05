@@ -14,17 +14,17 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
+use App\Services\BranchCommercialSettingsResolver;
+use App\Services\Fiscal\BranchFiscalSettingsResolver;
 use App\Services\Fiscal\FiscalApiErrorMapper;
 use App\Services\Fiscal\FiscalSaleDocumentService;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Services\Fiscal\FiscalVatCalculator;
-use App\Services\Fiscal\BranchFiscalSettingsResolver;
 use App\Services\Payments\MercadoPago\MercadoPagoApiException;
 use App\Services\Payments\MercadoPago\MercadoPagoPointProvider;
 use App\Services\Payments\MercadoPago\MercadoPagoSettingsResolver;
 use App\Services\SaleReceiptService;
 use App\Services\SaleService;
-use App\Services\BranchCommercialSettingsResolver;
 use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use App\Support\ProductMeasurement;
@@ -56,10 +56,11 @@ class SaleController extends Controller
         private readonly FiscalSalePayloadBuilder $fiscalPayloadBuilder,
     ) {}
 
-    public function index(Request $request, CurrentBusiness $currentBusiness): Response
+    public function index(Request $request, CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
         $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
         $business->load([
@@ -85,6 +86,7 @@ class SaleController extends Controller
 
         $summaryBaseQuery = Sale::query()
             ->forBusiness($business->id)
+            ->where('branch_id', $branch->id)
             ->whereBetween('sold_at', [$monthStart, $monthEnd]);
 
         $summary = (clone $summaryBaseQuery)
@@ -94,7 +96,7 @@ class SaleController extends Controller
         return Inertia::render('Sales/Index', [
             'filters' => $filters,
             'receipt_feature_available' => $receiptFeatureAvailable,
-            'sales' => fn () => $this->salesListingQuery($business, $filters, $advancedSaleSettingsEnabled)
+            'sales' => fn () => $this->salesListingQuery($business, $filters, $advancedSaleSettingsEnabled)->where('branch_id', $branch->id)
                 ->latest('sold_at')
                 ->paginate(15)
                 ->withQueryString()
@@ -281,11 +283,12 @@ class SaleController extends Controller
         return $redirect;
     }
 
-    public function show(Request $request, CurrentBusiness $currentBusiness, Sale $sale): Response
+    public function show(Request $request, CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Sale $sale): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
         $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
         $sale->load([
@@ -378,11 +381,13 @@ class SaleController extends Controller
     public function storeReceipt(
         StoreSaleReceiptRequest $request,
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
         Sale $sale
     ): RedirectResponse {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
         abort_if(! $this->saleReceiptsAvailable(), 404);
 
         $this->saleReceiptService->attachReceipt($sale, $request->file('receipt'));
@@ -392,21 +397,23 @@ class SaleController extends Controller
             ->with('success', 'Comprobante adjuntado correctamente.');
     }
 
-    public function downloadReceipt(CurrentBusiness $currentBusiness, Sale $sale): StreamedResponse
+    public function downloadReceipt(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Sale $sale): StreamedResponse
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
         abort_if(! $this->saleReceiptsAvailable(), 404);
         abort_if(! $sale->hasReceipt(), 404);
 
         return $this->saleReceiptService->downloadReceipt($sale);
     }
 
-    public function printIndex(Request $request, CurrentBusiness $currentBusiness): Response
+    public function printIndex(Request $request, CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
 
         $business->load([
             'features' => fn ($query) => $query->where('feature', BusinessFeature::ADVANCED_SALE_SETTINGS),
@@ -415,7 +422,7 @@ class SaleController extends Controller
         $advancedSaleSettingsEnabled = $business->hasAdvancedSaleSettings();
         $filters = $this->saleFilters($request, $advancedSaleSettingsEnabled);
         [, , $summaryMonth] = $this->resolveSummaryMonthRange($filters['month']);
-        $sales = $this->salesListingQuery($business, $filters, $advancedSaleSettingsEnabled)
+        $sales = $this->salesListingQuery($business, $filters, $advancedSaleSettingsEnabled)->where('branch_id', $branch->id)
             ->latest('sold_at')
             ->get()
             ->map(fn (Sale $sale) => $this->mapSaleListItem($sale))
@@ -437,11 +444,12 @@ class SaleController extends Controller
         ]);
     }
 
-    public function printShow(CurrentBusiness $currentBusiness, Sale $sale): Response
+    public function printShow(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Sale $sale): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
         $receiptFeatureAvailable = $this->saleReceiptsAvailable();
 
         $business->load([

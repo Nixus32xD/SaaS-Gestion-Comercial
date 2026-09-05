@@ -38,6 +38,10 @@ class AppServiceProvider extends ServiceProvider
             return $user->isSuperAdmin();
         });
 
+        Gate::before(function (User $user, string $ability): ?bool {
+            return $user->hasPermission($ability) ? true : null;
+        });
+
         Gate::define('business.admin', function (User $user): bool {
             return $user->isBusinessAdmin() && $user->business_id !== null && $user->is_active;
         });

@@ -25,10 +25,11 @@ class PurchaseController extends Controller
         private readonly FiscalVatCalculator $vatCalculator,
     ) {}
 
-    public function index(Request $request, CurrentBusiness $currentBusiness): Response
+    public function index(Request $request, CurrentBusiness $currentBusiness, CurrentBranch $currentBranch): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
 
         $search = trim((string) $request->query('search', ''));
 
@@ -38,6 +39,7 @@ class PurchaseController extends Controller
             ],
             'purchases' => fn () => Purchase::query()
                 ->forBusiness($business->id)
+                ->where('branch_id', $branch->id)
                 ->select([
                     'id',
                     'business_id',
@@ -173,11 +175,12 @@ class PurchaseController extends Controller
             ->with('success', 'Compra registrada correctamente.');
     }
 
-    public function show(CurrentBusiness $currentBusiness, Purchase $purchase): Response
+    public function show(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Purchase $purchase): Response
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($purchase->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($purchase->business_id !== $business->id || $purchase->branch_id !== $branch->id, 403);
 
         $purchase->load(['items.product', 'fiscalItems', 'supplier', 'user']);
 

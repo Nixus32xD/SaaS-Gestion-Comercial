@@ -9,6 +9,7 @@ use App\Models\Sale;
 use App\Services\Payments\MercadoPago\MercadoPagoApiException;
 use App\Services\Payments\MercadoPago\MercadoPagoPaymentCompletionService;
 use App\Services\Payments\MercadoPago\MercadoPagoPointProvider;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,13 +24,15 @@ class MercadoPagoPointController extends Controller
     public function store(
         StoreMercadoPagoPointOrderRequest $request,
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
         Sale $sale
     ): RedirectResponse {
         $business = $currentBusiness->get();
         $user = $request->user();
 
-        abort_if($business === null || $user === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null || $user === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
 
         try {
             $payment = $this->provider->createOrder(
@@ -52,12 +55,13 @@ class MercadoPagoPointController extends Controller
             ->with('payment_id', $payment->id);
     }
 
-    public function show(CurrentBusiness $currentBusiness, Sale $sale, Payment $payment): JsonResponse
+    public function show(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Sale $sale, Payment $payment): JsonResponse
     {
         $business = $currentBusiness->get();
 
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id || $payment->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id || $payment->business_id !== $business->id, 403);
         abort_if($payment->sale_id !== $sale->id, 404);
 
         try {
@@ -91,12 +95,13 @@ class MercadoPagoPointController extends Controller
         ]);
     }
 
-    public function cancel(CurrentBusiness $currentBusiness, Sale $sale, Payment $payment): RedirectResponse
+    public function cancel(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Sale $sale, Payment $payment): RedirectResponse
     {
         $business = $currentBusiness->get();
 
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id || $payment->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id || $payment->business_id !== $business->id, 403);
         abort_if($payment->sale_id !== $sale->id || $payment->provider !== Payment::PROVIDER_MERCADOPAGO, 404);
 
         $wasPending = $payment->status === Payment::STATUS_PENDING;

@@ -175,3 +175,17 @@ npm run test:e2e
 - Timezone por defecto: `America/Argentina/Buenos_Aires`.
 - El driver de cola, sesión y cache por defecto es `database`.
 - Las ventas, compras, productos, clientes y pagos deben operar siempre dentro del contexto del comercio autenticado.
+
+## Autorización por comercio
+
+El acceso operativo se resuelve con permisos y sucursales, no por el texto de
+`users.role`. Cada Business posee roles y cada rol agrupa permisos declarados
+en `config/authorization.php`; una acción requiere ambos, permiso y sucursal
+habilitada. `superadmin` administra la plataforma; `owner_user_id` identifica
+al propietario del Business. Los admins y staff existentes se conservan como
+roles de compatibilidad y los Businesses históricos no reciben un Owner
+inferido por `owner_name`.
+
+Para rutas nuevas usar `permission:modulo.accion`. Vue consume
+`auth.permissions`, `auth.roles` y `branches` sólo para UX; el middleware sigue
+siendo la autorización real.

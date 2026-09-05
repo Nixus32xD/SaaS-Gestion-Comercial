@@ -120,7 +120,7 @@ class InventoryTransferController extends Controller
             ->active()
             ->whereKey($data['to_branch_id'])
             ->first();
-        abort_if($toBranch === null, 403, 'La sucursal de destino no pertenece al comercio actual.');
+        abort_if($toBranch === null || ! $request->user()?->canAccessBranch($toBranch), 403, 'La sucursal destino no está habilitada para tu usuario.');
 
         $product = Product::query()
             ->forBusiness($business->id)

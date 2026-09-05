@@ -149,6 +149,8 @@ class BusinessController extends Controller
                 'email_verified_at' => now(),
             ]);
 
+            $business->update(['owner_user_id' => $adminUser->id]);
+
             return [$business, $adminUser];
         });
 

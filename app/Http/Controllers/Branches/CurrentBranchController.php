@@ -30,7 +30,7 @@ class CurrentBranchController extends Controller
             ->whereKey($validated['branch_id'])
             ->first();
 
-        abort_if($branch === null, 403, 'La sucursal seleccionada no pertenece al comercio actual.');
+        abort_if($branch === null || ! $request->user()?->canAccessBranch($branch), 403, 'La sucursal seleccionada no está habilitada para tu usuario.');
 
         $request->session()->put('branch_id', $branch->id);
         $currentBranch->set($branch);

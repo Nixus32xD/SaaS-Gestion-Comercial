@@ -49,7 +49,12 @@ class StoreBusinessUserRequest extends FormRequest
                 },
             ],
             'password' => ['required', 'confirmed', Password::defaults()],
-            'role' => ['required', Rule::in(['admin', 'staff'])],
+            // Kept temporarily for clients that still post the legacy field.
+            'role' => ['nullable', Rule::in(['admin', 'staff'])],
+            'role_ids' => ['nullable', 'array'],
+            'role_ids.*' => ['integer', 'distinct'],
+            'branch_ids' => ['nullable', 'array'],
+            'branch_ids.*' => ['integer', 'distinct'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

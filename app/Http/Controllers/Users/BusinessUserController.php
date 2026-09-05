@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Users;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Users\StoreBusinessUserRequest;
+use App\Http\Requests\Users\UpdateBusinessUserAccessRequest;
 use App\Http\Requests\Users\UpdateBusinessUserStatusRequest;
 use App\Models\User;
+use App\Services\Authorization\BusinessAuthorizationService;
 use App\Services\UserAccessMailService;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\RedirectResponse;
@@ -15,9 +17,10 @@ use Inertia\Response;
 
 class BusinessUserController extends Controller
 {
-    public function __construct(private readonly UserAccessMailService $userAccessMailService)
-    {
-    }
+    public function __construct(
+        private readonly UserAccessMailService $userAccessMailService,
+        private readonly BusinessAuthorizationService $authorizationService,
+    ) {}
 
     public function index(CurrentBusiness $currentBusiness): Response
     {
@@ -26,7 +29,7 @@ class BusinessUserController extends Controller
 
         $users = User::query()
             ->forBusiness($business->id)
-            ->orderByRaw("case when role = 'admin' then 0 else 1 end")
+            ->with(['roles:id,name,code', 'branches:id,name'])
             ->orderBy('name')
             ->get();
 
@@ -36,10 +39,41 @@ class BusinessUserController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'role' => $user->role,
+                'roles' => $user->roles->map(fn ($role) => ['id' => $role->id, 'name' => $role->name, 'code' => $role->code])->values(),
+                'branch_ids' => $user->branches->pluck('id')->values(),
+                'is_owner' => $user->isOwner(),
                 'is_active' => $user->is_active,
                 'last_login_at' => $user->last_login_at?->format('Y-m-d H:i'),
             ]),
+            'roles' => \App\Models\Role::query()
+                ->forBusiness($business->id)
+                ->with('permissions:id,code,module')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (\App\Models\Role $role) => [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'is_system' => $role->is_system,
+                    'permission_codes' => $role->permissions->pluck('code')->sort()->values(),
+                ])->values(),
+            'branches' => $business->branches()->active()->orderByDesc('is_default')->orderBy('name')->get(['id', 'name']),
+            'permission_groups' => collect(config('authorization.permissions', []))
+                ->groupBy(fn (string $module) => $module)
+                ->map(fn ($permissions) => $permissions->keys()->values())
+                ->all(),
         ]);
+    }
+
+    public function updateAccess(UpdateBusinessUserAccessRequest $request, CurrentBusiness $currentBusiness, User $user): RedirectResponse
+    {
+        $business = $currentBusiness->get();
+        $actor = $request->user();
+        abort_if($business === null || $actor === null || (int) $user->business_id !== (int) $business->id, 403);
+
+        $data = $request->validated();
+        $this->authorizationService->updateUserAccess($actor, $user, $data['role_ids'], $data['branch_ids']);
+
+        return back()->with('success', 'Roles y sucursales actualizados correctamente.');
     }
 
     public function store(StoreBusinessUserRequest $request, CurrentBusiness $currentBusiness): RedirectResponse
@@ -55,10 +89,19 @@ class BusinessUserController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'role' => $data['role'],
+            'role' => $data['role'] ?? 'staff',
             'is_active' => (bool) $data['is_active'],
             'email_verified_at' => now(),
         ]);
+
+        if (array_key_exists('role_ids', $data) || array_key_exists('branch_ids', $data)) {
+            $this->authorizationService->updateUserAccess(
+                $request->user(),
+                $user,
+                $data['role_ids'] ?? [],
+                $data['branch_ids'] ?? [],
+            );
+        }
 
         $this->userAccessMailService->sendBusinessUserCreatedMail($business, $user, $plainPassword);
 

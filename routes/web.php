@@ -69,92 +69,93 @@ Route::middleware(['auth', 'superadmin'])
 Route::middleware(['auth', 'business'])->group(function (): void {
     Route::put('/branches/current', [CurrentBranchController::class, 'update'])->name('branches.current.update');
 
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('permission:dashboard.view')->name('dashboard');
 
-    Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
-    Route::get('/categories/create', [CategoryController::class, 'create'])->name('categories.create');
-    Route::post('/categories', [CategoryController::class, 'store'])->name('categories.store');
-    Route::get('/categories/{category}/edit', [CategoryController::class, 'edit'])->name('categories.edit');
-    Route::put('/categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
+    Route::get('/categories', [CategoryController::class, 'index'])->middleware('permission:categories.view')->name('categories.index');
+    Route::get('/categories/create', [CategoryController::class, 'create'])->middleware('permission:categories.manage')->name('categories.create');
+    Route::post('/categories', [CategoryController::class, 'store'])->middleware('permission:categories.manage')->name('categories.store');
+    Route::get('/categories/{category}/edit', [CategoryController::class, 'edit'])->middleware('permission:categories.manage')->name('categories.edit');
+    Route::put('/categories/{category}', [CategoryController::class, 'update'])->middleware('permission:categories.manage')->name('categories.update');
 
-    Route::get('/products', [ProductController::class, 'index'])->name('products.index');
-    Route::get('/products/create', [ProductController::class, 'create'])->name('products.create');
-    Route::get('/products/catalog/lookup', [ProductController::class, 'lookupCatalog'])->name('products.catalog.lookup');
-    Route::post('/products', [ProductController::class, 'store'])->name('products.store');
-    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
-    Route::get('/products/{product}/inventory-adjustments/create', [InventoryAdjustmentController::class, 'create'])->name('products.inventory-adjustments.create');
-    Route::post('/products/{product}/inventory-adjustments', [InventoryAdjustmentController::class, 'store'])->name('products.inventory-adjustments.store');
-    Route::get('/products/{product}/batch-corrections', [ProductController::class, 'batchCorrections'])->name('products.batch-corrections.index');
-    Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
-    Route::put('/products/{product}/batches/{batch}', [ProductController::class, 'updateBatch'])->name('products.batches.update');
+    Route::get('/products', [ProductController::class, 'index'])->middleware('permission:products.view')->name('products.index');
+    Route::get('/products/create', [ProductController::class, 'create'])->middleware('permission:products.create')->name('products.create');
+    Route::get('/products/catalog/lookup', [ProductController::class, 'lookupCatalog'])->middleware('permission:products.view')->name('products.catalog.lookup');
+    Route::post('/products', [ProductController::class, 'store'])->middleware('permission:products.create')->name('products.store');
+    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->middleware('permission:products.view')->name('products.edit');
+    Route::get('/products/{product}/inventory-adjustments/create', [InventoryAdjustmentController::class, 'create'])->middleware('permission:inventory.adjust')->name('products.inventory-adjustments.create');
+    Route::post('/products/{product}/inventory-adjustments', [InventoryAdjustmentController::class, 'store'])->middleware('permission:inventory.adjust')->name('products.inventory-adjustments.store');
+    Route::get('/products/{product}/batch-corrections', [ProductController::class, 'batchCorrections'])->middleware('permission:products.view')->name('products.batch-corrections.index');
+    Route::put('/products/{product}', [ProductController::class, 'update'])->middleware('permission:products.update')->name('products.update');
+    Route::put('/products/{product}/batches/{batch}', [ProductController::class, 'updateBatch'])->middleware('permission:products.update')->name('products.batches.update');
 
-    Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->name('inventory.transfers.index');
-    Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->name('inventory.transfers.store');
+    Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->middleware('permission:inventory.transfer')->name('inventory.transfers.index');
+    Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->middleware('permission:inventory.transfer')->name('inventory.transfers.store');
 
-    Route::get('/cash-register', [CashRegisterController::class, 'index'])->name('cash-register.index');
-    Route::post('/cash-register/open', [CashRegisterController::class, 'open'])->name('cash-register.open');
-    Route::post('/cash-register/movements', [CashRegisterController::class, 'storeMovement'])->name('cash-register.movements.store');
-    Route::post('/cash-register/close', [CashRegisterController::class, 'close'])->name('cash-register.close');
-    Route::get('/cash-register/sessions/{cashSession}', [CashRegisterController::class, 'show'])->name('cash-register.sessions.show');
+    Route::get('/cash-register', [CashRegisterController::class, 'index'])->middleware('permission:cash_register.view')->name('cash-register.index');
+    Route::post('/cash-register/open', [CashRegisterController::class, 'open'])->middleware('permission:cash_register.open')->name('cash-register.open');
+    Route::post('/cash-register/movements', [CashRegisterController::class, 'storeMovement'])->middleware('permission:cash_register.movements')->name('cash-register.movements.store');
+    Route::post('/cash-register/close', [CashRegisterController::class, 'close'])->middleware('permission:cash_register.close')->name('cash-register.close');
+    Route::get('/cash-register/sessions/{cashSession}', [CashRegisterController::class, 'show'])->middleware('permission:cash_register.view')->name('cash-register.sessions.show');
 
-    Route::get('/suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
-    Route::get('/suppliers/create', [SupplierController::class, 'create'])->name('suppliers.create');
-    Route::post('/suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
-    Route::get('/suppliers/{supplier}/edit', [SupplierController::class, 'edit'])->name('suppliers.edit');
-    Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
+    Route::get('/suppliers', [SupplierController::class, 'index'])->middleware('permission:suppliers.view')->name('suppliers.index');
+    Route::get('/suppliers/create', [SupplierController::class, 'create'])->middleware('permission:suppliers.manage')->name('suppliers.create');
+    Route::post('/suppliers', [SupplierController::class, 'store'])->middleware('permission:suppliers.manage')->name('suppliers.store');
+    Route::get('/suppliers/{supplier}/edit', [SupplierController::class, 'edit'])->middleware('permission:suppliers.manage')->name('suppliers.edit');
+    Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->middleware('permission:suppliers.manage')->name('suppliers.update');
 
-    Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
-    Route::get('/customers/debtors', [CustomerController::class, 'debtors'])->name('customers.debtors');
-    Route::get('/customers/create', [CustomerController::class, 'create'])->name('customers.create');
-    Route::post('/customers', [CustomerController::class, 'store'])->name('customers.store');
-    Route::get('/customers/{customer}', [CustomerController::class, 'show'])->name('customers.show');
-    Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->name('customers.edit');
-    Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
-    Route::post('/customers/{customer}/payments', [CustomerAccountController::class, 'storePayment'])->name('customers.payments.store');
-    Route::get('/customers/{customer}/reminders/whatsapp', [CustomerAccountController::class, 'launchWhatsappReminder'])->name('customers.reminders.whatsapp');
-    Route::post('/customers/{customer}/reminders/email', [CustomerAccountController::class, 'sendEmailReminder'])->name('customers.reminders.email');
-    Route::get('/customer-accounts', [CustomerAccountController::class, 'index'])->name('customer-accounts.index');
-    Route::get('/customer-accounts/{customer}', [CustomerAccountController::class, 'show'])->name('customer-accounts.show');
+    Route::get('/customers', [CustomerController::class, 'index'])->middleware('permission:customers.view')->name('customers.index');
+    Route::get('/customers/debtors', [CustomerController::class, 'debtors'])->middleware('permission:accounts_receivable.view')->name('customers.debtors');
+    Route::get('/customers/create', [CustomerController::class, 'create'])->middleware('permission:customers.manage')->name('customers.create');
+    Route::post('/customers', [CustomerController::class, 'store'])->middleware('permission:customers.manage')->name('customers.store');
+    Route::get('/customers/{customer}', [CustomerController::class, 'show'])->middleware('permission:customers.view')->name('customers.show');
+    Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->middleware('permission:customers.manage')->name('customers.edit');
+    Route::put('/customers/{customer}', [CustomerController::class, 'update'])->middleware('permission:customers.manage')->name('customers.update');
+    Route::post('/customers/{customer}/payments', [CustomerAccountController::class, 'storePayment'])->middleware('permission:accounts_receivable.collect')->name('customers.payments.store');
+    Route::get('/customers/{customer}/reminders/whatsapp', [CustomerAccountController::class, 'launchWhatsappReminder'])->middleware('permission:customers.remind')->name('customers.reminders.whatsapp');
+    Route::post('/customers/{customer}/reminders/email', [CustomerAccountController::class, 'sendEmailReminder'])->middleware('permission:customers.remind')->name('customers.reminders.email');
+    Route::get('/customer-accounts', [CustomerAccountController::class, 'index'])->middleware('permission:accounts_receivable.view')->name('customer-accounts.index');
+    Route::get('/customer-accounts/{customer}', [CustomerAccountController::class, 'show'])->middleware('permission:accounts_receivable.view')->name('customer-accounts.show');
 
-    Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
-    Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
-    Route::get('/sales/products/search', [SaleController::class, 'searchProducts'])->name('sales.products.search');
-    Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
-    Route::get('/sales/print', [SaleController::class, 'printIndex'])->name('sales.print.index');
-    Route::get('/sales/{sale}/print', [SaleController::class, 'printShow'])->name('sales.print.show');
-    Route::post('/sales/{sale}/receipt', [SaleController::class, 'storeReceipt'])->name('sales.receipt.store');
-    Route::get('/sales/{sale}/receipt', [SaleController::class, 'downloadReceipt'])->name('sales.receipt.download');
-    Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
-    Route::post('/sales/{sale}/payments/mercadopago-point', [MercadoPagoPointController::class, 'store'])->name('sales.payments.mercadopago-point.store');
-    Route::get('/sales/{sale}/payments/{payment}/mercadopago-point', [MercadoPagoPointController::class, 'show'])->name('sales.payments.mercadopago-point.show');
-    Route::post('/sales/{sale}/payments/{payment}/mercadopago-point/cancel', [MercadoPagoPointController::class, 'cancel'])->name('sales.payments.mercadopago-point.cancel');
-    Route::post('/sales/{sale}/fiscal-documents', [SaleFiscalDocumentController::class, 'store'])->name('sales.fiscal-documents.store');
-    Route::get('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/pdf', [SaleFiscalDocumentController::class, 'downloadPdf'])->name('sales.fiscal-documents.pdf');
-    Route::post('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/reconcile', [SaleFiscalDocumentController::class, 'reconcile'])->name('sales.fiscal-documents.reconcile');
+    Route::get('/sales', [SaleController::class, 'index'])->middleware('permission:sales.view')->name('sales.index');
+    Route::get('/sales/create', [SaleController::class, 'create'])->middleware('permission:sales.create')->name('sales.create');
+    Route::get('/sales/products/search', [SaleController::class, 'searchProducts'])->middleware('permission:sales.create')->name('sales.products.search');
+    Route::post('/sales', [SaleController::class, 'store'])->middleware('permission:sales.create')->name('sales.store');
+    Route::get('/sales/print', [SaleController::class, 'printIndex'])->middleware('permission:sales.view')->name('sales.print.index');
+    Route::get('/sales/{sale}/print', [SaleController::class, 'printShow'])->middleware('permission:sales.view')->name('sales.print.show');
+    Route::post('/sales/{sale}/receipt', [SaleController::class, 'storeReceipt'])->middleware('permission:sales.receipts.manage')->name('sales.receipt.store');
+    Route::get('/sales/{sale}/receipt', [SaleController::class, 'downloadReceipt'])->middleware('permission:sales.view')->name('sales.receipt.download');
+    Route::get('/sales/{sale}', [SaleController::class, 'show'])->middleware('permission:sales.view')->name('sales.show');
+    Route::post('/sales/{sale}/payments/mercadopago-point', [MercadoPagoPointController::class, 'store'])->middleware('permission:mercadopago.point.use')->name('sales.payments.mercadopago-point.store');
+    Route::get('/sales/{sale}/payments/{payment}/mercadopago-point', [MercadoPagoPointController::class, 'show'])->middleware('permission:mercadopago.payments.view')->name('sales.payments.mercadopago-point.show');
+    Route::post('/sales/{sale}/payments/{payment}/mercadopago-point/cancel', [MercadoPagoPointController::class, 'cancel'])->middleware('permission:mercadopago.point.use')->name('sales.payments.mercadopago-point.cancel');
+    Route::post('/sales/{sale}/fiscal-documents', [SaleFiscalDocumentController::class, 'store'])->middleware('permission:fiscal.issue')->name('sales.fiscal-documents.store');
+    Route::get('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/pdf', [SaleFiscalDocumentController::class, 'downloadPdf'])->middleware('permission:fiscal.view')->name('sales.fiscal-documents.pdf');
+    Route::post('/sales/{sale}/fiscal-documents/{saleFiscalDocument}/reconcile', [SaleFiscalDocumentController::class, 'reconcile'])->middleware('permission:fiscal.reconcile')->name('sales.fiscal-documents.reconcile');
 
-    Route::get('/purchases', [PurchaseController::class, 'index'])->name('purchases.index');
-    Route::get('/purchases/create', [PurchaseController::class, 'create'])->name('purchases.create');
-    Route::post('/purchases', [PurchaseController::class, 'store'])->name('purchases.store');
-    Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
+    Route::get('/purchases', [PurchaseController::class, 'index'])->middleware('permission:purchases.view')->name('purchases.index');
+    Route::get('/purchases/create', [PurchaseController::class, 'create'])->middleware('permission:purchases.create')->name('purchases.create');
+    Route::post('/purchases', [PurchaseController::class, 'store'])->middleware('permission:purchases.create')->name('purchases.store');
+    Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->middleware('permission:purchases.view')->name('purchases.show');
 
-    Route::get('/electronic-billing', [ElectronicBillingController::class, 'index'])->name('electronic-billing.index');
-    Route::get('/fiscal/iva', [FiscalMonthlyReportController::class, 'index'])->name('fiscal.vat-dashboard');
+    Route::get('/electronic-billing', [ElectronicBillingController::class, 'index'])->middleware('permission:fiscal.view')->name('electronic-billing.index');
+    Route::get('/fiscal/iva', [FiscalMonthlyReportController::class, 'index'])->middleware('permission:fiscal.reports')->name('fiscal.vat-dashboard');
 });
 
-Route::middleware(['auth', 'business', 'business.admin'])->group(function (): void {
-    Route::post('/electronic-billing/credentials/csr', [FiscalCredentialProxyController::class, 'generateCsr'])->name('electronic-billing.credentials.csr');
-    Route::post('/electronic-billing/credentials/certificate', [FiscalCredentialProxyController::class, 'storeCertificate'])->name('electronic-billing.credentials.certificate.store');
-    Route::post('/sales/quick-options', [QuickSaleOptionController::class, 'store'])->name('sales.quick-options.store');
-    Route::delete('/sales/quick-options/{quickSaleOption}', [QuickSaleOptionController::class, 'destroy'])->name('sales.quick-options.destroy');
-    Route::get('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'edit'])->name('mercadopago-settings.edit');
-    Route::put('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'update'])->name('mercadopago-settings.update');
-    Route::put('/integrations/mercadopago/point-branch', [MercadoPagoSettingsController::class, 'updateBranchPoint'])->name('mercadopago-settings.branch-point.update');
+Route::middleware(['auth', 'business'])->group(function (): void {
+    Route::post('/electronic-billing/credentials/csr', [FiscalCredentialProxyController::class, 'generateCsr'])->middleware('permission:fiscal.credentials.manage')->name('electronic-billing.credentials.csr');
+    Route::post('/electronic-billing/credentials/certificate', [FiscalCredentialProxyController::class, 'storeCertificate'])->middleware('permission:fiscal.credentials.manage')->name('electronic-billing.credentials.certificate.store');
+    Route::post('/sales/quick-options', [QuickSaleOptionController::class, 'store'])->middleware('permission:sales.settings.manage')->name('sales.quick-options.store');
+    Route::delete('/sales/quick-options/{quickSaleOption}', [QuickSaleOptionController::class, 'destroy'])->middleware('permission:sales.settings.manage')->name('sales.quick-options.destroy');
+    Route::get('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'edit'])->middleware('permission:mercadopago.settings.view')->name('mercadopago-settings.edit');
+    Route::put('/integrations/mercadopago', [MercadoPagoSettingsController::class, 'update'])->middleware('permission:mercadopago.settings.manage')->name('mercadopago-settings.update');
+    Route::put('/integrations/mercadopago/point-branch', [MercadoPagoSettingsController::class, 'updateBranchPoint'])->middleware('permission:mercadopago.settings.manage')->name('mercadopago-settings.branch-point.update');
 
-    Route::get('/users', [BusinessUserController::class, 'index'])->name('users.index');
-    Route::post('/users', [BusinessUserController::class, 'store'])->name('users.store');
-    Route::patch('/users/{user}/status', [BusinessUserController::class, 'updateStatus'])->name('users.status');
-    Route::get('/notifications', [NotificationSettingsController::class, 'edit'])->name('notifications.edit');
-    Route::put('/notifications', [NotificationSettingsController::class, 'update'])->name('notifications.update');
+    Route::get('/users', [BusinessUserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
+    Route::post('/users', [BusinessUserController::class, 'store'])->middleware('permission:users.manage')->name('users.store');
+    Route::put('/users/{user}/access', [BusinessUserController::class, 'updateAccess'])->middleware('permission:users.manage')->name('users.access.update');
+    Route::patch('/users/{user}/status', [BusinessUserController::class, 'updateStatus'])->middleware('permission:users.manage')->name('users.status');
+    Route::get('/notifications', [NotificationSettingsController::class, 'edit'])->middleware('permission:notifications.manage')->name('notifications.edit');
+    Route::put('/notifications', [NotificationSettingsController::class, 'update'])->middleware('permission:notifications.manage')->name('notifications.update');
 });
 
 Route::middleware('auth')->group(function () {

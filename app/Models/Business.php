@@ -4,9 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 
 class Business extends Model
 {
@@ -20,6 +22,7 @@ class Business extends Model
         'name',
         'slug',
         'owner_name',
+        'owner_user_id',
         'email',
         'phone',
         'address',
@@ -130,6 +133,10 @@ class Business extends Model
                     ],
                 );
             }
+
+            if (Schema::hasTable('roles')) {
+                app(\App\Services\Authorization\BusinessAuthorizationService::class)->provision($business);
+            }
         });
     }
 
@@ -155,6 +162,12 @@ class Business extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_user_id');
     }
 
     /**

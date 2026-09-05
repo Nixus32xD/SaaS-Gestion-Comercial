@@ -4,7 +4,7 @@ namespace App\Support;
 
 use App\Models\Branch;
 use App\Models\Business;
-use LogicException;
+use App\Models\User;
 
 class CurrentBranch
 {
@@ -20,24 +20,20 @@ class CurrentBranch
         return $this->branch;
     }
 
-    public function resolve(Business $business, ?int $selectedBranchId = null): Branch
+    public function resolve(Business $business, ?int $selectedBranchId = null, ?User $user = null): Branch
     {
-        $branch = $selectedBranchId === null
-            ? null
-            : Branch::query()
-                ->forBusiness($business->id)
-                ->active()
-                ->whereKey($selectedBranchId)
-                ->first();
+        $branches = Branch::query()->forBusiness($business->id)->active();
+        if ($user !== null && ! $user->isOwner()) {
+            $branches->whereIn('id', $user->branches()->select('branches.id'));
+        }
 
-        $branch ??= Branch::query()
-            ->forBusiness($business->id)
-            ->active()
-            ->where('is_default', true)
-            ->first();
+        $branch = $selectedBranchId === null ? null : (clone $branches)->whereKey($selectedBranchId)->first();
+
+        $branch ??= (clone $branches)->where('is_default', true)->first();
+        $branch ??= (clone $branches)->orderBy('name')->first();
 
         if ($branch === null) {
-            throw new LogicException("El comercio {$business->id} no tiene una sucursal principal activa.");
+            abort(403, "No tenés una sucursal activa habilitada en el comercio {$business->id}.");
         }
 
         $this->set($branch);

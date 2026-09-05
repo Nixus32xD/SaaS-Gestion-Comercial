@@ -352,6 +352,6 @@ Toda funcionalidad crítica nueva debe incluir tests para:
 
 # Próximo objetivo
 
-Consolidar la operación existente: permisos finos por sucursal, cobertura de
-casos críticos y, sólo si el proceso operativo lo requiere, un circuito de
-transferencias con recepción diferida.
+Completar la asignación manual de `owner_user_id` para Businesses históricos y
+agregar pruebas de regresión RBAC cuando se repare la cadena de migraciones de
+testing que actualmente duplica `sale_fiscal_documents`.

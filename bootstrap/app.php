@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'business' => \App\Http\Middleware\EnsureBusinessContext::class,
             'business.admin' => \App\Http\Middleware\EnsureBusinessAdmin::class,
+            'permission' => \App\Http\Middleware\EnsurePermission::class,
             'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,
         ]);
     })

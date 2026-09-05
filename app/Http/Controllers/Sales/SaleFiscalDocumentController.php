@@ -10,6 +10,7 @@ use App\Services\Fiscal\FiscalApiTimeoutException;
 use App\Services\Fiscal\FiscalPdfService;
 use App\Services\Fiscal\FiscalSaleDocumentService;
 use App\Services\Fiscal\FiscalSalePayloadBuilder;
+use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
@@ -23,11 +24,12 @@ class SaleFiscalDocumentController extends Controller
         private readonly FiscalSalePayloadBuilder $fiscalPayloadBuilder,
     ) {}
 
-    public function store(CurrentBusiness $currentBusiness, Sale $sale): RedirectResponse
+    public function store(CurrentBusiness $currentBusiness, CurrentBranch $currentBranch, Sale $sale): RedirectResponse
     {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
         abort_unless((bool) config('fiscal.enabled') && $this->fiscalPayloadBuilder->isEnabledForSale($sale), 403);
 
         $document = $this->fiscalSaleDocumentService->issue($sale);
@@ -37,12 +39,14 @@ class SaleFiscalDocumentController extends Controller
 
     public function reconcile(
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
         Sale $sale,
         SaleFiscalDocument $saleFiscalDocument
     ): RedirectResponse {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
         abort_if($saleFiscalDocument->business_id !== $business->id, 403);
         abort_if($saleFiscalDocument->sale_id !== $sale->id, 403);
         abort_unless((bool) config('fiscal.enabled') && $this->fiscalPayloadBuilder->isEnabledForSale($sale), 403);
@@ -54,12 +58,14 @@ class SaleFiscalDocumentController extends Controller
 
     public function downloadPdf(
         CurrentBusiness $currentBusiness,
+        CurrentBranch $currentBranch,
         Sale $sale,
         SaleFiscalDocument $saleFiscalDocument
     ): Response {
         $business = $currentBusiness->get();
-        abort_if($business === null, 404);
-        abort_if($sale->business_id !== $business->id, 403);
+        $branch = $currentBranch->get();
+        abort_if($business === null || $branch === null, 404);
+        abort_if($sale->business_id !== $business->id || $sale->branch_id !== $branch->id, 403);
         abort_if($saleFiscalDocument->business_id !== $business->id, 403);
         abort_if($saleFiscalDocument->sale_id !== $sale->id, 403);
         abort_unless((bool) config('fiscal.enabled') && $business->hasElectronicBilling(), 403);

@@ -49,7 +49,8 @@ class EnsureBusinessContext
 
         $branch = app(CurrentBranch::class)->resolve(
             $business,
-            $request->session()->get('branch_id')
+            $request->session()->get('branch_id'),
+            $user,
         );
         $request->session()->put('branch_id', $branch->id);
 
