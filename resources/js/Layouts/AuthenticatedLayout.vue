@@ -9,7 +9,17 @@ const sidebarOpen = ref(false);
 const sidebar = ref(null);
 const menuButton = ref(null);
 let bodyOverflow = '';
+let documentOverflow = '';
 const page = usePage();
+
+const drawerFocusableSelector = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+].join(', ');
 
 const isSuperAdmin = computed(() => Boolean(page.props.auth?.is_super_admin));
 const canManageUsers = computed(() => page.props.auth?.role === 'admin');
@@ -88,23 +98,56 @@ const handleEscape = (event) => {
     }
 };
 
+const handleFocusTrap = (event) => {
+    if (!sidebarOpen.value || event.key !== 'Tab') return;
+
+    const focusable = Array.from(sidebar.value?.querySelectorAll(drawerFocusableSelector) ?? [])
+        .filter((element) => element.getClientRects().length > 0);
+
+    if (!focusable.length) {
+        event.preventDefault();
+        sidebar.value?.focus();
+        return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+};
+
 watch(sidebarOpen, async (isOpen) => {
     if (isOpen) {
         bodyOverflow = document.body.style.overflow;
+        documentOverflow = document.documentElement.style.overflow;
         document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
         await nextTick();
         sidebar.value?.focus();
         return;
     }
 
     document.body.style.overflow = bodyOverflow;
+    document.documentElement.style.overflow = documentOverflow;
+    await nextTick();
     menuButton.value?.focus();
 });
 
-onMounted(() => window.addEventListener('keydown', handleEscape));
+onMounted(() => {
+    window.addEventListener('keydown', handleEscape);
+    window.addEventListener('keydown', handleFocusTrap);
+});
 onBeforeUnmount(() => {
     window.removeEventListener('keydown', handleEscape);
+    window.removeEventListener('keydown', handleFocusTrap);
     document.body.style.overflow = bodyOverflow;
+    document.documentElement.style.overflow = documentOverflow;
 });
 
 const changeBranch = (event) => {
@@ -118,7 +161,7 @@ const changeBranch = (event) => {
 
 <template>
     <div
-        class="app-shell min-h-screen text-slate-100"
+        class="app-shell min-h-screen overflow-x-clip text-slate-100"
         style="background:
             radial-gradient(circle at 85% 15%, rgba(56, 189, 248, 0.24), transparent 40%),
             radial-gradient(circle at 10% 70%, rgba(15, 23, 42, 0.45), transparent 38%),
@@ -200,7 +243,7 @@ const changeBranch = (event) => {
             </div>
         </aside>
 
-        <div class="2xl:pl-72">
+        <div class="min-w-0 2xl:pl-72" :inert="sidebarOpen || null" :aria-hidden="sidebarOpen ? 'true' : null">
             <header class="sticky top-0 z-20 border-b border-cyan-100/15 bg-slate-950/45 backdrop-blur-xl">
                 <div class="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
                     <button
@@ -209,7 +252,7 @@ const changeBranch = (event) => {
                         :aria-label="sidebarOpen ? 'Cerrar navegación' : 'Abrir navegación'"
                         aria-controls="main-navigation"
                         :aria-expanded="sidebarOpen"
-                        class="inline-flex items-center justify-center rounded-lg border border-cyan-100/20 bg-slate-900/60 p-2 text-cyan-100 shadow-sm 2xl:hidden"
+                        class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-cyan-100/20 bg-slate-900/60 p-2 text-cyan-100 shadow-sm 2xl:hidden"
                         @click="toggleSidebar"
                     >
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">

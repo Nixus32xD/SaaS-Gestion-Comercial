@@ -453,6 +453,17 @@ const sectionNavigation = [
     { id: 'cobros', label: 'Registrar pago' },
     { id: 'historial-pagos', label: 'Historial' },
 ];
+const activeMobileSection = ref('datos-generales');
+
+const isMobileViewport = () => window.matchMedia('(max-width: 767px)').matches;
+
+const closeOtherMobileSections = (selectedId) => {
+    if (!isMobileViewport()) return;
+
+    document.querySelectorAll('[data-admin-section]').forEach((section) => {
+        if (section.id !== selectedId) section.open = false;
+    });
+};
 
 const openSection = (sectionId) => {
     const section = document.getElementById(sectionId);
@@ -460,10 +471,20 @@ const openSection = (sectionId) => {
     if (!section) return;
 
     if (section.tagName === 'DETAILS') {
+        closeOtherMobileSections(sectionId);
         section.open = true;
     }
 
+    activeMobileSection.value = sectionId;
+
     requestAnimationFrame(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+};
+
+const handleSectionToggle = (event) => {
+    if (!event.target.open) return;
+
+    activeMobileSection.value = event.target.id;
+    closeOtherMobileSections(event.target.id);
 };
 </script>
 
@@ -472,21 +493,25 @@ const openSection = (sectionId) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Editar comercio</h2>
                     <p class="mt-1 text-sm text-slate-300/80">Actualiza datos generales, abonos y configuraciones del negocio.</p>
                 </div>
                 <Link
                     :href="route('admin.businesses.index')"
-                    class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                    class="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70 sm:w-auto"
                 >
                     Volver
                 </Link>
             </div>
         </template>
 
-        <nav aria-label="Secciones de edición" class="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-3 shadow-sm backdrop-blur">
+        <div class="mb-6 md:hidden">
+            <label for="admin-section-selector" class="mb-1 block text-sm font-medium text-slate-300">Sección administrativa</label>
+            <select id="admin-section-selector" v-model="activeMobileSection" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100" @change="openSection(activeMobileSection)"><option v-for="section in sectionNavigation" :key="section.id" :value="section.id">{{ section.label }}</option></select>
+        </div>
+        <nav aria-label="Secciones de edición" class="mb-6 hidden gap-2 overflow-x-auto rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-3 shadow-sm backdrop-blur md:flex">
             <button
                 v-for="section in sectionNavigation"
                 :key="section.id"
@@ -499,7 +524,7 @@ const openSection = (sectionId) => {
         </nav>
 
         <div class="grid gap-6">
-            <details id="resumen-comercial" class="order-2 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <details id="resumen-comercial" data-admin-section class="order-2 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @toggle="handleSectionToggle">
                 <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -566,7 +591,7 @@ const openSection = (sectionId) => {
                 </section>
             </details>
 
-            <details id="abonos" class="order-3 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <details id="abonos" data-admin-section class="order-3 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @toggle="handleSectionToggle">
                 <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -655,7 +680,7 @@ const openSection = (sectionId) => {
                 </form>
             </details>
 
-            <details id="datos-generales" open class="order-1 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <details id="datos-generales" data-admin-section open class="order-1 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @toggle="handleSectionToggle">
                 <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <div class="flex items-start justify-between gap-3">
                     <div>
@@ -712,7 +737,7 @@ const openSection = (sectionId) => {
                 </form>
             </details>
 
-            <details id="cobros" class="order-6 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <details id="cobros" data-admin-section class="order-6 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @toggle="handleSectionToggle">
                 <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -776,7 +801,7 @@ const openSection = (sectionId) => {
                 </form>
             </details>
 
-            <details id="historial-pagos" class="order-7 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <details id="historial-pagos" data-admin-section class="order-7 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @toggle="handleSectionToggle">
                 <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <div class="flex items-center justify-between gap-3">
                         <div>
@@ -787,7 +812,8 @@ const openSection = (sectionId) => {
                     </div>
                 </summary>
 
-                <div class="mt-5 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap border-t border-cyan-100/15 pt-5">
+                <div class="mt-5 grid gap-3 border-t border-cyan-100/15 pt-5 md:hidden"><article v-for="payment in billing.payment_history" :key="payment.id" class="rounded-xl border border-cyan-100/20 bg-slate-950/30 p-4"><div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-100">{{ payment.type_label }}</p><p class="mt-1 text-xs text-slate-400">{{ payment.paid_at_label }} · {{ payment.recorded_by || '—' }}</p></div><p class="shrink-0 font-bold text-cyan-100">{{ payment.amount_label }}</p></div><dl class="mt-3 grid gap-2 text-sm"><div><dt class="text-xs text-slate-400">Plan</dt><dd>{{ payment.plan_title || '—' }}</dd></div><div><dt class="text-xs text-slate-400">Cubre hasta</dt><dd>{{ payment.coverage_ends_at_label || '—' }}</dd></div><div v-if="payment.notes"><dt class="text-xs text-slate-400">Notas</dt><dd class="break-words">{{ payment.notes }}</dd></div></dl></article><p v-if="!billing.payment_history?.length" class="rounded-xl border border-dashed border-cyan-100/20 p-4 text-center text-sm text-slate-400">Todavía no hay pagos registrados para este comercio.</p></div>
+                <div class="mt-5 hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap border-t border-cyan-100/15 pt-5 md:block">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-950/35">
                             <tr>
@@ -820,7 +846,7 @@ const openSection = (sectionId) => {
                 </div>
             </details>
 
-            <details id="configuracion-operativa" class="order-4 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <details id="configuracion-operativa" data-admin-section class="order-4 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @toggle="handleSectionToggle">
                 <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -1198,7 +1224,7 @@ const openSection = (sectionId) => {
                 </form>
             </details>
 
-            <details id="sucursales" class="order-5 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
+            <details id="sucursales" data-admin-section class="order-5 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur" @toggle="handleSectionToggle">
                 <summary class="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -1273,7 +1299,8 @@ const openSection = (sectionId) => {
                     </div>
                 </form>
 
-                <div class="mt-5 overflow-x-auto rounded-xl border border-cyan-100/15">
+                <div class="mt-5 grid gap-3 md:hidden"><article v-for="branch in branches" :key="branch.id" class="rounded-xl border border-cyan-100/15 bg-slate-950/30 p-4"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="break-words font-semibold text-slate-100">{{ branch.name }} <span v-if="branch.is_default" class="ml-1 rounded-full bg-cyan-300/15 px-2 py-0.5 text-xs text-cyan-100">Principal</span></p><p class="mt-1 break-words text-xs text-slate-400">{{ branch.code }}{{ branch.address ? ` · ${branch.address}` : '' }}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold" :class="branch.is_active ? 'bg-emerald-400/15 text-emerald-100' : 'bg-slate-400/15 text-slate-300'">{{ branch.is_active ? 'Activa' : 'Inactiva' }}</span></div><p class="mt-3 break-words text-xs text-slate-300">{{ branch.phone || 'Sin teléfono' }}<span v-if="branch.email"> · {{ branch.email }}</span></p><div class="mt-4 grid grid-cols-3 gap-2"><button type="button" class="min-h-11 rounded-lg border border-emerald-100/30 px-2 text-xs font-semibold text-emerald-100" @click="configureBranchCommercial(branch)">Ventas</button><button type="button" class="min-h-11 rounded-lg border border-amber-100/30 px-2 text-xs font-semibold text-amber-100" @click="configureBranchFiscal(branch)">ARCA</button><button type="button" class="min-h-11 rounded-lg border border-cyan-100/25 px-2 text-xs font-semibold text-slate-200" @click="startBranchEdition(branch)">Editar</button></div></article><p v-if="!branches.length" class="rounded-xl border border-dashed border-cyan-100/20 p-4 text-center text-sm text-slate-400">Este comercio todavía no tiene sucursales.</p></div>
+                <div class="mt-5 hidden overflow-x-auto rounded-xl border border-cyan-100/15 md:block">
                     <table class="min-w-full divide-y divide-cyan-100/15 text-left text-sm">
                         <thead class="bg-slate-950/35 text-xs uppercase tracking-wider text-slate-400">
                             <tr>

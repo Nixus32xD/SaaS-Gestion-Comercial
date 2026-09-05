@@ -82,7 +82,7 @@ const statusBadgeClass = (tone) => {
                 </div>
                 <Link
                     :href="route('admin.businesses.create')"
-                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                    class="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 sm:w-auto"
                 >
                     Nuevo comercio
                 </Link>
@@ -107,13 +107,13 @@ const statusBadgeClass = (tone) => {
                     <input
                         v-model="search"
                         type="text"
-                        class="rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400"
+                        class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400"
                         placeholder="Buscar por nombre, slug, email o plan"
                         @keydown.enter.prevent="submitSearch"
                     >
                     <button
                         type="button"
-                        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                        class="min-h-11 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
                         @click="submitSearch"
                     >
                         Buscar
@@ -121,7 +121,7 @@ const statusBadgeClass = (tone) => {
                     <button
                         v-if="search"
                         type="button"
-                        class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                        class="min-h-11 rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
                         @click="clearSearch"
                     >
                         Limpiar
@@ -129,7 +129,15 @@ const statusBadgeClass = (tone) => {
                 </div>
             </div>
 
-            <div class="mt-4 overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap">
+            <div class="mt-4 grid gap-3 md:hidden">
+                <article v-for="business in businessRows" :key="business.id" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4">
+                    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="break-words font-semibold text-slate-100">{{ business.name }}</p><p class="mt-1 break-all text-xs text-slate-400">{{ business.slug }} · {{ business.email || 'sin email' }}</p></div><span class="shrink-0 rounded-full px-2 py-1 text-xs font-semibold" :class="business.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">{{ business.is_active ? 'Activo' : 'Inactivo' }}</span></div>
+                    <dl class="mt-4 grid grid-cols-2 gap-3 text-sm"><div class="col-span-2"><dt class="text-xs text-slate-400">Admin inicial</dt><dd class="break-words font-medium text-slate-200">{{ business.admin_user?.name || '—' }}<span v-if="business.admin_user?.email" class="block text-xs font-normal text-slate-400">{{ business.admin_user.email }}</span></dd></div><div><dt class="text-xs text-slate-400">Abono</dt><dd class="font-medium text-slate-200">{{ business.billing?.maintenance?.plan_title || 'Sin plan' }}</dd><dd class="mt-1"><span class="rounded-full px-2 py-1 text-xs font-semibold" :class="statusBadgeClass(business.billing?.maintenance?.tone)">{{ business.billing?.maintenance?.status_label || 'Sin configurar' }}</span></dd></div><div><dt class="text-xs text-slate-400">Ventas avanzadas</dt><dd class="font-medium text-slate-200">{{ business.advanced_sale_settings_enabled ? 'Habilitada' : 'No habilitada' }}</dd><dd class="mt-1 text-xs text-slate-400">Sectores {{ business.active_sale_sectors_count }} · Destinos {{ business.active_payment_destinations_count }}</dd></div><div><dt class="text-xs text-slate-400">Productos</dt><dd class="font-semibold text-slate-100">{{ business.products_count }}</dd></div><div><dt class="text-xs text-slate-400">Proveedores</dt><dd class="font-semibold text-slate-100">{{ business.suppliers_count }}</dd></div></dl>
+                    <div class="mt-4 grid grid-cols-2 gap-2"><Link :href="route('admin.businesses.edit', business.id)" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-cyan-100/25 px-3 text-sm font-semibold text-cyan-100">Editar</Link><button type="button" class="min-h-11 rounded-lg border border-rose-200/35 px-3 text-sm font-semibold text-rose-100" @click="archiveBusiness(business)">Archivar</button></div>
+                </article>
+                <p v-if="businessRows.length === 0" class="rounded-xl border border-dashed border-cyan-100/20 p-4 text-center text-sm text-slate-400">No se encontraron comercios.</p>
+            </div>
+            <div class="mt-4 hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-950/35">
                         <tr>

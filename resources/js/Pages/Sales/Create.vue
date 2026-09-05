@@ -931,7 +931,7 @@ onBeforeUnmount(() => {
             </div>
         </template>
 
-        <form class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]" @submit.prevent>
+        <form class="grid items-start gap-5 pb-24 xl:grid-cols-[minmax(0,1fr)_24rem] xl:pb-0" @submit.prevent>
             <div class="grid self-start gap-6">
             <AppPanel title="Venta" subtitle="" padding="sm">
                 <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_8rem_9rem]">
@@ -959,6 +959,7 @@ onBeforeUnmount(() => {
                             ref="quantityInput"
                             v-model.number="state.quantity"
                             type="number"
+                            inputmode="decimal"
                             :min="activeProductMeta.quantityMin"
                             :step="activeProductMeta.quantityStep"
                             class="h-11 w-full rounded-xl border-cyan-100/25 text-base"
@@ -990,7 +991,7 @@ onBeforeUnmount(() => {
                         <li v-for="(product, index) in filteredProducts" :key="product.id">
                             <button
                                 type="button"
-                                class="flex w-full flex-col items-start gap-1 px-3 py-2 text-left hover:bg-slate-800/70 sm:flex-row sm:items-center sm:justify-between"
+                                class="flex min-h-11 w-full flex-col items-start gap-1 px-3 py-2 text-left hover:bg-slate-800/70 sm:flex-row sm:items-center sm:justify-between"
                                 :class="product.id === state.activeProductId || index === state.highlightedIndex ? 'bg-cyan-400/15' : ''"
                                 role="option"
                                 :aria-selected="product.id === state.activeProductId || index === state.highlightedIndex ? 'true' : 'false'"
@@ -1020,7 +1021,7 @@ onBeforeUnmount(() => {
                                 v-for="option in quickSaleOptions"
                                 :key="option.key || option.id || option.name"
                                 type="button"
-                                class="inline-flex items-center gap-2 rounded-lg border border-amber-100/25 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-200/10"
+                                class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-100/25 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-200/10"
                                 :title="option.description || option.name"
                                 @click="applyManualPreset(option)"
                             >
@@ -1499,9 +1500,9 @@ onBeforeUnmount(() => {
                         <p v-else-if="isPendingSale" class="mt-2 text-amber-100">Se genera deuda por {{ money(total) }}.</p>
                     </div>
                 </div>
-                <div class="mt-4 flex justify-end xl:hidden">
-                    <button type="button" class="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-50 sm:w-auto" :disabled="!canSubmit" @click="submitIfReady">
-                        {{ submitButtonLabel }}
+                <div class="app-mobile-sticky-action fixed inset-x-0 bottom-0 z-20 border-t border-cyan-100/20 bg-slate-950/95 px-4 pt-3 shadow-[0_-10px_30px_rgba(2,6,23,0.45)] backdrop-blur xl:hidden">
+                    <button type="button" class="min-h-11 w-full rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50" :disabled="!canSubmit" @click="submitIfReady">
+                        {{ submitButtonLabel }} · {{ money(total) }}
                     </button>
                 </div>
                 </div>

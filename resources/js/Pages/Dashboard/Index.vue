@@ -421,7 +421,7 @@ const priorityCards = computed(() => ([
         </template>
 
         <div class="min-w-0 grid gap-6">
-            <AppPanel padding="sm">
+            <AppPanel class="order-2" padding="sm">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
                         <p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Periodo</p>
@@ -445,7 +445,7 @@ const priorityCards = computed(() => ([
                 </div>
             </AppPanel>
 
-            <section class="app-kpi-grid">
+            <section class="app-kpi-grid order-3">
                 <MetricCard
                     label="Ingresos del periodo"
                     :value="money(selectedPeriod.sales_total)"
@@ -477,7 +477,7 @@ const priorityCards = computed(() => ([
                 />
             </section>
 
-            <section class="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            <section class="order-4 grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
                 <article class="min-w-0 rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-[0_20px_45px_rgba(8,47,73,0.36)] backdrop-blur lg:col-span-2">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div class="min-w-0">
@@ -577,7 +577,7 @@ const priorityCards = computed(() => ([
                 </article>
             </section>
 
-            <AppPanel :title="operationPulse.label" :subtitle="operationPulse.message" :tone="operationPulse.tone">
+            <AppPanel class="order-1" :title="operationPulse.label" :subtitle="operationPulse.message" :tone="operationPulse.tone">
                 <template #actions>
                     <StatusBadge :tone="operationPulse.tone" :label="`${summary.products_count} productos`" />
                     <StatusBadge tone="info" :label="`${summary.suppliers_count} proveedores`" />
@@ -599,7 +599,7 @@ const priorityCards = computed(() => ([
                 </div>
             </AppPanel>
 
-            <AppPanel title="Seguimiento operativo" subtitle="Cobros, webhooks y comprobantes que requieren atencion.">
+            <AppPanel class="order-5" title="Seguimiento operativo" subtitle="Cobros, webhooks y comprobantes que requieren atencion.">
                 <div class="grid gap-2 xl:grid-cols-4">
                     <article v-for="item in operational_monitoring" :key="item.key" class="min-w-0 rounded-xl border border-cyan-100/15 bg-slate-950/30 p-3">
                         <div class="flex items-start justify-between gap-3">

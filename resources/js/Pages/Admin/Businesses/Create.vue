@@ -28,14 +28,14 @@ const submit = () => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Nuevo comercio</h2>
                     <p class="mt-1 text-sm text-slate-300/80">Crea el comercio y su usuario admin inicial.</p>
                 </div>
                 <Link
                     :href="route('admin.businesses.index')"
-                    class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70"
+                    class="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70 sm:w-auto"
                 >
                     Volver
                 </Link>
@@ -64,7 +64,7 @@ const submit = () => {
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-300">Telefono</label>
-                        <input v-model="form.phone" type="text" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Telefono de contacto" />
+                        <input v-model="form.phone" type="tel" inputmode="tel" class="w-full rounded-xl border-cyan-100/25 bg-slate-950/35 text-sm text-slate-100 placeholder:text-slate-400" placeholder="Telefono de contacto" />
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-300">Direccion</label>
@@ -98,7 +98,7 @@ const submit = () => {
             <div class="flex justify-end">
                 <button
                     type="submit"
-                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                    class="min-h-11 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 sm:w-auto"
                     :disabled="form.processing"
                 >
                     Crear comercio

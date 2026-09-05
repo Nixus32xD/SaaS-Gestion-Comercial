@@ -683,10 +683,10 @@ onBeforeUnmount(() => {
             </div>
         </template>
 
-        <form class="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_22rem]" @submit.prevent="submit">
+        <form class="grid gap-6 pb-24 xl:grid-cols-[minmax(0,1.55fr)_22rem] xl:pb-0" @submit.prevent="submit">
             <div class="grid gap-6">
             <AppPanel title="Datos generales" subtitle="Proveedor, fecha y notas de la reposicion antes de cargar mercaderia.">
-                <div class="rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100">
+                <div class="hidden rounded-xl border border-cyan-200/35 bg-cyan-300/15 p-3 text-xs text-cyan-100 sm:block">
                     <p class="font-semibold">Atajos</p>
                     <p class="leading-relaxed">F2: buscador | F4: cantidad | F6: costo | Alt+A: agregar item | Alt+N: producto nuevo | Alt+E: producto existente | Ctrl+Enter: confirmar compra | Esc: limpiar busqueda</p>
                 </div>
@@ -919,11 +919,11 @@ onBeforeUnmount(() => {
                 <div class="mt-4 grid gap-3 lg:grid-cols-5">
                     <div>
                         <label for="purchase_quantity" class="mb-1 block text-sm font-medium text-slate-300">Cantidad <span class="text-xs text-slate-400">({{ activeMeasurement.quantityLabel }})</span></label>
-                        <input id="purchase_quantity" ref="quantityInput" v-model.number="state.quantity" type="number" :min="activeMeasurement.quantityMin" :step="activeMeasurement.quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                        <input id="purchase_quantity" ref="quantityInput" v-model.number="state.quantity" type="number" inputmode="decimal" :min="activeMeasurement.quantityMin" :step="activeMeasurement.quantityStep" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
                         <label for="purchase_unit_cost" class="mb-1 block text-sm font-medium text-slate-300">Costo unitario <span class="text-xs text-slate-400">{{ activeMeasurement.priceLabel }}</span></label>
-                        <input id="purchase_unit_cost" ref="unitCostInput" v-model.number="state.unit_cost" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
+                        <input id="purchase_unit_cost" ref="unitCostInput" v-model.number="state.unit_cost" type="number" inputmode="decimal" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" />
                     </div>
                     <div>
                         <label for="purchase_batch_code" class="mb-1 block text-sm font-medium text-slate-300">Lote</label>
@@ -999,6 +999,10 @@ onBeforeUnmount(() => {
                     </table>
                 </div>
             </AppPanel>
+            </div>
+
+            <div class="app-mobile-sticky-action fixed inset-x-0 bottom-0 z-20 border-t border-cyan-100/20 bg-slate-950/95 px-4 pt-3 shadow-[0_-10px_30px_rgba(2,6,23,0.45)] backdrop-blur xl:hidden">
+                <button type="submit" class="min-h-11 w-full rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50" :disabled="form.processing || !form.items.length">Confirmar compra · {{ money(total) }}</button>
             </div>
 
             <aside class="app-sticky-column">

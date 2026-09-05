@@ -104,7 +104,7 @@ const formatDate = (value) => (value ? new Intl.DateTimeFormat('es-AR', {
                             <label class="app-field-label">Buscar producto</label>
                             <div class="flex gap-2">
                                 <input v-model="searchForm.search" type="search" class="min-w-0 flex-1 rounded-xl text-sm" placeholder="Nombre, código o SKU" @keyup.enter.prevent="searchProducts" />
-                                <button type="button" class="rounded-xl border border-cyan-100/25 px-3 text-sm font-semibold text-slate-200 hover:bg-slate-800/60" @click="searchProducts">Buscar</button>
+                                <button type="button" class="min-h-11 rounded-xl border border-cyan-100/25 px-3 text-sm font-semibold text-slate-200 hover:bg-slate-800/60" @click="searchProducts">Buscar</button>
                             </div>
                             <select v-model="form.product_id" class="mt-3 w-full rounded-xl text-sm">
                                 <option value="">Seleccionar producto</option>
@@ -117,7 +117,7 @@ const formatDate = (value) => (value ? new Intl.DateTimeFormat('es-AR', {
                         </div>
                         <div class="app-field">
                             <label class="app-field-label">Cantidad ({{ quantityLabel }})</label>
-                            <input v-model.number="form.quantity" type="number" min="0" :step="quantityStep" class="w-full rounded-xl text-sm" />
+                            <input v-model.number="form.quantity" type="number" inputmode="decimal" min="0" :step="quantityStep" class="w-full rounded-xl text-sm" />
                             <p v-if="form.errors.quantity" class="mt-1 text-xs text-rose-300">{{ form.errors.quantity }}</p>
                         </div>
                     </div>
@@ -149,7 +149,15 @@ const formatDate = (value) => (value ? new Intl.DateTimeFormat('es-AR', {
         </div>
 
         <AppPanel class="mt-6" title="Historial de transferencias" subtitle="Cada registro agrupa salida, entrada y los lotes afectados.">
-            <div class="overflow-x-auto">
+            <div class="grid gap-3 md:hidden">
+                <article v-for="transfer in transfers.data" :key="transfer.id" class="rounded-xl border border-cyan-100/15 bg-slate-950/30 p-4">
+                    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="font-semibold text-slate-100">{{ transfer.from_branch }} <span class="text-cyan-200">→</span> {{ transfer.to_branch }}</p><p class="mt-1 text-xs text-slate-400">{{ formatDate(transfer.created_at) }} · {{ transfer.created_by }}</p></div><p class="shrink-0 text-lg font-bold text-cyan-100">{{ transfer.quantity }}</p></div>
+                    <p class="mt-3 break-words text-sm font-medium text-slate-200">{{ transfer.product }}</p>
+                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span class="font-mono text-cyan-100">{{ transfer.reference }}</span><span class="text-slate-400">{{ transfer.batch_allocations_count }} lote(s)</span></div>
+                </article>
+                <p v-if="transfers.data.length === 0" class="rounded-xl border border-dashed border-cyan-100/20 p-4 text-center text-sm text-slate-400">Todavía no hay transferencias registradas.</p>
+            </div>
+            <div class="hidden overflow-x-auto md:block">
                 <table class="min-w-full text-left text-sm">
                     <thead class="border-b border-cyan-100/15 text-xs uppercase tracking-wide text-cyan-100/70"><tr><th class="px-3 py-3">Fecha</th><th class="px-3 py-3">Ruta</th><th class="px-3 py-3">Producto</th><th class="px-3 py-3">Cantidad</th><th class="px-3 py-3">Trazabilidad</th><th class="px-3 py-3">Usuario</th></tr></thead>
                     <tbody>

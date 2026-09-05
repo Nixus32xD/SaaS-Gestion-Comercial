@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { computed, onMounted, reactive } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 const PRODUCT_FILTER_STORAGE_KEY = 'products.index.filters';
 
@@ -55,6 +55,7 @@ const filterCards = [
 
 const booleanFilterKeys = filterCards.map((filterCard) => filterCard.key);
 const reviewBadgeKeys = ['expired_batches', 'upcoming_batches', 'valid_batches', 'no_expiration_batches'];
+const mobileFiltersOpen = ref(false);
 
 const props = defineProps({
     products: { type: Object, required: true },
@@ -329,7 +330,7 @@ onMounted(() => {
                     <h2 class="text-2xl font-bold text-slate-100">Productos</h2>
                     <p class="mt-1 text-sm text-slate-300/80">Catalogo de productos por comercio.</p>
                 </div>
-                <Link :href="route('products.create')" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                <Link :href="route('products.create')" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
                     Nuevo producto
                 </Link>
             </div>
@@ -349,10 +350,10 @@ onMounted(() => {
                     <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
                 </select>
                 <div class="grid grid-cols-2 gap-2 xl:flex xl:justify-end">
-                    <button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70" @click="filter">
+                    <button type="button" class="min-h-11 rounded-lg border border-cyan-100/25 px-3 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800/70" @click="filter">
                         Buscar
                     </button>
-                    <button type="button" class="rounded-lg border border-rose-300/35 px-3 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-400/20" @click="clearFilters">
+                    <button type="button" class="min-h-11 rounded-lg border border-rose-300/35 px-3 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-400/20" @click="clearFilters">
                         Limpiar
                     </button>
                 </div>
@@ -360,17 +361,22 @@ onMounted(() => {
 
             <div class="mt-4 rounded-2xl border border-cyan-100/15 bg-slate-950/30 p-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div class="min-w-0">
                         <h3 class="text-sm font-semibold text-slate-100">Filtros avanzados</h3>
                         <p class="mt-1 text-xs text-slate-400">Combina estados de precio, costo, stock y vencimientos para detectar productos que necesitan revision operativa.</p>
                     </div>
-                    <p class="text-sm text-slate-300">
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="inline-flex min-h-11 items-center rounded-lg border border-cyan-100/25 px-3 text-sm font-semibold text-cyan-100 md:hidden" :aria-expanded="mobileFiltersOpen" aria-controls="product-advanced-filters" @click="mobileFiltersOpen = !mobileFiltersOpen">
+                            {{ mobileFiltersOpen ? 'Ocultar filtros' : `Filtros${activeFilters.length ? ` (${activeFilters.length})` : ''}` }}
+                        </button>
+                        <p class="text-sm text-slate-300">
                         <span class="font-semibold text-slate-100">{{ products.total }}</span>
                         {{ hasAppliedFilters ? 'resultados filtrados' : 'productos encontrados' }}
-                    </p>
+                        </p>
+                    </div>
                 </div>
 
-                <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div id="product-advanced-filters" class="mt-4 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" :class="mobileFiltersOpen ? 'grid' : 'hidden md:grid'">
                     <label
                         v-for="filterCard in filterCards"
                         :key="filterCard.key"

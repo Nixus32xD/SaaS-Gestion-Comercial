@@ -68,3 +68,18 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: root
         run: php artisan test
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser E2E tests
+        env:
+          APP_ENV: testing
+          APP_KEY: base64:8pvGzaIS4bCGzWMWEIBGW/BuZEGCS0W8HlhaJkJwF24=
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: gestor_comercial_saas_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: npm run test:e2e

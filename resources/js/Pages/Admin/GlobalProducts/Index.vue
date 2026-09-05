@@ -20,14 +20,14 @@ const syncCatalog = () => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-100">Catalogo global de productos</h2>
                     <p class="mt-1 text-sm text-slate-300/80">Base reutilizable para acelerar altas locales sin romper el esquema por comercio.</p>
                 </div>
                 <button
                     type="button"
-                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
+                    class="min-h-11 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60 sm:w-auto"
                     :disabled="form.processing"
                     @click="syncCatalog"
                 >
@@ -58,8 +58,8 @@ const syncCatalog = () => {
 
             <section class="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                 <article class="rounded-2xl border border-cyan-100/20 bg-slate-900/45 p-5 shadow-sm backdrop-blur">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
+                    <div class="flex flex-col items-start justify-between gap-4 sm:flex-row">
+                        <div class="min-w-0">
                             <h3 class="text-base font-semibold text-slate-100">Sincronizacion manual</h3>
                             <p class="mt-1 text-sm text-slate-300/80">Recorre productos de todos los comercios, evita duplicados y vincula los locales que todavia no tengan referencia global.</p>
                         </div>
