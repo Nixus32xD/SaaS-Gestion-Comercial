@@ -16,6 +16,7 @@
 /public/build
 /public/hot
 /public/storage
+/test-results
 /storage/*.key
 /storage/pail
 /tmp

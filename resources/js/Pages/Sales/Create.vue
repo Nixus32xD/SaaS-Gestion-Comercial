@@ -1,5 +1,7 @@
 <script setup>
 import AppPanel from '@/Components/AppPanel.vue';
+import SaleCart from '@/Components/Sales/SaleCart.vue';
+import { useSaleDraft } from '@/Composables/useSaleDraft';
 import StatusBadge from '@/Components/StatusBadge.vue';
 import { paymentMethodLabel, paymentMethodOptions, paymentMethodRequiresDestination } from '@/Support/paymentMethods';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
@@ -751,99 +753,18 @@ const saleDetailsOpen = computed(() => (
     || Number(form.discount || 0) > 0
 ));
 
-const buildDraftSnapshot = () => ({
-    form: {
-        customer_id: form.customer_id,
-        fiscal_customer: { ...form.fiscal_customer },
-        payment_status: form.payment_status,
-        payment_provider: form.payment_provider,
-        payment_method: form.payment_method,
-        sale_sector_id: form.sale_sector_id,
-        payment_destination_id: form.payment_destination_id,
-        amount_received: form.amount_received,
-        paid_amount: form.paid_amount,
-        discount: form.discount,
-        notes: form.notes,
-        items: form.items.map((item) => ({ ...item })),
-    },
-    state: {
-        search: state.search,
-        quantity: state.quantity,
-        manualItemName: state.manualItemName,
-        manualItemAmount: state.manualItemAmount,
-        manualItemVatTreatment: state.manualItemVatTreatment,
-        manualItemVatRate: state.manualItemVatRate,
-    },
+const {
+    applyCustomerFromQuery,
+    buildSnapshot: buildDraftSnapshot,
+    clear: clearDraft,
+    persist: persistDraft,
+    restore: restoreDraft,
+} = useSaleDraft({
+    form,
+    state,
+    customerOptions,
+    storageKey: saleDraftStorageKey,
 });
-
-const persistDraft = () => {
-    if (typeof window === 'undefined') return;
-
-    window.localStorage.setItem(saleDraftStorageKey, JSON.stringify(buildDraftSnapshot()));
-};
-
-const clearDraft = () => {
-    if (typeof window === 'undefined') return;
-
-    window.localStorage.removeItem(saleDraftStorageKey);
-};
-
-const restoreDraft = () => {
-    if (typeof window === 'undefined') return;
-
-    const rawDraft = window.localStorage.getItem(saleDraftStorageKey);
-    if (!rawDraft) return;
-
-    try {
-        const draft = JSON.parse(rawDraft);
-
-        form.customer_id = draft?.form?.customer_id ?? form.customer_id;
-        form.fiscal_customer = draft?.form?.fiscal_customer
-            ? { ...form.fiscal_customer, ...draft.form.fiscal_customer }
-            : form.fiscal_customer;
-        form.payment_status = draft?.form?.payment_status ?? form.payment_status;
-        form.payment_provider = draft?.form?.payment_provider ?? form.payment_provider;
-        form.payment_method = draft?.form?.payment_method ?? form.payment_method;
-        form.sale_sector_id = draft?.form?.sale_sector_id ?? form.sale_sector_id;
-        form.payment_destination_id = draft?.form?.payment_destination_id ?? form.payment_destination_id;
-        form.amount_received = draft?.form?.amount_received ?? form.amount_received;
-        form.paid_amount = draft?.form?.paid_amount ?? form.paid_amount;
-        form.discount = draft?.form?.discount ?? form.discount;
-        form.notes = draft?.form?.notes ?? form.notes;
-        form.items = Array.isArray(draft?.form?.items) ? draft.form.items.map((item) => ({ ...item })) : form.items;
-
-        state.search = draft?.state?.search ?? state.search;
-        state.quantity = draft?.state?.quantity ?? state.quantity;
-        state.manualItemName = draft?.state?.manualItemName ?? state.manualItemName;
-        state.manualItemAmount = draft?.state?.manualItemAmount ?? state.manualItemAmount;
-        state.manualItemVatTreatment = draft?.state?.manualItemVatTreatment ?? state.manualItemVatTreatment;
-        state.manualItemVatRate = draft?.state?.manualItemVatRate ?? state.manualItemVatRate;
-
-        state.helperMessage = form.items.length
-            ? 'Se restauro el borrador de la venta en curso.'
-            : state.helperMessage;
-    } catch (error) {
-        clearDraft();
-    }
-};
-
-const applyCustomerFromQuery = () => {
-    if (typeof window === 'undefined') return;
-
-    const url = new URL(window.location.href);
-    const customerId = url.searchParams.get('customer_id');
-    if (!customerId) return;
-
-    const selectedFromQuery = customerOptions.value.find((customer) => String(customer.id) === String(customerId));
-
-    if (selectedFromQuery) {
-        form.customer_id = selectedFromQuery.id;
-        state.helperMessage = `Cliente seleccionado para continuar la venta: ${selectedFromQuery.name}`;
-    }
-
-    url.searchParams.delete('customer_id');
-    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-};
 
 watch(() => buildDraftSnapshot(), () => {
     persistDraft();
@@ -1259,85 +1180,7 @@ onBeforeUnmount(() => {
                     </details>
                 </div>
 
-                <div class="mt-5">
-                    <h3 class="app-section-title">Carrito</h3>
-                </div>
-
-                <div v-if="form.items.length" class="mt-4 grid gap-3 md:hidden">
-                    <article v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`" class="rounded-xl border border-cyan-100/20 bg-slate-950/35 p-4 text-sm text-slate-300">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <p class="font-semibold text-slate-100">{{ item.product_name }}</p>
-                                    <span v-if="item.is_manual" class="rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">Sin stock</span>
-                                </div>
-                                <p class="mt-1 text-xs text-slate-400">
-                                    <template v-if="item.is_manual">
-                                        Monto fijo - {{ money(item.unit_price) }}
-                                    </template>
-                                    <template v-else>
-                                        {{ item.quantity }} {{ item.quantity_label }} - {{ money(item.unit_price) }} {{ item.price_label }}
-                                    </template>
-                                </p>
-                                <p class="mt-1 text-xs text-slate-400">IVA: {{ item.vat_label || 'IVA 21%' }}</p>
-                            </div>
-                            <button type="button" class="shrink-0 rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
-                        </div>
-                        <p class="mt-3 text-sm">Subtotal: <strong class="text-slate-100">{{ money(getLineSubtotal(item)) }}</strong></p>
-                    </article>
-                </div>
-
-                <div class="mt-4 hidden overflow-x-auto rounded-xl border border-cyan-100/20 app-table-wrap md:block">
-                    <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-950/35">
-                            <tr>
-                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Producto</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Cantidad</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Precio</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">IVA</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-300/80">Subtotal</th>
-                                <th class="px-3 py-2 text-left font-medium text-slate-300/80"></th>
-                            </tr>
-                        </thead>
-                        <tbody v-if="form.items.length" class="divide-y divide-slate-100">
-                            <tr v-for="(item, index) in form.items" :key="`${item.product_id}-${index}`">
-                                <td class="px-3 py-2 font-semibold text-slate-100">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span>{{ item.product_name }}</span>
-                                        <span v-if="item.is_manual" class="rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">Sin stock</span>
-                                    </div>
-                                </td>
-                                <td class="px-3 py-2">
-                                    <template v-if="item.is_manual">
-                                        <span class="text-xs text-slate-400">Monto fijo</span>
-                                    </template>
-                                    <template v-else>
-                                        {{ item.quantity }}
-                                        <span class="text-xs text-slate-400">{{ item.quantity_label }}</span>
-                                    </template>
-                                </td>
-                                <td class="px-3 py-2">
-                                    {{ money(item.unit_price) }}
-                                    <span v-if="item.price_label" class="text-xs text-slate-400">{{ item.price_label }}</span>
-                                </td>
-                                <td class="px-3 py-2 text-slate-300">{{ item.vat_label || 'IVA 21%' }}</td>
-                                <td class="px-3 py-2">{{ money(getLineSubtotal(item)) }}</td>
-                                <td class="px-3 py-2 text-right">
-                                    <button type="button" class="rounded-lg border border-rose-300/45 px-2 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/20" @click="removeItem(index)">Quitar</button>
-                                </td>
-                            </tr>
-                        </tbody>
-                        <tbody v-else>
-                            <tr>
-                                <td colspan="6" class="px-3 py-5 text-center text-slate-400">Agrega productos para continuar.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div v-if="itemErrorMessages.length" class="mt-3 rounded-xl border border-rose-300/35 bg-rose-400/10 p-3 text-sm text-rose-100">
-                    <p v-for="(message, index) in itemErrorMessages" :key="`${message}-${index}`">{{ message }}</p>
-                </div>
+                <SaleCart :items="form.items" :errors="itemErrorMessages" :line-subtotal="getLineSubtotal" @remove="removeItem" />
             </AppPanel>
 
             <details class="rounded-2xl border border-cyan-100/15 bg-slate-950/30 p-4 text-slate-100" :open="saleDetailsOpen">

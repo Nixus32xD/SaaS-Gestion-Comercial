@@ -63,7 +63,7 @@
     }
 
     .app-table-wrap {
-        @apply w-full;
+        @apply w-full overscroll-x-contain touch-pan-x;
     }
 
     .app-table-wrap table {
@@ -119,6 +119,14 @@
     .app-shell select:focus,
     .app-shell textarea:focus {
         @apply border-cyan-300/55 ring-2 ring-cyan-300/20;
+    }
+
+    .app-shell a:focus-visible,
+    .app-shell button:focus-visible,
+    .app-shell input:focus-visible,
+    .app-shell select:focus-visible,
+    .app-shell textarea:focus-visible {
+        @apply outline-none ring-2 ring-cyan-200 ring-offset-2 ring-offset-slate-950;
     }
 
     .app-shell input[type='text']:disabled,

@@ -1,11 +1,14 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import FlashNotifications from '@/Components/FlashNotifications.vue';
 import SidebarLink from '@/Components/SidebarLink.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 
 const sidebarOpen = ref(false);
+const sidebar = ref(null);
+const menuButton = ref(null);
+let bodyOverflow = '';
 const page = usePage();
 
 const isSuperAdmin = computed(() => Boolean(page.props.auth?.is_super_admin));
@@ -33,33 +36,76 @@ const subscriptionNoticeClass = computed(() => {
 const navigation = computed(() => {
     if (isSuperAdmin.value) {
         return [
-            { label: 'Comercios y funciones', route: 'admin.businesses.index', pattern: 'admin.businesses.*', icon: 'AD' },
-            { label: 'Catalogo global', route: 'admin.global-products.index', pattern: 'admin.global-products.*', icon: 'CG' },
-            { label: 'Guia comercial', route: 'admin.commercial-guide.index', pattern: 'admin.commercial-guide.*', icon: 'GC' },
-            { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
+            { label: 'Administración', items: [
+                { label: 'Comercios y funciones', route: 'admin.businesses.index', pattern: 'admin.businesses.*', icon: 'AD' },
+                { label: 'Catálogo global', route: 'admin.global-products.index', pattern: 'admin.global-products.*', icon: 'CG' },
+                { label: 'Guía comercial', route: 'admin.commercial-guide.index', pattern: 'admin.commercial-guide.*', icon: 'GC' },
+                { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
+            ] },
         ];
     }
 
     return [
-        { label: 'Dashboard', route: 'dashboard', pattern: 'dashboard', icon: 'DB' },
-        { label: 'Categorias', route: 'categories.index', pattern: 'categories.*', icon: 'CT' },
-        { label: 'Productos', route: 'products.index', pattern: 'products.*', icon: 'PR' },
-        { label: 'Clientes', route: 'customers.index', pattern: 'customers.*', icon: 'CL' },
-        { label: 'Cuenta corriente', route: 'customer-accounts.index', pattern: 'customer-accounts.*', icon: 'CC' },
-        { label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' },
-        { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },
-        { label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' },
-        ...(hasElectronicBilling.value ? [{ label: 'Facturacion electronica', route: 'electronic-billing.index', pattern: 'electronic-billing.*', icon: 'FE' }] : []),
-        ...(canManageUsers.value ? [{ label: 'Mercado Pago', route: 'mercadopago-settings.edit', pattern: 'mercadopago-settings.*', icon: 'MP' }] : []),
-        ...(canManageUsers.value ? [{ label: 'Usuarios', route: 'users.index', pattern: 'users.*', icon: 'US' }] : []),
-        ...(canManageUsers.value ? [{ label: 'Notificaciones', route: 'notifications.edit', pattern: 'notifications.*', icon: 'NT' }] : []),
-        { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
-    ];
+        { label: 'Operación', items: [
+            { label: 'Dashboard', route: 'dashboard', pattern: 'dashboard', icon: 'DB' },
+            { label: 'Ventas', route: 'sales.index', pattern: 'sales.*', icon: 'VT' },
+            { label: 'Compras', route: 'purchases.index', pattern: 'purchases.*', icon: 'CP' },
+            { label: 'Caja', route: 'cash-register.index', pattern: 'cash-register.*', icon: 'CJ' },
+            { label: 'Proveedores', route: 'suppliers.index', pattern: 'suppliers.*', icon: 'PV' },
+        ] },
+        { label: 'Inventario', items: [
+            { label: 'Productos', route: 'products.index', pattern: 'products.*', icon: 'PR' },
+            { label: 'Categorías', route: 'categories.index', pattern: 'categories.*', icon: 'CT' },
+            { label: 'Transferencias', route: 'inventory.transfers.index', pattern: 'inventory.transfers.*', icon: 'TR' },
+        ] },
+        { label: 'Clientes', items: [
+            { label: 'Clientes', route: 'customers.index', pattern: 'customers.*', icon: 'CL' },
+            { label: 'Cuenta corriente', route: 'customer-accounts.index', pattern: 'customer-accounts.*', icon: 'CC' },
+        ] },
+        { label: 'Integraciones', items: [
+            ...(hasElectronicBilling.value ? [{ label: 'Facturación electrónica', route: 'electronic-billing.index', pattern: 'electronic-billing.*', icon: 'FE' }] : []),
+            ...(canManageUsers.value ? [{ label: 'Mercado Pago', route: 'mercadopago-settings.edit', pattern: 'mercadopago-settings.*', icon: 'MP' }] : []),
+        ] },
+        { label: 'Administración', items: [
+            ...(canManageUsers.value ? [{ label: 'Usuarios', route: 'users.index', pattern: 'users.*', icon: 'US' }] : []),
+            ...(canManageUsers.value ? [{ label: 'Notificaciones', route: 'notifications.edit', pattern: 'notifications.*', icon: 'NT' }] : []),
+            { label: 'Mi cuenta', route: 'profile.edit', pattern: 'profile.*', icon: 'US' },
+        ] },
+    ].filter((group) => group.items.length > 0);
 });
 
 const closeSidebar = () => {
     sidebarOpen.value = false;
 };
+
+const toggleSidebar = () => {
+    sidebarOpen.value = !sidebarOpen.value;
+};
+
+const handleEscape = (event) => {
+    if (event.key === 'Escape' && sidebarOpen.value) {
+        closeSidebar();
+    }
+};
+
+watch(sidebarOpen, async (isOpen) => {
+    if (isOpen) {
+        bodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        await nextTick();
+        sidebar.value?.focus();
+        return;
+    }
+
+    document.body.style.overflow = bodyOverflow;
+    menuButton.value?.focus();
+});
+
+onMounted(() => window.addEventListener('keydown', handleEscape));
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', handleEscape);
+    document.body.style.overflow = bodyOverflow;
+});
 
 const changeBranch = (event) => {
     router.put(route('branches.current.update'), {
@@ -83,10 +129,15 @@ const changeBranch = (event) => {
         <div
             v-if="sidebarOpen"
             class="fixed inset-0 z-30 bg-slate-950/70 2xl:hidden"
+            aria-hidden="true"
             @click="closeSidebar"
         />
 
         <aside
+            id="main-navigation"
+            ref="sidebar"
+            tabindex="-1"
+            aria-label="Navegación principal"
             class="fixed inset-y-0 left-0 z-40 flex w-[min(18rem,calc(100vw-1rem))] max-w-[18rem] flex-col overflow-y-auto border-r border-cyan-100/15 bg-slate-950/70 px-5 py-4 text-slate-100 shadow-xl backdrop-blur-xl transition-transform duration-300 ease-out"
             :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full 2xl:translate-x-0'"
         >
@@ -117,17 +168,22 @@ const changeBranch = (event) => {
                 </template>
             </div>
 
-            <nav class="mt-6 space-y-1">
-                <SidebarLink
-                    v-for="item in navigation"
-                    :key="item.route"
-                    :href="route(item.route)"
-                    :active="route().current(item.pattern)"
-                    :icon="item.icon"
-                    @click="closeSidebar"
-                >
-                    {{ item.label }}
-                </SidebarLink>
+            <nav class="mt-6 space-y-5" aria-label="Secciones principales">
+                <section v-for="group in navigation" :key="group.label" :aria-label="group.label">
+                    <p class="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100/55">{{ group.label }}</p>
+                    <div class="space-y-1">
+                        <SidebarLink
+                            v-for="item in group.items"
+                            :key="item.route"
+                            :href="route(item.route)"
+                            :active="route().current(item.pattern)"
+                            :icon="item.icon"
+                            @click="closeSidebar"
+                        >
+                            {{ item.label }}
+                        </SidebarLink>
+                    </div>
+                </section>
             </nav>
 
             <div class="mt-auto border-t border-cyan-100/15 pt-4">
@@ -148,9 +204,13 @@ const changeBranch = (event) => {
             <header class="sticky top-0 z-20 border-b border-cyan-100/15 bg-slate-950/45 backdrop-blur-xl">
                 <div class="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
                     <button
+                        ref="menuButton"
                         type="button"
+                        :aria-label="sidebarOpen ? 'Cerrar navegación' : 'Abrir navegación'"
+                        aria-controls="main-navigation"
+                        :aria-expanded="sidebarOpen"
                         class="inline-flex items-center justify-center rounded-lg border border-cyan-100/20 bg-slate-900/60 p-2 text-cyan-100 shadow-sm 2xl:hidden"
-                        @click="sidebarOpen = !sidebarOpen"
+                        @click="toggleSidebar"
                     >
                         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />

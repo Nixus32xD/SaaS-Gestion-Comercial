@@ -65,6 +65,12 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        // Used by the demo and isolated browser tests to exercise branch-aware UI.
+        Branch::query()->updateOrCreate(
+            ['business_id' => $business->id, 'code' => 'centro'],
+            ['name' => 'Sucursal Centro', 'is_active' => true, 'is_default' => false]
+        );
+
         User::query()->updateOrCreate(
             ['email' => 'admin@demo.test'],
             [
