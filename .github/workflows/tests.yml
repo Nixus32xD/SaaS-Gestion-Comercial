@@ -44,8 +44,15 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
+      - name: Audit PHP dependencies
+        run: composer audit --locked
+
       - name: Install frontend dependencies
         run: npm ci
+
+      # Low/moderate build-tooling advisories do not block delivery; high/critical do.
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
 
       - name: Build frontend
         run: npm run build
