@@ -2,7 +2,7 @@
 
 SaaS de gestión comercial para pequeños y medianos comercios de Argentina. Centraliza productos, stock, compras, ventas, clientes, cuentas corrientes, facturación electrónica y cobros con Mercado Pago Point.
 
-La aplicación opera con una única base de datos y aísla toda la información comercial mediante `business_id`.
+La aplicación opera con una única base de datos, aísla la información comercial mediante `business_id` y utiliza `branch_id` como contexto operativo de cada sucursal.
 
 ## Stack
 
@@ -16,13 +16,16 @@ La aplicación opera con una única base de datos y aísla toda la información 
 ## Funcionalidades
 
 - Gestión multi-comercio: panel de superadmin, configuración comercial y usuarios internos con roles `admin` y `staff`.
-- Productos y stock: catálogo global, categorías, SKU/código de barras, unidades, lotes, vencimientos, alertas y movimientos.
-- Compras y proveedores: carga de compras, actualización de costos/stock e historial.
+- Productos y stock: catálogo global, categorías, SKU/código de barras, unidades, lotes, vencimientos, alertas, movimientos y stock reservado por sucursal.
+- Compras y proveedores: carga de compras, actualización de costos/stock, historial y comprobantes fiscales opcionales para IVA Compras.
 - Ventas y POS: descuentos, opciones rápidas, comprobantes, historial, impresión y búsqueda por scanner.
+- Operación por sucursal: selector de sucursal activa, dashboard consolidado, transferencias transaccionales con FEFO y trazabilidad de lotes.
+- Caja: apertura y cierre por sucursal, ingresos/egresos auditables y afectación exclusiva de la porción en efectivo de cada venta.
 - Clientes y cuentas corrientes: saldos, cobranzas y recordatorios por WhatsApp o email.
-- Facturación electrónica: configuración por comercio, emisión, conciliación y descarga de comprobantes PDF.
+- Facturación electrónica: identidades fiscales por sucursal, emisión, conciliación y descarga de comprobantes PDF.
+- Fiscal: libro IVA Ventas existente, libro IVA Compras, resumen mensual de débito/crédito fiscal y exportación CSV por sucursal o consolidada.
 - Notificaciones operativas y de mantenimiento configurables por comercio.
-- Mercado Pago Point: cobros presenciales con creación, consulta y cancelación de órdenes; webhook firmado e idempotente.
+- Mercado Pago Point: cobros presenciales con creación, consulta y cancelación de órdenes; webhook firmado, idempotente y conciliable.
 
 ## Ciclo de cobro con Mercado Pago Point
 
@@ -33,6 +36,8 @@ Al iniciar un cobro Point, la venta queda pendiente y el stock se reserva; no se
 3. Si se rechaza, cancela o vence, se libera la reserva sin descontar stock.
 4. Las notificaciones repetidas y los reintentos son idempotentes: no duplican movimientos ni comprobantes.
 5. Una tarea programada revisa las órdenes pendientes cada minuto y expira reservas que superen 10 minutos, después de consultar su estado remoto.
+
+Los jobs críticos tienen reintentos progresivos y acotados. Si un webhook no puede procesarse, conserva su evento y contexto para reintento; los fallos definitivos se registran como `critical_job_failed`.
 
 La configuración de credenciales y terminal de Point se administra por comercio desde `/integrations/mercadopago`. No versionar tokens, secretos de webhook ni credenciales reales.
 
@@ -67,7 +72,7 @@ Luego ejecutar migraciones, datos de ejemplo y dependencias de frontend:
 ```bash
 php artisan migrate
 php artisan db:seed
-npm install
+npm ci
 ```
 
 ## Desarrollo
@@ -122,9 +127,18 @@ POST https://tu-dominio.com/webhooks/mercadopago/orders
 
 ```bash
 php artisan test
+npm run build
 ```
 
 El entorno de pruebas usa MySQL y toma su configuración desde `.env.testing`.
+
+Para pruebas E2E locales se usa Playwright. El setup reinicia exclusivamente la
+base configurada para `testing`, por lo que nunca debe apuntarse al entorno de
+producción:
+
+```bash
+npm run test:e2e
+```
 
 ## Credenciales demo
 
@@ -138,7 +152,10 @@ El entorno de pruebas usa MySQL y toma su configuración desde `.env.testing`.
 - `/suppliers`, `/purchases`
 - `/customers`, `/customer-accounts`
 - `/sales`
+- `/cash-register`
+- `/inventory/transfers`
 - `/electronic-billing`
+- `/fiscal/iva`
 - `/integrations/mercadopago` (admin del comercio)
 - `/notifications` (admin del comercio)
 - `/admin/businesses` (superadmin)
