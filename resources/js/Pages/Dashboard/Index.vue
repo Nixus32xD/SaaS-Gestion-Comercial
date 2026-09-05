@@ -16,6 +16,7 @@ const props = defineProps({
     latest_sales: { type: Array, default: () => [] },
     latest_purchases: { type: Array, default: () => [] },
     expiration_alerts: { type: Array, default: () => [] },
+    operational_monitoring: { type: Array, default: () => [] },
     advanced_sales: { type: Object, default: () => ({ enabled: false, sales_by_sector: [], sales_by_payment_destination: [] }) },
     branch_filter: { type: Object, default: () => ({ scope: 'all', current_branch_name: '' }) },
 });
@@ -587,6 +588,20 @@ const priorityCards = computed(() => ([
                         <Link :href="card.href" class="mt-3 inline-flex items-center rounded-lg border border-cyan-100/20 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-800/60">
                             {{ card.action }}
                         </Link>
+                    </article>
+                </div>
+            </AppPanel>
+
+            <AppPanel title="Seguimiento operativo" subtitle="Cobros, webhooks y comprobantes que requieren atencion.">
+                <div class="grid gap-2 xl:grid-cols-4">
+                    <article v-for="item in operational_monitoring" :key="item.key" class="min-w-0 rounded-xl border border-cyan-100/15 bg-slate-950/30 p-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <h3 class="truncate text-sm font-semibold text-slate-100">{{ item.label }}</h3>
+                                <p class="mt-1 text-xs text-slate-300/80">{{ item.description }}</p>
+                            </div>
+                            <StatusBadge :tone="item.tone" size="sm" :label="String(item.count)" />
+                        </div>
                     </article>
                 </div>
             </AppPanel>

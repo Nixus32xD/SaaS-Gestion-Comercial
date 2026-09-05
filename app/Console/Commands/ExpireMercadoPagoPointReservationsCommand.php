@@ -10,6 +10,7 @@ use App\Services\Payments\MercadoPago\MercadoPagoApiException;
 use App\Services\Payments\MercadoPago\MercadoPagoPaymentCompletionService;
 use App\Services\Payments\MercadoPago\MercadoPagoPointProvider;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class ExpireMercadoPagoPointReservationsCommand extends Command
 {
@@ -42,6 +43,15 @@ class ExpireMercadoPagoPointReservationsCommand extends Command
                             $payment = $provider->syncPayment($payment);
                         } catch (MercadoPagoApiException $exception) {
                             report($exception);
+                            Log::warning('mercadopago_point_expiration_check_deferred', [
+                                'job' => self::class,
+                                'business_id' => $payment->business_id,
+                                'branch_id' => $payment->sale?->branch_id,
+                                'payment_id' => $payment->id,
+                                'order_id' => $payment->provider_order_id,
+                                'provider_payment_id' => $payment->provider_payment_id,
+                                'error' => $exception->getMessage(),
+                            ]);
                             $this->recordDeferredCheck($payment, $exception);
                             $deferred++;
 
@@ -61,6 +71,15 @@ class ExpireMercadoPagoPointReservationsCommand extends Command
                             $provider->cancelOrder($payment);
                         } catch (MercadoPagoApiException $exception) {
                             report($exception);
+                            Log::warning('mercadopago_point_expiration_cancel_failed', [
+                                'job' => self::class,
+                                'business_id' => $payment->business_id,
+                                'branch_id' => $payment->sale?->branch_id,
+                                'payment_id' => $payment->id,
+                                'order_id' => $payment->provider_order_id,
+                                'provider_payment_id' => $payment->provider_payment_id,
+                                'error' => $exception->getMessage(),
+                            ]);
                         }
                     }
 

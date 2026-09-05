@@ -12,6 +12,7 @@ use App\Models\SaleItem;
 use App\Models\Supplier;
 use App\Services\BranchCommercialSettingsResolver;
 use App\Services\LowStockAlertService;
+use App\Services\OperationalMonitoringService;
 use App\Services\ProductExpirationAlertService;
 use App\Support\CurrentBranch;
 use App\Support\CurrentBusiness;
@@ -30,6 +31,7 @@ class DashboardController extends Controller
         CurrentBranch $currentBranch,
         ProductExpirationAlertService $expirationAlertService,
         LowStockAlertService $lowStockAlertService,
+        OperationalMonitoringService $operationalMonitoringService,
         BranchCommercialSettingsResolver $commercialSettingsResolver,
     ): Response {
         $business = $currentBusiness->get();
@@ -225,6 +227,7 @@ class DashboardController extends Controller
                 'supplier' => $purchase->supplier?->name,
             ]),
             'expiration_alerts' => $expirationAlerts->all(),
+            'operational_monitoring' => $operationalMonitoringService->forBusiness($business, $branchId),
             'branch_filter' => [
                 'scope' => $branchScope,
                 'current_branch_name' => $branch->name,

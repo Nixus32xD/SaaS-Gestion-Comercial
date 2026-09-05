@@ -11,6 +11,7 @@ use App\Services\Fiscal\FiscalSalePayloadBuilder;
 use App\Services\Payments\PaymentService;
 use App\Services\SaleStockReservationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class MercadoPagoPaymentCompletionService
@@ -81,6 +82,18 @@ class MercadoPagoPaymentCompletionService
             $this->fiscalSaleDocumentService->issue($sale);
         } catch (Throwable $exception) {
             report($exception);
+
+            $document = $sale->latestFiscalDocument;
+
+            Log::error('fiscal_issue_after_mercadopago_payment_failed', [
+                'business_id' => $sale->business_id,
+                'branch_id' => $sale->branch_id,
+                'sale_id' => $sale->id,
+                'payment_id' => $payment->id,
+                'fiscal_document_id' => $document?->fiscal_document_id,
+                'sale_fiscal_document_id' => $document?->id,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 

@@ -88,6 +88,7 @@ test('dashboard only exposes metrics from the authenticated business', function 
             ->where('summary.month_sales', 100)
             ->where('summary.products_count', 1)
             ->where('summary.suppliers_count', 1)
+            ->has('operational_monitoring', 4)
         );
 });
 

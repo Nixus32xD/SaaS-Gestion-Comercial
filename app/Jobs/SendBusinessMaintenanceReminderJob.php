@@ -5,8 +5,10 @@ namespace App\Jobs;
 use App\Mail\BusinessMaintenanceReminderMail;
 use App\Models\Business;
 use App\Models\BusinessNotificationDispatch;
+use DateTime;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class SendBusinessMaintenanceReminderJob implements ShouldQueue
@@ -16,8 +18,6 @@ class SendBusinessMaintenanceReminderJob implements ShouldQueue
     public int $tries = 3;
 
     public int $maxExceptions = 3;
-
-    public int $backoff = 60;
 
     public int $timeout = 120;
 
@@ -33,6 +33,13 @@ class SendBusinessMaintenanceReminderJob implements ShouldQueue
         $dispatch = BusinessNotificationDispatch::query()->find($this->dispatchId);
 
         if ($dispatch === null) {
+            return;
+        }
+
+        if (in_array($dispatch->status, [
+            BusinessNotificationDispatch::STATUS_SENT,
+            BusinessNotificationDispatch::STATUS_PARTIAL,
+        ], true)) {
             return;
         }
 
@@ -103,6 +110,27 @@ class SendBusinessMaintenanceReminderJob implements ShouldQueue
             'status' => BusinessNotificationDispatch::STATUS_FAILED,
             'error_message' => $exception->getMessage(),
         ]);
+
+        Log::error('critical_job_failed', [
+            'job' => self::class,
+            'business_id' => $dispatch->business_id,
+            'branch_id' => null,
+            'notification_dispatch_id' => $dispatch->id,
+            'error' => $exception->getMessage(),
+        ]);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [60, 300];
+    }
+
+    public function retryUntil(): DateTime
+    {
+        return now()->addHour();
     }
 
     private function notificationQueue(): string

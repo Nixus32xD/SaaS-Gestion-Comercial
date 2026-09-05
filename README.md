@@ -96,9 +96,11 @@ npm run build
 Mantener un worker de colas y el scheduler activos:
 
 ```bash
-php artisan queue:work
+php artisan queue:work --queue=default,notifications --max-time=3600
 php artisan schedule:work
 ```
+
+El worker debe consumir `default` y `notifications`: los webhooks Point se procesan en la cola por defecto y los correos operativos usan `notifications`. Los jobs críticos tienen reintentos progresivos y acotados; revisar `php artisan queue:failed` y `storage/logs/laravel.log` ante una alerta `critical_job_failed`, y usar `php artisan queue:retry <uuid>` únicamente después de revisar el contexto del pago o comprobante.
 
 En un servidor, normalmente el scheduler se invoca cada minuto con cron:
 
@@ -107,6 +109,8 @@ En un servidor, normalmente el scheduler se invoca cada minuto con cron:
 ```
 
 El scheduler procesa alertas operativas, recordatorios de mantenimiento y la expiración de reservas Point.
+
+En producción con más de una instancia, configurar un cache compartido (Redis o base de datos) para que `onOneServer()` coordine los comandos. En Laravel Cloud, crear un worker permanente para `default,notifications` y un scheduler que ejecute `php artisan schedule:run` cada minuto.
 
 Para Mercado Pago Point también se debe configurar como webhook la URL pública:
 

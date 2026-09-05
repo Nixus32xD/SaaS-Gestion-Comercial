@@ -21,7 +21,9 @@ class PaymentEvent extends Model
         'event_type',
         'resource_id',
         'payload',
+        'processing_at',
         'processed_at',
+        'last_error',
     ];
 
     /**
@@ -31,6 +33,7 @@ class PaymentEvent extends Model
     {
         return [
             'payload' => 'array',
+            'processing_at' => 'datetime',
             'processed_at' => 'datetime',
         ];
     }
