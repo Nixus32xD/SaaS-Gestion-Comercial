@@ -166,6 +166,61 @@ class FiscalVatCalculator
     }
 
     /**
+     * Calculates a purchase voucher from net taxable bases. Keeping cents here
+     * gives purchases the same rate normalization and rounding policy as sales.
+     *
+     * @param  iterable<int, array<string, mixed>>  $items
+     * @return array{totals: array<string, float>, lines: list<array<string, float|string>>}
+     */
+    public function purchaseBreakdown(iterable $items): array
+    {
+        $totals = ['net' => 0, 'vat' => 0, 'exempt' => 0, 'non_taxed' => 0, 'total' => 0];
+        $lines = [];
+
+        foreach ($items as $item) {
+            $treatment = $this->normalizeTreatment($item['vat_treatment'] ?? null);
+            $rate = $treatment === self::TREATMENT_TAXED
+                ? $this->normalizeRate($item['vat_rate'] ?? 21)
+                : 0.0;
+            $baseCents = max(0, $this->cents($item['net_amount'] ?? 0));
+            $vatCents = $treatment === self::TREATMENT_TAXED
+                ? (int) round($baseCents * ($rate / 100))
+                : 0;
+            $line = [
+                'vat_treatment' => $treatment,
+                'vat_rate' => $rate,
+                'net_amount' => 0,
+                'vat_amount' => 0,
+                'exempt_amount' => 0,
+                'non_taxed_amount' => 0,
+                'total_amount' => 0,
+            ];
+
+            if ($treatment === self::TREATMENT_EXEMPT) {
+                $line['exempt_amount'] = $this->decimal($baseCents);
+            } elseif ($treatment === self::TREATMENT_NON_TAXED) {
+                $line['non_taxed_amount'] = $this->decimal($baseCents);
+            } else {
+                $line['net_amount'] = $this->decimal($baseCents);
+                $line['vat_amount'] = $this->decimal($vatCents);
+            }
+
+            $line['total_amount'] = $this->decimal($baseCents + $vatCents);
+            $totals['net'] += $baseCents;
+            $totals['vat'] += $vatCents;
+            $totals['exempt'] += $treatment === self::TREATMENT_EXEMPT ? $baseCents : 0;
+            $totals['non_taxed'] += $treatment === self::TREATMENT_NON_TAXED ? $baseCents : 0;
+            $totals['total'] += $baseCents + $vatCents;
+            $lines[] = $line;
+        }
+
+        return [
+            'totals' => array_map(fn (int $cents): float => $this->decimal($cents), $totals),
+            'lines' => $lines,
+        ];
+    }
+
+    /**
      * @param  list<int>  $grossCents
      * @return list<int>
      */

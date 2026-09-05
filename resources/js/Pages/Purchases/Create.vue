@@ -11,6 +11,7 @@ const props = defineProps({
     products: { type: Array, default: () => [] },
     global_catalog: { type: Object, default: () => ({ enabled: false }) },
     vat_options: { type: Object, default: () => ({ treatments: [], rates: [], defaults: { treatment: 'gravado', rate: 21 } }) },
+    fiscal_purchase_document_types: { type: Array, default: () => [] },
 });
 
 const buildNewProductState = () => ({
@@ -69,6 +70,17 @@ const form = useForm({
     purchased_at: nowLocalDateTime(),
     notes: '',
     items: [],
+    fiscal: {
+        enabled: false,
+        supplier_cuit: '',
+        document_type: 'invoice_a',
+        point_of_sale: '',
+        number: '',
+        voucher_date: new Date().toISOString().slice(0, 10),
+        other_taxes_amount: 0,
+        total_amount: 0,
+        items: [{ vat_treatment: 'gravado', vat_rate: Number(props.vat_options?.defaults?.rate || 21), net_amount: 0 }],
+    },
 });
 
 const calculateShelfLifeDays = (expiresAtValue) => {
@@ -150,6 +162,18 @@ const lineSubtotal = (item) => {
 };
 
 const total = computed(() => form.items.reduce((acc, item) => acc + lineSubtotal(item), 0));
+const fiscalLineVat = (item) => (item.vat_treatment === 'gravado'
+    ? Number((Number(item.net_amount || 0) * (Number(item.vat_rate || 0) / 100)).toFixed(2))
+    : 0);
+const fiscalTotals = computed(() => form.fiscal.items.reduce((totals, item) => {
+    const amount = Number(item.net_amount || 0);
+    const vat = fiscalLineVat(item);
+    if (item.vat_treatment === 'exento') totals.exempt += amount;
+    else if (item.vat_treatment === 'no_gravado') totals.nonTaxed += amount;
+    else { totals.net += amount; totals.vat += vat; }
+    totals.total += amount + vat;
+    return totals;
+}, { net: 0, vat: 0, exempt: 0, nonTaxed: 0, total: 0 }));
 const selectedSupplier = computed(() => props.suppliers.find((supplier) => String(supplier.id) === String(form.supplier_id)) || null);
 const purchaseItemsCount = computed(() => form.items.length);
 const newItemsCount = computed(() => form.items.filter((item) => item.product_id === null).length);
@@ -533,6 +557,22 @@ const removeItem = (index) => {
     form.items.splice(index, 1);
 };
 
+const addFiscalItem = () => {
+    form.fiscal.items.push({
+        vat_treatment: 'gravado',
+        vat_rate: Number(props.vat_options?.defaults?.rate || 21),
+        net_amount: 0,
+    });
+};
+
+const removeFiscalItem = (index) => {
+    if (form.fiscal.items.length > 1) form.fiscal.items.splice(index, 1);
+};
+
+const syncFiscalTotal = () => {
+    form.fiscal.total_amount = Number((fiscalTotals.value.total + Number(form.fiscal.other_taxes_amount || 0)).toFixed(2));
+};
+
 const itemLabel = (item) => {
     if (item.product_id) {
         return props.products.find((product) => product.id === Number(item.product_id))?.name || `Producto #${item.product_id}`;
@@ -668,6 +708,33 @@ onBeforeUnmount(() => {
                         <input id="purchase_notes" v-model="form.notes" type="text" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="Observaciones" />
                     </div>
                 </div>
+
+                <details class="mt-4 rounded-xl border border-cyan-100/20 bg-slate-950/25 p-4" :open="form.fiscal.enabled">
+                    <summary class="cursor-pointer text-sm font-semibold text-slate-100">Datos fiscales del comprobante (opcional)</summary>
+                    <p class="mt-1 text-xs text-slate-300/80">Solo completalos si querés incorporar esta compra al Libro IVA Compras. El costo y stock siguen su flujo habitual.</p>
+                    <label class="mt-3 inline-flex items-center gap-2 text-sm text-slate-200"><input v-model="form.fiscal.enabled" type="checkbox" class="rounded border-cyan-100/25"> Registrar para IVA Compras</label>
+
+                    <div v-if="form.fiscal.enabled" class="mt-4 grid gap-3 lg:grid-cols-3">
+                        <div><label for="fiscal_supplier_cuit" class="mb-1 block text-sm font-medium text-slate-300">CUIT proveedor</label><input id="fiscal_supplier_cuit" v-model="form.fiscal.supplier_cuit" inputmode="numeric" maxlength="13" class="w-full rounded-xl border-cyan-100/25 text-sm" placeholder="30-12345678-9"><p v-if="form.errors['fiscal.supplier_cuit']" class="mt-1 text-xs text-rose-300">{{ form.errors['fiscal.supplier_cuit'] }}</p></div>
+                        <div><label for="fiscal_document_type" class="mb-1 block text-sm font-medium text-slate-300">Tipo de comprobante</label><select id="fiscal_document_type" v-model="form.fiscal.document_type" class="w-full rounded-xl border-cyan-100/25 text-sm"><option v-for="option in fiscal_purchase_document_types" :key="option.value" :value="option.value">{{ option.label }}</option></select></div>
+                        <div><label for="fiscal_voucher_date" class="mb-1 block text-sm font-medium text-slate-300">Fecha comprobante</label><input id="fiscal_voucher_date" v-model="form.fiscal.voucher_date" type="date" class="w-full rounded-xl border-cyan-100/25 text-sm"></div>
+                        <div><label for="fiscal_point_of_sale" class="mb-1 block text-sm font-medium text-slate-300">Punto de venta</label><input id="fiscal_point_of_sale" v-model.number="form.fiscal.point_of_sale" type="number" min="1" class="w-full rounded-xl border-cyan-100/25 text-sm"></div>
+                        <div><label for="fiscal_number" class="mb-1 block text-sm font-medium text-slate-300">Número</label><input id="fiscal_number" v-model.number="form.fiscal.number" type="number" min="1" class="w-full rounded-xl border-cyan-100/25 text-sm"></div>
+                        <div><label for="fiscal_other_taxes" class="mb-1 block text-sm font-medium text-slate-300">Otros impuestos / percepciones</label><input id="fiscal_other_taxes" v-model.number="form.fiscal.other_taxes_amount" type="number" min="0" step="0.01" class="w-full rounded-xl border-cyan-100/25 text-sm" @change="syncFiscalTotal"></div>
+                    </div>
+
+                    <div v-if="form.fiscal.enabled" class="mt-4">
+                        <div class="flex items-center justify-between gap-3"><h3 class="text-sm font-semibold text-slate-100">Desglose por alícuota</h3><button type="button" class="rounded-lg border border-cyan-100/25 px-3 py-1.5 text-xs font-semibold text-cyan-100" @click="addFiscalItem">Agregar alícuota</button></div>
+                        <div v-for="(item, index) in form.fiscal.items" :key="index" class="mt-3 grid gap-3 rounded-xl border border-cyan-100/15 p-3 md:grid-cols-[1fr_10rem_12rem_auto]">
+                            <select v-model="item.vat_treatment" class="rounded-xl border-cyan-100/25 text-sm" @change="syncFiscalTotal"><option v-for="option in vatTreatmentOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select>
+                            <select v-model.number="item.vat_rate" :disabled="item.vat_treatment !== 'gravado'" class="rounded-xl border-cyan-100/25 text-sm" @change="syncFiscalTotal"><option v-for="option in vatRateOptions" :key="option.id" :value="Number(option.value)">{{ option.label }}</option></select>
+                            <input v-model.number="item.net_amount" type="number" min="0.01" step="0.01" class="rounded-xl border-cyan-100/25 text-sm" placeholder="Neto / importe" @change="syncFiscalTotal">
+                            <div class="flex items-center gap-2"><span class="text-xs text-slate-300">IVA {{ money(fiscalLineVat(item)) }}</span><button type="button" class="text-xs text-rose-200" :disabled="form.fiscal.items.length === 1" @click="removeFiscalItem(index)">Quitar</button></div>
+                        </div>
+                        <div class="mt-3 flex flex-wrap justify-between gap-3 rounded-xl bg-slate-900/45 p-3 text-sm text-slate-200"><span>Neto {{ money(fiscalTotals.net) }} · IVA {{ money(fiscalTotals.vat) }} · Exento {{ money(fiscalTotals.exempt) }} · No gravado {{ money(fiscalTotals.nonTaxed) }}</span><label class="font-semibold">Total comprobante <input v-model.number="form.fiscal.total_amount" type="number" min="0" step="0.01" class="ml-2 w-32 rounded-lg border-cyan-100/25 text-sm"></label></div>
+                        <p v-if="form.errors['fiscal.total_amount']" class="mt-1 text-xs text-rose-300">{{ form.errors['fiscal.total_amount'] }}</p>
+                    </div>
+                </details>
             </AppPanel>
 
             <AppPanel title="Carga de compra" subtitle="Alterna entre producto existente y nuevo sin salir del mismo flujo de ingreso.">

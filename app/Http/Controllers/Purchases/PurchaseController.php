@@ -147,6 +147,11 @@ class PurchaseController extends Controller
                     'rate' => (float) config('fiscal.defaults.vat_rate', 21),
                 ],
             ],
+            'fiscal_purchase_document_types' => [
+                ...config('fiscal.document_types', []),
+                ['value' => 'invoice_m', 'label' => 'Factura M'],
+                ['value' => 'ticket', 'label' => 'Ticket / otro comprobante'],
+            ],
         ]);
     }
 
@@ -174,7 +179,7 @@ class PurchaseController extends Controller
         abort_if($business === null, 404);
         abort_if($purchase->business_id !== $business->id, 403);
 
-        $purchase->load(['items.product', 'supplier', 'user']);
+        $purchase->load(['items.product', 'fiscalItems', 'supplier', 'user']);
 
         return Inertia::render('Purchases/Show', [
             'purchase' => [
@@ -186,6 +191,25 @@ class PurchaseController extends Controller
                 'purchased_at' => $purchase->purchased_at?->format('Y-m-d H:i'),
                 'supplier' => $purchase->supplier?->name,
                 'user' => $purchase->user?->name,
+                'fiscal' => $purchase->fiscal_document_type === null ? null : [
+                    'supplier_cuit' => $purchase->supplier_cuit,
+                    'document_type' => $purchase->fiscal_document_type,
+                    'point_of_sale' => $purchase->fiscal_point_of_sale,
+                    'number' => $purchase->fiscal_number,
+                    'voucher_date' => $purchase->fiscal_voucher_date?->format('Y-m-d'),
+                    'net_amount' => (float) $purchase->fiscal_net_amount,
+                    'vat_amount' => (float) $purchase->fiscal_vat_amount,
+                    'exempt_amount' => (float) $purchase->fiscal_exempt_amount,
+                    'non_taxed_amount' => (float) $purchase->fiscal_non_taxed_amount,
+                    'other_taxes_amount' => (float) $purchase->fiscal_other_taxes_amount,
+                    'total_amount' => (float) $purchase->fiscal_total_amount,
+                    'items' => $purchase->fiscalItems->map(fn ($item): array => [
+                        'vat_treatment' => $item->vat_treatment,
+                        'vat_rate' => (float) $item->vat_rate,
+                        'net_amount' => (float) $item->net_amount,
+                        'vat_amount' => (float) $item->vat_amount,
+                    ]),
+                ],
                 'items' => $purchase->items->map(fn ($item) => [
                     'id' => $item->id,
                     'product_name' => $item->product_name,

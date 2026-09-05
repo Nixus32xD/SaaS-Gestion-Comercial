@@ -67,6 +67,17 @@ const itemsWithoutExpiry = computed(() => itemsCount.value - itemsWithExpiry.val
                             <p class="app-section-title">Notas</p>
                             <p class="mt-2 text-sm text-slate-300">{{ purchase.notes || 'Sin observaciones de compra.' }}</p>
                         </div>
+
+                        <div v-if="purchase.fiscal" class="mt-4 app-subsection">
+                            <p class="app-section-title">Comprobante fiscal</p>
+                            <div class="mt-2 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
+                                <p>{{ purchase.fiscal.document_type }} · PV {{ purchase.fiscal.point_of_sale }} · N.º {{ purchase.fiscal.number }}</p>
+                                <p>CUIT proveedor: {{ purchase.fiscal.supplier_cuit }}</p>
+                                <p>Fecha: {{ purchase.fiscal.voucher_date }}</p>
+                                <p>Crédito fiscal IVA: <strong class="text-slate-100">{{ money(purchase.fiscal.vat_amount) }}</strong></p>
+                            </div>
+                            <p class="mt-2 text-xs text-slate-400">Neto {{ money(purchase.fiscal.net_amount) }} · Exento {{ money(purchase.fiscal.exempt_amount) }} · No gravado {{ money(purchase.fiscal.non_taxed_amount) }} · Total {{ money(purchase.fiscal.total_amount) }}</p>
+                        </div>
                     </AppPanel>
 
                     <AppPanel title="Items y lotes" subtitle="Detalle de cantidades, costos y vencimientos para control rapido.">

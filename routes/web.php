@@ -16,6 +16,7 @@ use App\Http\Controllers\Customers\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Fiscal\ElectronicBillingController;
 use App\Http\Controllers\Fiscal\FiscalCredentialProxyController;
+use App\Http\Controllers\Fiscal\FiscalMonthlyReportController;
 use App\Http\Controllers\Inventory\InventoryTransferController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Payments\MercadoPagoPointController;
@@ -137,6 +138,7 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
 
     Route::get('/electronic-billing', [ElectronicBillingController::class, 'index'])->name('electronic-billing.index');
+    Route::get('/fiscal/iva', [FiscalMonthlyReportController::class, 'index'])->name('fiscal.vat-dashboard');
 });
 
 Route::middleware(['auth', 'business', 'business.admin'])->group(function (): void {

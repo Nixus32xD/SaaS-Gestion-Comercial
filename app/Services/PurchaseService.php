@@ -191,6 +191,18 @@ class PurchaseService
             });
 
             $subtotal = round((float) $lines->sum('subtotal'), 2);
+            $fiscal = $this->resolveFiscalData($payload);
+
+            if ($fiscal !== null && Purchase::query()->forBusiness($business->id)
+                ->where('supplier_cuit', $fiscal['supplier_cuit'])
+                ->where('fiscal_document_type', $fiscal['document_type'])
+                ->where('fiscal_point_of_sale', $fiscal['point_of_sale'])
+                ->where('fiscal_number', $fiscal['number'])
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'fiscal.number' => 'Ese comprobante ya fue registrado para el proveedor.',
+                ]);
+            }
 
             $purchase = Purchase::query()->create([
                 'business_id' => $business->id,
@@ -200,9 +212,27 @@ class PurchaseService
                 'purchase_number' => $this->documentNumberService->nextPurchaseNumber($business->id),
                 'subtotal' => $subtotal,
                 'total' => $subtotal,
+                'supplier_cuit' => $fiscal['supplier_cuit'] ?? null,
+                'fiscal_document_type' => $fiscal['document_type'] ?? null,
+                'fiscal_point_of_sale' => $fiscal['point_of_sale'] ?? null,
+                'fiscal_number' => $fiscal['number'] ?? null,
+                'fiscal_voucher_date' => $fiscal['voucher_date'] ?? null,
+                'fiscal_net_amount' => $fiscal['net_amount'] ?? null,
+                'fiscal_vat_amount' => $fiscal['vat_amount'] ?? null,
+                'fiscal_exempt_amount' => $fiscal['exempt_amount'] ?? null,
+                'fiscal_non_taxed_amount' => $fiscal['non_taxed_amount'] ?? null,
+                'fiscal_other_taxes_amount' => $fiscal['other_taxes_amount'] ?? null,
+                'fiscal_total_amount' => $fiscal['total_amount'] ?? null,
                 'notes' => $payload['notes'] ?? null,
                 'purchased_at' => $purchasedAt,
             ]);
+
+            if ($fiscal !== null) {
+                $purchase->fiscalItems()->createMany(array_map(
+                    fn (array $item): array => ['business_id' => $business->id, ...$item],
+                    $fiscal['items'],
+                ));
+            }
 
             foreach ($lines as $line) {
                 /** @var Product $product */
@@ -258,7 +288,7 @@ class PurchaseService
                 ]);
             }
 
-            return $purchase->load(['items', 'supplier', 'user']);
+            return $purchase->load(['items', 'fiscalItems', 'supplier', 'user']);
         });
     }
 
@@ -288,6 +318,45 @@ class PurchaseService
         }
 
         return $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>|null
+     */
+    private function resolveFiscalData(array $payload): ?array
+    {
+        $fiscal = (array) ($payload['fiscal'] ?? []);
+
+        if (! (bool) data_get($fiscal, 'enabled', false)) {
+            return null;
+        }
+
+        $breakdown = $this->vatCalculator->purchaseBreakdown((array) data_get($fiscal, 'items', []));
+        $otherTaxes = round((float) data_get($fiscal, 'other_taxes_amount', 0), 2);
+        $declaredTotal = round((float) data_get($fiscal, 'total_amount', 0), 2);
+        $calculatedTotal = round((float) $breakdown['totals']['total'] + $otherTaxes, 2);
+
+        if (abs($declaredTotal - $calculatedTotal) > 0.02) {
+            throw ValidationException::withMessages([
+                'fiscal.total_amount' => 'El total fiscal debe coincidir con neto, IVA, exento, no gravado y otros impuestos.',
+            ]);
+        }
+
+        return [
+            'supplier_cuit' => (string) data_get($fiscal, 'supplier_cuit'),
+            'document_type' => (string) data_get($fiscal, 'document_type'),
+            'point_of_sale' => (int) data_get($fiscal, 'point_of_sale'),
+            'number' => (int) data_get($fiscal, 'number'),
+            'voucher_date' => data_get($fiscal, 'voucher_date'),
+            'net_amount' => $breakdown['totals']['net'],
+            'vat_amount' => $breakdown['totals']['vat'],
+            'exempt_amount' => $breakdown['totals']['exempt'],
+            'non_taxed_amount' => $breakdown['totals']['non_taxed'],
+            'other_taxes_amount' => $otherTaxes,
+            'total_amount' => $declaredTotal,
+            'items' => $breakdown['lines'],
+        ];
     }
 
     private function resolveBranch(Business $business, ?Branch $branch): Branch

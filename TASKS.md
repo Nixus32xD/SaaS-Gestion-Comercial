@@ -23,6 +23,10 @@ Actualmente incluye:
 * webhooks firmados e idempotentes;
 * reserva de stock para pagos Point;
 * cancelación y expiración automática de operaciones Point.
+* sucursales, stock, lotes y movimientos por sucursal;
+* transferencias inmediatas de inventario entre sucursales;
+* caja operativa por sucursal;
+* IVA Compras y resumen fiscal mensual de referencia.
 
 El objetivo actual es evolucionar el sistema hacia una plataforma comercial multi-sucursal e integrable.
 
@@ -45,21 +49,21 @@ El objetivo actual es evolucionar el sistema hacia una plataforma comercial mult
 * [x] Expirar operaciones pendientes después del timeout.
 * [x] Consultar Mercado Pago antes de liberar reservas vencidas.
 * [x] Permitir nuevos intentos con nuevas idempotency keys.
-* [ ] Detectar aprobación remota posterior a cancelación/expiración local.
-* [ ] Implementar estado de conciliación requerida.
-* [ ] Validar workflow completo mediante CI.
+* [x] Detectar aprobación remota posterior a cancelación/expiración local.
+* [x] Implementar estado de conciliación requerida.
+* [x] Validar workflow completo mediante CI.
 
 ---
 
 # Fase 2 — Calidad y automatización
 
-* [ ] Configurar GitHub Actions.
-* [ ] Ejecutar backend tests en cada push/PR.
-* [ ] Ejecutar build frontend en cada push/PR.
-* [ ] Revisar cobertura de tests críticos.
-* [ ] Mantener tests para stock, ventas, pagos y facturación.
-* [ ] Revisar logs y manejo de excepciones de integraciones externas.
-* [ ] Revisar jobs fallidos y estrategia de retry.
+* [x] Configurar GitHub Actions.
+* [x] Ejecutar backend tests en cada push/PR.
+* [x] Ejecutar build frontend en cada push/PR.
+* [x] Mantener tests críticos para stock, ventas, pagos y facturación.
+* [x] Registrar fallos de integraciones con contexto operativo.
+* [x] Definir retries acotados para jobs críticos.
+* [ ] Revisar cobertura de tests críticos de forma periódica.
 * [ ] Documentar proceso de deploy y rollback.
 
 ---
@@ -83,15 +87,15 @@ Cada sucursal debe pertenecer siempre a un `business_id`.
 
 ## Funcionalidades
 
-* [ ] Crear modelo `Branch`.
-* [ ] CRUD de sucursales.
-* [ ] Selección de sucursal activa.
-* [ ] Asociar ventas a sucursal.
-* [ ] Asociar compras a sucursal.
-* [ ] Asociar cajas/destinos de pago a sucursal.
-* [ ] Asociar terminales Point a sucursal.
-* [ ] Dashboard filtrable por sucursal.
-* [ ] Vista global consolidada del comercio.
+* [x] Crear modelo `Branch`.
+* [x] CRUD de sucursales.
+* [x] Selección de sucursal activa.
+* [x] Asociar ventas a sucursal.
+* [x] Asociar compras a sucursal.
+* [x] Asociar cajas/destinos de pago a sucursal.
+* [x] Asociar terminales Point a sucursal.
+* [x] Dashboard filtrable por sucursal.
+* [x] Vista global consolidada del comercio.
 * [ ] Permisos de usuario por sucursal.
 
 ---
@@ -117,44 +121,34 @@ BranchStock
 
 ## Funcionalidades
 
-* [ ] Stock independiente por sucursal.
-* [ ] Stock reservado independiente por sucursal.
-* [ ] Alertas de stock por sucursal.
-* [ ] Movimientos de stock con `branch_id`.
-* [ ] Lotes por sucursal.
-* [ ] Compras ingresadas a una sucursal.
-* [ ] Ventas descontadas de la sucursal correspondiente.
-* [ ] Point reservando stock de la sucursal correcta.
+* [x] Stock independiente por sucursal.
+* [x] Stock reservado independiente por sucursal.
+* [x] Alertas de stock por sucursal.
+* [x] Movimientos de stock con `branch_id`.
+* [x] Lotes por sucursal.
+* [x] Compras ingresadas a una sucursal.
+* [x] Ventas descontadas de la sucursal correspondiente.
+* [x] Point reservando stock de la sucursal correcta.
 
 ---
 
 # Fase 5 — Transferencias entre sucursales
 
-* [ ] Crear transferencias de inventario.
-* [ ] Estado `pending`.
-* [ ] Estado `in_transit`.
-* [ ] Estado `received`.
-* [ ] Cancelación.
-* [ ] Auditoría.
-* [ ] Responsable que envía.
-* [ ] Responsable que recibe.
-* [ ] Movimientos de salida y entrada.
-* [ ] Evitar diferencias de stock por transferencias incompletas.
+* [x] Crear transferencias de inventario inmediatas, transaccionales e idempotentes.
+* [x] Auditar responsable, sucursales, producto, lotes y referencia común.
+* [x] Registrar movimientos de salida y entrada.
+* [x] Evitar diferencias mediante locks, reserva de stock y rollback.
+* [ ] Evaluar un flujo futuro de recepción (`pending` / `in_transit` / `received`) si la operación deja de ser inmediata.
 
 ---
 
 # Fase 6 — Caja y operación diaria
 
-* [ ] Apertura de caja.
-* [ ] Cierre de caja.
-* [ ] Saldo inicial.
-* [ ] Ingresos.
-* [ ] Egresos.
-* [ ] Ventas por método de pago.
-* [ ] Diferencia esperada vs real.
-* [ ] Caja por sucursal.
-* [ ] Caja por usuario/turno.
-* [ ] Reportes de cierre.
+* [x] Apertura y cierre de caja.
+* [x] Saldo inicial, ingresos y egresos auditables.
+* [x] Integración sólo con la porción en efectivo de las ventas.
+* [x] Diferencia esperada vs. real y reportes de cierre.
+* [x] Caja operativa por sucursal con usuario responsable.
 
 ---
 
@@ -164,13 +158,13 @@ BranchStock
 * [x] CAE/CAA según arquitectura actual.
 * [x] PDF fiscal.
 * [x] IVA de ventas.
-* [ ] IVA de compras.
-* [ ] Dashboard fiscal.
-* [ ] Resumen mensual IVA ventas.
-* [ ] Resumen mensual IVA compras.
-* [ ] Diferencia débito/crédito fiscal.
-* [ ] Exportaciones contables.
-* [ ] Reportes por sucursal.
+* [x] IVA de compras con desglose por alícuota y crédito fiscal.
+* [x] Dashboard fiscal mensual de referencia.
+* [x] Resumen mensual IVA ventas (reutilizando el libro existente de apiArca).
+* [x] Resumen mensual IVA compras.
+* [x] Diferencia débito/crédito fiscal estimada.
+* [x] Exportación CSV del Libro IVA Compras.
+* [x] Reportes consolidados y por sucursal.
 * [ ] Mejorar conciliación de errores fiscales.
 
 ---
@@ -358,20 +352,6 @@ Toda funcionalidad crítica nueva debe incluir tests para:
 
 # Próximo objetivo
 
-Finalizar completamente el ciclo de Mercado Pago Point y CI.
-
-Después comenzar:
-
-```text
-MULTI-SUCURSAL
-```
-
-Prioridad inicial:
-
-1. diseño de modelo de datos;
-2. `Branch`;
-3. sucursal activa;
-4. stock por sucursal;
-5. ventas y compras por sucursal;
-6. Point por sucursal;
-7. dashboard consolidado.
+Consolidar la operación existente: permisos finos por sucursal, cobertura de
+casos críticos y, sólo si el proceso operativo lo requiere, un circuito de
+transferencias con recepción diferida.

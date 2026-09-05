@@ -829,6 +829,9 @@ const reconcileDocument = (document) => {
                     >
                         Ocultar
                     </button>
+                    <Link :href="route('fiscal.vat-dashboard')" class="rounded-lg border border-cyan-100/25 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10">
+                        Resumen IVA mensual
+                    </Link>
                 </div>
 
                 <div v-if="ivaSalesBook.requested" class="mt-5">
