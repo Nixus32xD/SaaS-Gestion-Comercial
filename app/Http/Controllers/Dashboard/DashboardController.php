@@ -11,6 +11,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Supplier;
 use App\Services\BranchCommercialSettingsResolver;
+use App\Services\CashRegisterService;
 use App\Services\LowStockAlertService;
 use App\Services\OperationalMonitoringService;
 use App\Services\ProductExpirationAlertService;
@@ -33,6 +34,7 @@ class DashboardController extends Controller
         LowStockAlertService $lowStockAlertService,
         OperationalMonitoringService $operationalMonitoringService,
         BranchCommercialSettingsResolver $commercialSettingsResolver,
+        CashRegisterService $cashRegisterService,
     ): Response {
         $business = $currentBusiness->get();
         $branch = $currentBranch->get();
@@ -142,6 +144,7 @@ class DashboardController extends Controller
         });
 
         $allTimeStart = $this->firstActivityStart($business->id, $branchId);
+        $cashSummary = $cashRegisterService->currentSummary($business, $branch);
 
         return Inertia::render('Dashboard/Index', [
             'summary' => [
@@ -231,6 +234,12 @@ class DashboardController extends Controller
             'branch_filter' => [
                 'scope' => $branchScope,
                 'current_branch_name' => $branch->name,
+            ],
+            // Caja is always branch-local, even when the commercial dashboard is consolidated.
+            'cash_register' => [
+                'is_open' => $cashSummary['session'] !== null,
+                'branch_name' => $branch->name,
+                'expected_amount' => $cashSummary['expected_amount'],
             ],
             'advanced_sales' => [
                 'enabled' => $advancedSaleSettingsEnabled,

@@ -19,6 +19,7 @@ const props = defineProps({
     operational_monitoring: { type: Array, default: () => [] },
     advanced_sales: { type: Object, default: () => ({ enabled: false, sales_by_sector: [], sales_by_payment_destination: [] }) },
     branch_filter: { type: Object, default: () => ({ scope: 'all', current_branch_name: '' }) },
+    cash_register: { type: Object, default: () => ({ is_open: false, branch_name: '', expected_amount: 0 }) },
 });
 
 const page = usePage();
@@ -384,7 +385,7 @@ const priorityCards = computed(() => ([
     },
     {
         key: 'flow',
-        title: netFlow.value >= 0 ? 'Caja comercial positiva' : 'Compras por encima de ventas',
+        title: netFlow.value >= 0 ? 'Balance comercial positivo' : 'Compras por encima de ventas',
         description: `En ${selectedPeriod.value.label.toLowerCase()} la diferencia fue ${money(Math.abs(netFlow.value))}.`,
         tone: netFlow.value >= 0 ? 'success' : 'warning',
         href: route('sales.index'),
@@ -458,10 +459,16 @@ const priorityCards = computed(() => ([
                     tone="warning"
                 />
                 <MetricCard
-                    label="Balance neto"
+                    label="Balance comercial"
                     :value="money(selectedPeriod.net_total)"
                     :hint="selectedPeriod.net_total >= 0 ? 'Ingresos por encima de compras.' : 'Compras por encima de ingresos.'"
                     :tone="selectedNetTone"
+                />
+                <MetricCard
+                    label="Caja de sucursal"
+                    :value="cash_register.is_open ? money(cash_register.expected_amount) : 'Cerrada'"
+                    :hint="cash_register.is_open ? `Efectivo esperado en ${cash_register.branch_name}.` : `No hay caja abierta en ${cash_register.branch_name}.`"
+                    :tone="cash_register.is_open ? 'success' : 'default'"
                 />
                 <MetricCard
                     label="Operaciones"

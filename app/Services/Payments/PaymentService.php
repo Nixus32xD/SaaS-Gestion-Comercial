@@ -10,11 +10,14 @@ use App\Models\BusinessPaymentDestination;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\CashRegisterService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class PaymentService
 {
+    public function __construct(private readonly CashRegisterService $cashRegisterService) {}
+
     /**
      * @param  array<string, mixed>  $metadata
      */
@@ -116,6 +119,7 @@ class PaymentService
             ]);
 
             $this->syncSalePaymentSummary($lockedSale);
+            $this->cashRegisterService->recordCashPayment($payment);
 
             return $payment;
         });

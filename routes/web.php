@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\BusinessSalesSettingsController;
 use App\Http\Controllers\Admin\CommercialGuideController;
 use App\Http\Controllers\Admin\GlobalProductCatalogController;
 use App\Http\Controllers\Branches\CurrentBranchController;
+use App\Http\Controllers\CashRegister\CashRegisterController;
 use App\Http\Controllers\Categories\CategoryController;
 use App\Http\Controllers\Customers\CustomerAccountController;
 use App\Http\Controllers\Customers\CustomerController;
@@ -88,6 +89,12 @@ Route::middleware(['auth', 'business'])->group(function (): void {
 
     Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->name('inventory.transfers.index');
     Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->name('inventory.transfers.store');
+
+    Route::get('/cash-register', [CashRegisterController::class, 'index'])->name('cash-register.index');
+    Route::post('/cash-register/open', [CashRegisterController::class, 'open'])->name('cash-register.open');
+    Route::post('/cash-register/movements', [CashRegisterController::class, 'storeMovement'])->name('cash-register.movements.store');
+    Route::post('/cash-register/close', [CashRegisterController::class, 'close'])->name('cash-register.close');
+    Route::get('/cash-register/sessions/{cashSession}', [CashRegisterController::class, 'show'])->name('cash-register.sessions.show');
 
     Route::get('/suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
     Route::get('/suppliers/create', [SupplierController::class, 'create'])->name('suppliers.create');
