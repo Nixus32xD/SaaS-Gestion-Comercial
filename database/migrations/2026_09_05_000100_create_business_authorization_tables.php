@@ -71,7 +71,7 @@ return new class extends Migration
             $table->json('before')->nullable();
             $table->json('after')->nullable();
             $table->timestamps();
-            $table->index(['business_id', 'subject_user_id', 'created_at']);
+            $table->index(['business_id', 'subject_user_id', 'created_at'], 'business_access_audits_business_subject_created_index');
             });
         }
         if (! Schema::hasColumn('businesses', 'owner_user_id')) {

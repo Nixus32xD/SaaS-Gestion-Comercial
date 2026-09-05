@@ -10,7 +10,7 @@ class InventoryAdjustment extends Model
 {
     use BelongsToBusiness;
 
-    protected $fillable = ['business_id', 'branch_id', 'product_id', 'branch_product_stock_id', 'created_by', 'quantity', 'stock_before', 'stock_after', 'reserved_stock_snapshot', 'reason', 'notes'];
+    protected $fillable = ['business_id', 'branch_id', 'product_id', 'branch_product_stock_id', 'created_by', 'quantity', 'stock_before', 'stock_after', 'reserved_stock_snapshot', 'reason', 'notes', 'idempotency_key', 'request_fingerprint'];
 
     protected function casts(): array
     {

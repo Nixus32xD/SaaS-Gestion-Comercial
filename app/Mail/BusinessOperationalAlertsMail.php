@@ -39,11 +39,13 @@ class BusinessOperationalAlertsMail extends Mailable
     {
         $lowStockItems = $this->payload['low_stock']['items'] ?? [];
         $expirationItems = $this->payload['expiration']['items'] ?? [];
+        $fiscalItems = $this->payload['fiscal_reconciliation']['items'] ?? [];
         $generatedAt = e((string) ($this->payload['generated_at'] ?? now()->format('Y-m-d H:i')));
         $dashboardUrl = e(url('/dashboard'));
         $productsUrl = e(url('/products'));
         $lowStockCount = count($lowStockItems);
         $expirationCount = count($expirationItems);
+        $fiscalCount = count($fiscalItems);
         $expiredCount = (int) ($this->payload['expiration']['summary']['expired'] ?? 0);
 
         $html = [
@@ -110,7 +112,7 @@ class BusinessOperationalAlertsMail extends Mailable
             '<div class="hero">',
             '<span class="hero-kicker">ComerStock</span>',
             '<h1 class="hero-title">Alertas operativas de '.e($this->businessName).'</h1>',
-            '<p class="hero-copy">Generado el '.$generatedAt.'. Revisamos stock, productos agotados y lotes con vencimiento para este comercio.</p>',
+            '<p class="hero-copy">Generado el '.$generatedAt.'. Revisamos stock, lotes y conciliaciones fiscales pendientes para este comercio.</p>',
             '</div>',
             '<div class="content">',
             '<table role="presentation" class="summary-grid"><tr>',
@@ -202,10 +204,32 @@ class BusinessOperationalAlertsMail extends Mailable
             $html[] = '</div></div>';
         }
 
+        if ($fiscalItems !== []) {
+            $html[] = '<div class="section">';
+            $html[] = '<h2 class="section-header" style="color:#991b1b;">Conciliaciones fiscales pendientes</h2>';
+            $html[] = '<p class="section-copy">'.e((string) $fiscalCount).' comprobante(s) quedaron inciertos después de los reintentos automáticos. No se reemitieron.</p>';
+            $html[] = '<table class="data-table desktop-table"><thead><tr><th align="left">Venta</th><th align="left">Sucursal</th><th align="left">Comprobante externo</th><th align="left">Detalle</th></tr></thead><tbody>';
+
+            foreach ($fiscalItems as $item) {
+                $html[] = '<tr>'
+                    .'<td>#'.e((string) ($item['sale_id'] ?? '-')).'</td>'
+                    .'<td>'.e((string) ($item['branch_name'] ?? '-')).'</td>'
+                    .'<td>'.e((string) ($item['fiscal_document_id'] ?? '-')).'</td>'
+                    .'<td>'.e((string) ($item['error_message'] ?? 'Requiere conciliación manual.')).'</td>'
+                    .'</tr>';
+            }
+
+            $html[] = '</tbody></table></div>';
+        }
+
         $html[] = '<div class="cta">';
         $html[] = '<p class="cta-title">Acciones sugeridas</p>';
         $html[] = '<p class="cta-copy">Revisa el dashboard para el resumen general: <a class="cta-link" href="'.$dashboardUrl.'">'.$dashboardUrl.'</a></p>';
         $html[] = '<p class="cta-copy" style="margin-top:8px;">Consulta y ajusta productos desde: <a class="cta-link" href="'.$productsUrl.'">'.$productsUrl.'</a></p>';
+        if ($fiscalItems !== []) {
+            $fiscalUrl = e(url('/electronic-billing'));
+            $html[] = '<p class="cta-copy" style="margin-top:8px;">Conciliá comprobantes desde: <a class="cta-link" href="'.$fiscalUrl.'">'.$fiscalUrl.'</a></p>';
+        }
         $html[] = '</div>';
         $html[] = '</div>';
         $html[] = '<div class="footer">Este mensaje se genero automaticamente porque el comercio tiene alertas operativas activas en ComerStock.</div>';

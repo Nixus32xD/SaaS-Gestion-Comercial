@@ -662,6 +662,10 @@ class ElectronicBillingController extends Controller
                     'technical_message' => $error['technical_message'] ?? null,
                     'can_reconcile' => $document->requiresReconcile(),
                     'can_retry' => $this->fiscalApiErrorMapper->safeToRetry($document),
+                    'reconciliation_attempts' => $document->reconciliation_attempts,
+                    'reconciliation_last_attempt_at' => $document->reconciliation_last_attempt_at?->format('Y-m-d H:i'),
+                    'reconciliation_next_attempt_at' => $document->reconciliation_next_attempt_at?->format('Y-m-d H:i'),
+                    'reconciliation_alerted_at' => $document->reconciliation_alerted_at?->format('Y-m-d H:i'),
                 ];
             })
             ->values()

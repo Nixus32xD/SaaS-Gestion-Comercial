@@ -987,6 +987,8 @@ const reconcileDocument = (document) => {
                                     </span>
                                     <p v-if="document.error_message" class="mt-2 max-w-xs text-xs text-rose-200">{{ document.error_message }}</p>
                                     <p v-if="document.error_action" class="mt-1 max-w-xs text-xs text-slate-400">Accion: {{ document.error_action }}</p>
+                                    <p v-if="document.reconciliation_last_attempt_at" class="mt-1 max-w-xs text-xs text-slate-400">Conciliaciones: {{ document.reconciliation_attempts }} · Última: {{ document.reconciliation_last_attempt_at }}</p>
+                                    <p v-if="document.reconciliation_next_attempt_at" class="mt-1 max-w-xs text-xs text-amber-100">Próxima conciliación: {{ document.reconciliation_next_attempt_at }}</p>
                                 </td>
                                 <td class="px-3 py-2 text-slate-200">{{ voucherLabel(document) }}</td>
                                 <td class="px-3 py-2 text-slate-200">
@@ -1067,6 +1069,8 @@ const reconcileDocument = (document) => {
                             <p v-if="document.error_message" class="break-words text-rose-200">{{ document.error_message }}</p>
                             <p v-if="document.error_action" class="mt-1 break-words text-slate-400">Accion: {{ document.error_action }}</p>
                         </div>
+                        <p v-if="document.reconciliation_last_attempt_at" class="mt-3 text-xs text-slate-400">Conciliaciones: {{ document.reconciliation_attempts }} · Última: {{ document.reconciliation_last_attempt_at }}</p>
+                        <p v-if="document.reconciliation_next_attempt_at" class="mt-1 text-xs text-amber-100">Próxima conciliación: {{ document.reconciliation_next_attempt_at }}</p>
 
                         <div class="mt-3 flex flex-wrap gap-2">
                             <button

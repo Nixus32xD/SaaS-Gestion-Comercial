@@ -21,6 +21,7 @@ class StoreInventoryAdjustmentRequest extends FormRequest
             'notes' => trim((string) $this->input('notes')) ?: null,
             'batch_code' => trim((string) $this->input('batch_code')) ?: null,
             'unit_cost' => $this->filled('unit_cost') ? $this->input('unit_cost') : null,
+            'idempotency_key' => trim((string) $this->input('idempotency_key')),
         ]);
     }
 
@@ -34,6 +35,7 @@ class StoreInventoryAdjustmentRequest extends FormRequest
             'expires_at' => ['nullable', 'date'],
             'unit_cost' => ['nullable', 'numeric', 'gte:0'],
             'expected_branch_id' => ['nullable', 'integer'],
+            'idempotency_key' => ['required', 'uuid'],
         ];
     }
 

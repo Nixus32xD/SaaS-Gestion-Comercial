@@ -27,6 +27,16 @@ La aplicación opera con una única base de datos, aísla la información comerc
 - Notificaciones operativas y de mantenimiento configurables por comercio.
 - Mercado Pago Point: cobros presenciales con creación, consulta y cancelación de órdenes; webhook firmado, idempotente y conciliable.
 
+## Idempotencia de ajustes de inventario
+
+Cada ajuste manual requiere un `idempotency_key` UUID generado por la pantalla antes del primer envío. La misma clave se conserva para un retry del mismo formulario y se genera otra al iniciar un ajuste nuevo. La base impone `UNIQUE(business_id, idempotency_key)`: una misma clave puede existir en comercios distintos, pero no puede representar otra sucursal, producto, delta, motivo, notas o datos de lote dentro del mismo comercio. El servidor guarda un SHA-256 del payload normalizado y un retry idéntico reutiliza el ajuste ya confirmado; un payload distinto recibe un error de validación controlado.
+
+## Conciliación fiscal automática
+
+Un timeout, error de infraestructura o respuesta ambigua al emitir nunca vuelve a enviar el comprobante. El documento queda `uncertain` (o se conserva `processing`) y `fiscal:reconcile-pending` lo consulta en apiArca por `fiscal_document_id` o por el origen inmutable `sale` + `sale_id` de la identidad fiscal original. El job sólo consulta y reutiliza el mismo mapeo de respuesta; no reserva ni asigna numeración local.
+
+Las ventanas son 15 s, 1 min, 5 min, 15 min y 1 h, con un máximo configurable de cinco intentos. El scheduler corre cada minuto y usa `onOneServer()`/`withoutOverlapping()`; configurá cache compartido en producción. Al agotarse los intentos permanece `uncertain`, queda marcado para atención y se registra un evento crítico deduplicado. La acción **Conciliar** usa el mismo servicio y no reemite. Las variables son `FISCAL_RECONCILIATION_MAX_ATTEMPTS`, `FISCAL_RECONCILIATION_STALE_MINUTES` y `FISCAL_RECONCILIATION_SCAN_LIMIT`.
+
 ## Ciclo de cobro con Mercado Pago Point
 
 Al iniciar un cobro Point, la venta queda pendiente y el stock se reserva; no se descuenta ni se emite un comprobante fiscal todavía.

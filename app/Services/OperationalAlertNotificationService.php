@@ -6,6 +6,7 @@ use App\Jobs\SendBusinessOperationalAlertsJob;
 use App\Models\Business;
 use App\Models\BusinessNotificationDispatch;
 use App\Models\BusinessNotificationSetting;
+use App\Models\SaleFiscalDocument;
 use App\Models\User;
 
 class OperationalAlertNotificationService
@@ -32,6 +33,25 @@ class OperationalAlertNotificationService
             ? $this->expirationAlertService->listForBusiness($business->id, 50)->values()->all()
             : [];
 
+        $fiscalItems = SaleFiscalDocument::query()
+            ->forBusiness($business->id)
+            ->whereNotNull('reconciliation_alerted_at')
+            ->with(['sale.branch:id,name'])
+            ->orderByDesc('reconciliation_alerted_at')
+            ->limit(50)
+            ->get()
+            ->map(fn (SaleFiscalDocument $document): array => [
+                'id' => $document->id,
+                'sale_id' => $document->sale_id,
+                'branch_name' => $document->sale?->branch?->name,
+                'fiscal_document_id' => $document->fiscal_document_id,
+                'status' => $document->fiscal_status,
+                'error_message' => $document->fiscal_error_message,
+                'alerted_at' => $document->reconciliation_alerted_at?->format('Y-m-d H:i'),
+            ])
+            ->values()
+            ->all();
+
         return [
             'generated_at' => now()->format('Y-m-d H:i'),
             'low_stock' => [
@@ -48,7 +68,10 @@ class OperationalAlertNotificationService
                     : ['expired' => 0, 'within_7_days' => 0, 'within_15_days' => 0, 'within_30_days' => 0],
                 'items' => $expirationItems,
             ],
-            'has_alerts' => count($lowStockItems) > 0 || count($expirationItems) > 0,
+            'fiscal_reconciliation' => [
+                'items' => $fiscalItems,
+            ],
+            'has_alerts' => count($lowStockItems) > 0 || count($expirationItems) > 0 || count($fiscalItems) > 0,
         ];
     }
 
@@ -150,6 +173,7 @@ class OperationalAlertNotificationService
         $signature = hash('sha256', json_encode([
             'low_stock' => $payload['low_stock']['items'],
             'expiration' => $payload['expiration']['items'],
+            'fiscal_reconciliation' => $payload['fiscal_reconciliation']['items'],
         ], JSON_THROW_ON_ERROR));
 
         if (! $force && $this->wasRecentlySent($business->id, $signature, $settings->minimum_hours_between_alerts)) {
@@ -246,6 +270,7 @@ class OperationalAlertNotificationService
 
         $lowStockCount = count($payload['low_stock']['items'] ?? []);
         $expirationCount = count($payload['expiration']['items'] ?? []);
+        $fiscalCount = count($payload['fiscal_reconciliation']['items'] ?? []);
 
         if ($lowStockCount > 0) {
             $parts[] = $lowStockCount.' de stock';
@@ -253,6 +278,10 @@ class OperationalAlertNotificationService
 
         if ($expirationCount > 0) {
             $parts[] = $expirationCount.' de vencimiento';
+        }
+
+        if ($fiscalCount > 0) {
+            $parts[] = $fiscalCount.' fiscales';
         }
 
         return 'ComerStock | Alertas para '.$business->name.' ('.implode(' | ', $parts).')';

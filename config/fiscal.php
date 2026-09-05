@@ -14,6 +14,12 @@ return [
     'token' => env('FISCAL_API_TOKEN'),
     'timeout' => (int) env('FISCAL_API_TIMEOUT', 60),
     'connect_timeout' => (int) env('FISCAL_API_CONNECT_TIMEOUT', 3),
+    'reconciliation' => [
+        'max_attempts' => (int) env('FISCAL_RECONCILIATION_MAX_ATTEMPTS', 5),
+        'stale_minutes' => (int) env('FISCAL_RECONCILIATION_STALE_MINUTES', 5),
+        'scan_limit' => (int) env('FISCAL_RECONCILIATION_SCAN_LIMIT', 100),
+        'backoff_seconds' => [15, 60, 300, 900, 3600],
+    ],
     'environment' => env('FISCAL_ENVIRONMENT', 'testing'),
 
     'defaults' => [

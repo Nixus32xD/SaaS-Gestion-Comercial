@@ -27,6 +27,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->onOneServer()
             ->withoutOverlapping();
+
+        $schedule->command('fiscal:reconcile-pending')
+            ->everyMinute()
+            ->onOneServer()
+            ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

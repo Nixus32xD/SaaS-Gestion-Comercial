@@ -4,8 +4,10 @@ namespace App\Services\Fiscal;
 
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
+use App\Services\OperationalAlertNotificationService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class FiscalSaleDocumentService
@@ -14,6 +16,7 @@ class FiscalSaleDocumentService
         private readonly FiscalApiClient $client,
         private readonly FiscalSalePayloadBuilder $payloadBuilder,
         private readonly FiscalApiErrorMapper $errorMapper,
+        private readonly OperationalAlertNotificationService $operationalAlertNotificationService,
     ) {}
 
     public function issue(Sale $sale): SaleFiscalDocument
@@ -77,12 +80,14 @@ class FiscalSaleDocumentService
         try {
             $response = $this->client->createDocument($payload);
         } catch (FiscalApiTimeoutException $exception) {
-            return $this->markUncertain($document, $this->errorMapper->fromException($exception));
+            return $this->queueReconciliation($this->markUncertain($document, $this->errorMapper->fromException($exception)));
         } catch (FiscalApiException $exception) {
             return $this->markError($document, $this->errorMapper->fromException($exception));
         }
 
-        return $this->applyResponse($document, $response);
+        $document = $this->applyResponse($document, $response);
+
+        return $document->requiresReconcile() ? $this->queueReconciliation($document) : $document;
     }
 
     public function reconcile(SaleFiscalDocument $document): SaleFiscalDocument
@@ -106,6 +111,13 @@ class FiscalSaleDocumentService
                 $businessId = (string) data_get($document->fiscal_payload, 'business_id');
                 $businessId = $businessId !== '' ? $businessId : $this->payloadBuilder->externalBusinessIdForSale($document->sale);
                 $response = $this->client->documentByOrigin($businessId, 'sale', $document->sale_id);
+
+                if (! $this->responseContainsDocument($response)) {
+                    return $this->markUncertain($document, [
+                        'code' => 'origin_not_found',
+                        'message' => 'La API fiscal todavía no encontró el comprobante por su origen. Se mantendrá incierto y se volverá a conciliar sin reemitir.',
+                    ]);
+                }
             }
         } catch (FiscalApiTimeoutException $exception) {
             return $this->markUncertain($document, $this->errorMapper->fromException($exception));
@@ -114,6 +126,84 @@ class FiscalSaleDocumentService
         }
 
         return $this->applyResponse($document, $response, reconciling: true);
+    }
+
+    public function reconcileScheduled(int $documentId): ?SaleFiscalDocument
+    {
+        $document = DB::transaction(function () use ($documentId): ?SaleFiscalDocument {
+            $document = SaleFiscalDocument::query()->lockForUpdate()->find($documentId);
+
+            if ($document === null || ! $document->requiresReconcile()) {
+                return null;
+            }
+
+            $maxAttempts = $this->maxReconciliationAttempts();
+            if ($document->reconciliation_attempts >= $maxAttempts) {
+                $this->markReconciliationAttentionRequired($document);
+
+                return null;
+            }
+
+            $document->forceFill([
+                'reconciliation_attempts' => $document->reconciliation_attempts + 1,
+                'reconciliation_last_attempt_at' => now(),
+                'reconciliation_next_attempt_at' => null,
+            ])->save();
+
+            return $document->refresh();
+        });
+
+        if ($document === null) {
+            return null;
+        }
+
+        Log::info('fiscal_reconciliation_started', $this->reconciliationLogContext($document));
+        $result = $this->reconcile($document);
+
+        return DB::transaction(function () use ($result): SaleFiscalDocument {
+            $locked = SaleFiscalDocument::query()->lockForUpdate()->findOrFail($result->id);
+
+            if (! $locked->requiresReconcile()) {
+                $locked->forceFill([
+                    'reconciliation_next_attempt_at' => null,
+                    'reconciliation_alerted_at' => null,
+                ])->save();
+
+                return $locked->refresh();
+            }
+
+            if ($locked->reconciliation_attempts >= $this->maxReconciliationAttempts()) {
+                $this->markReconciliationAttentionRequired($locked);
+
+                return $locked->refresh();
+            }
+
+            $nextAttemptAt = now()->addSeconds($this->reconciliationBackoff($locked->reconciliation_attempts));
+            $locked->forceFill(['reconciliation_next_attempt_at' => $nextAttemptAt])->save();
+            Log::info('fiscal_reconciliation_scheduled', [
+                ...$this->reconciliationLogContext($locked),
+                'next_attempt_at' => $nextAttemptAt->toIso8601String(),
+            ]);
+
+            return $locked->refresh();
+        });
+    }
+
+    public function queueReconciliation(SaleFiscalDocument $document): SaleFiscalDocument
+    {
+        if (! $document->requiresReconcile() || $document->reconciliation_attempts >= $this->maxReconciliationAttempts()) {
+            return $document;
+        }
+
+        $nextAttemptAt = now()->addSeconds($this->reconciliationBackoff($document->reconciliation_attempts + 1));
+        $document->forceFill(['reconciliation_next_attempt_at' => $nextAttemptAt])->save();
+
+        Log::info('fiscal_reconciliation_scheduled', [
+            ...$this->reconciliationLogContext($document),
+            'next_attempt_at' => $nextAttemptAt->toIso8601String(),
+        ]);
+
+        return $document->refresh();
     }
 
     /**
@@ -441,5 +531,64 @@ class FiscalSaleDocumentService
         return $authorizationType === SaleFiscalDocument::AUTHORIZATION_CAEA
             && (data_get($payload, 'fiscal_status') === SaleFiscalDocument::CAEA_REPORT_REPORTED
                 || data_get($payload, 'caea.report_status') === SaleFiscalDocument::CAEA_REPORT_REPORTED);
+    }
+
+    /** @param array<string, mixed> $response */
+    private function responseContainsDocument(array $response): bool
+    {
+        $data = data_get($response, 'data', $response);
+
+        if (is_array($data) && array_is_list($data)) {
+            return $data !== [] && is_array($data[0] ?? null) && filled(data_get($data[0], 'id'));
+        }
+
+        return is_array($data) && filled(data_get($data, 'id'));
+    }
+
+    private function maxReconciliationAttempts(): int
+    {
+        return max(1, (int) config('fiscal.reconciliation.max_attempts', 5));
+    }
+
+    private function reconciliationBackoff(int $attempt): int
+    {
+        $backoff = array_values((array) config('fiscal.reconciliation.backoff_seconds', [15, 60, 300, 900, 3600]));
+        $value = $backoff[max(0, min($attempt - 1, count($backoff) - 1))] ?? 3600;
+
+        return max(1, (int) $value);
+    }
+
+    private function markReconciliationAttentionRequired(SaleFiscalDocument $document): void
+    {
+        if ($document->reconciliation_alerted_at !== null) {
+            return;
+        }
+
+        $document->forceFill([
+            'reconciliation_next_attempt_at' => null,
+            'reconciliation_alerted_at' => now(),
+        ])->save();
+
+        Log::critical('fiscal_reconciliation_requires_attention', $this->reconciliationLogContext($document));
+
+        $notification = $this->operationalAlertNotificationService->dispatchForBusiness($document->business);
+        Log::info('fiscal_reconciliation_attention_notification', [
+            ...$this->reconciliationLogContext($document),
+            'notification_status' => $notification['status'] ?? null,
+        ]);
+    }
+
+    /** @return array<string, int|string|null> */
+    private function reconciliationLogContext(SaleFiscalDocument $document): array
+    {
+        return [
+            'business_id' => $document->business_id,
+            'sale_id' => $document->sale_id,
+            'sale_fiscal_document_id' => $document->id,
+            'fiscal_document_id' => $document->fiscal_document_id,
+            'attempt_number' => $document->attempt_number,
+            'idempotency_key' => $document->fiscal_idempotency_key,
+            'status' => $document->fiscal_status,
+        ];
     }
 }

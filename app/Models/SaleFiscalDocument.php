@@ -64,6 +64,10 @@ class SaleFiscalDocument extends Model
         'fiscal_response',
         'fiscal_observations',
         'attempted_at',
+        'reconciliation_attempts',
+        'reconciliation_last_attempt_at',
+        'reconciliation_next_attempt_at',
+        'reconciliation_alerted_at',
         'authorized_at',
     ];
 
@@ -85,6 +89,10 @@ class SaleFiscalDocument extends Model
             'fiscal_response' => 'array',
             'fiscal_observations' => 'array',
             'attempted_at' => 'datetime',
+            'reconciliation_attempts' => 'int',
+            'reconciliation_last_attempt_at' => 'datetime',
+            'reconciliation_next_attempt_at' => 'datetime',
+            'reconciliation_alerted_at' => 'datetime',
             'authorized_at' => 'datetime',
         ];
     }

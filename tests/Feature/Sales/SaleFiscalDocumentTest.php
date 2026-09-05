@@ -1,6 +1,9 @@
 <?php
 
 use App\Models\Business;
+use App\Jobs\SendBusinessOperationalAlertsJob;
+use App\Jobs\ReconcileSaleFiscalDocumentJob;
+use App\Models\BusinessNotificationSetting;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleFiscalDocument;
@@ -9,6 +12,7 @@ use App\Services\Fiscal\FiscalQrService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 
 function fiscalSaleFixture(array $businessOverrides = []): array
 {
@@ -431,6 +435,130 @@ test('sale fiscal document timeout leaves local status uncertain', function () {
     expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_UNCERTAIN);
     expect($document->fiscal_error_code)->toBe('timeout');
     expect($document->fiscal_error_message)->toBe('La API fiscal no respondio a tiempo. El estado del comprobante quedo incierto. Usa Conciliar antes de reintentar.');
+    expect($document->reconciliation_next_attempt_at)->not->toBeNull();
+});
+
+test('scheduled reconciliation restores an authorized document found by origin without issuing again', function () {
+    [$business, , $sale] = fiscalSaleFixture();
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'fiscal_payload' => ['business_id' => $business->fiscal_external_business_id],
+        'reconciliation_next_attempt_at' => now(),
+        'attempted_at' => now(),
+    ]);
+
+    Http::fake([
+        'http://127.0.0.1:8000/api/fiscal/documents/by-origin*' => Http::response(['data' => [[
+            'id' => 'fdoc-recovered-by-origin',
+            'status' => 'authorized',
+            'number' => 125,
+            'point_of_sale' => 2,
+            'cbte_type' => 11,
+            'authorization_type' => 'CAE',
+            'authorization_code' => '86173407873027',
+            'authorization_expires_at' => '2026-05-01',
+        ]]]),
+    ]);
+
+    (new ReconcileSaleFiscalDocumentJob($document->id))->handle(app(\App\Services\Fiscal\FiscalSaleDocumentService::class));
+
+    $document->refresh();
+    expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_AUTHORIZED)
+        ->and($document->fiscal_document_id)->toBe('fdoc-recovered-by-origin')
+        ->and($document->fiscal_number)->toBe(125)
+        ->and($document->reconciliation_attempts)->toBe(1)
+        ->and($document->reconciliation_next_attempt_at)->toBeNull();
+    Http::assertSentCount(1);
+});
+
+test('a missing origin remains uncertain and is scheduled again without issuing', function () {
+    [$business, , $sale] = fiscalSaleFixture();
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN,
+        'fiscal_point_of_sale' => 2,
+        'fiscal_cbte_type' => 11,
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'fiscal_payload' => ['business_id' => $business->fiscal_external_business_id],
+        'reconciliation_next_attempt_at' => now(),
+        'attempted_at' => now(),
+    ]);
+
+    Http::fake(['http://127.0.0.1:8000/api/fiscal/documents/by-origin*' => Http::response(['data' => []])]);
+    (new ReconcileSaleFiscalDocumentJob($document->id))->handle(app(\App\Services\Fiscal\FiscalSaleDocumentService::class));
+
+    $document->refresh();
+    expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_UNCERTAIN)
+        ->and($document->fiscal_error_code)->toBe('origin_not_found')
+        ->and($document->reconciliation_attempts)->toBe(1)
+        ->and($document->reconciliation_next_attempt_at)->not->toBeNull();
+    Http::assertSentCount(1);
+});
+
+test('exhausted reconciliation attempts keep the document uncertain and require attention', function () {
+    [$business, , $sale] = fiscalSaleFixture();
+    config()->set('fiscal.reconciliation.max_attempts', 1);
+    Queue::fake();
+    BusinessNotificationSetting::query()->create([
+        'business_id' => $business->id,
+        'notifications_enabled' => true,
+        'send_to_business_email' => true,
+        'send_to_admin_users' => false,
+        'extra_recipients' => [],
+        'low_stock_enabled' => false,
+        'expiration_enabled' => false,
+        'minimum_hours_between_alerts' => 1,
+        'notification_window_start_hour' => 0,
+        'notification_window_end_hour' => 23,
+    ]);
+    $document = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id,
+        'sale_id' => $sale->id,
+        'attempt_number' => 1,
+        'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN,
+        'fiscal_idempotency_key' => "sale:{$business->id}:{$sale->id}:invoice",
+        'fiscal_payload' => ['business_id' => $business->fiscal_external_business_id],
+        'reconciliation_attempts' => 1,
+        'attempted_at' => now(),
+    ]);
+
+    Http::fake();
+    (new ReconcileSaleFiscalDocumentJob($document->id))->handle(app(\App\Services\Fiscal\FiscalSaleDocumentService::class));
+
+    $document->refresh();
+    expect($document->fiscal_status)->toBe(SaleFiscalDocument::STATUS_UNCERTAIN)
+        ->and($document->reconciliation_alerted_at)->not->toBeNull()
+        ->and($document->reconciliation_next_attempt_at)->toBeNull();
+    Http::assertNothingSent();
+    Queue::assertPushed(SendBusinessOperationalAlertsJob::class, 1);
+});
+
+test('the scheduler only enqueues due unresolved fiscal documents', function () {
+    [$business, , $sale] = fiscalSaleFixture();
+    Queue::fake();
+    $due = SaleFiscalDocument::query()->create([
+        'business_id' => $business->id, 'sale_id' => $sale->id, 'attempt_number' => 1,
+        'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN, 'fiscal_idempotency_key' => "due:{$sale->id}",
+        'reconciliation_next_attempt_at' => now()->subSecond(), 'attempted_at' => now(),
+    ]);
+    SaleFiscalDocument::query()->create([
+        'business_id' => $business->id, 'sale_id' => $sale->id, 'attempt_number' => 2,
+        'fiscal_status' => SaleFiscalDocument::STATUS_UNCERTAIN, 'fiscal_idempotency_key' => "future:{$sale->id}",
+        'reconciliation_next_attempt_at' => now()->addHour(), 'attempted_at' => now(),
+    ]);
+
+    $this->artisan('fiscal:reconcile-pending')->assertExitCode(0);
+
+    Queue::assertPushed(ReconcileSaleFiscalDocumentJob::class, fn ($job): bool => $job->saleFiscalDocumentId === $due->id);
+    Queue::assertPushed(ReconcileSaleFiscalDocumentJob::class, 1);
 });
 
 test('api fiscal 502 leaves fiscal document uncertain and blocks direct retry', function () {

@@ -52,6 +52,9 @@ class SaleFiscalDocumentController extends Controller
         abort_unless((bool) config('fiscal.enabled') && $this->fiscalPayloadBuilder->isEnabledForSale($sale), 403);
 
         $document = $this->fiscalSaleDocumentService->reconcile($saleFiscalDocument);
+        if ($document->requiresReconcile()) {
+            $document = $this->fiscalSaleDocumentService->queueReconciliation($document);
+        }
 
         return $this->redirectWithFiscalStatus($document);
     }

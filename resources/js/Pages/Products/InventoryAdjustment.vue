@@ -4,6 +4,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
+const newIdempotencyKey = () => crypto.randomUUID();
+
 const props = defineProps({
     product: { type: Object, required: true },
     inventory: { type: Object, required: true },
@@ -29,6 +31,7 @@ const form = useForm({
     expires_at: '',
     unit_cost: '',
     expected_branch_id: props.inventory.branch_id,
+    idempotency_key: newIdempotencyKey(),
 });
 
 const isIncrease = computed(() => form.direction === 'increase');
@@ -117,6 +120,7 @@ const submit = () => {
                     <div class="app-subsection"><p class="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Disponible final</p><p class="mt-2 text-xl font-bold text-slate-100">{{ estimatedAvailable }}</p></div>
                     <p v-if="wouldViolateReservation" class="rounded-xl border border-rose-300/35 bg-rose-400/10 p-3 text-xs text-rose-100">No se puede dejar stock por debajo de lo reservado en esta sucursal.</p>
                     <p v-if="form.errors.expected_branch_id" class="rounded-xl border border-rose-300/35 bg-rose-400/10 p-3 text-xs text-rose-100">{{ form.errors.expected_branch_id }}</p>
+                    <p v-if="form.errors.idempotency_key" class="rounded-xl border border-rose-300/35 bg-rose-400/10 p-3 text-xs text-rose-100">{{ form.errors.idempotency_key }}</p>
                 </div>
                 <template #footer>
                     <div class="grid gap-3">
