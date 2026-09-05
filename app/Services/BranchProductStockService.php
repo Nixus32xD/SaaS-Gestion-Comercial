@@ -172,26 +172,64 @@ class BranchProductStockService
             $stocks = $orderedBranches->mapWithKeys(fn (Branch $branch): array => [
                 $branch->id => $this->lockStock($branch, $product),
             ]);
-            $fromStock = $stocks->get($fromBranch->id);
-            $toStock = $stocks->get($toBranch->id);
-            $normalizedQuantity = $this->normalizedQuantity($quantity);
-
-            if ($normalizedQuantity <= 0) {
-                return;
-            }
-
-            if ($fromStock->availableStock() < $normalizedQuantity) {
-                throw ValidationException::withMessages([
-                    'quantity' => "Stock insuficiente para transferir desde {$fromBranch->name}.",
-                ]);
-            }
-
-            $fromStock->stock = round((float) $fromStock->stock - $normalizedQuantity, 3);
-            $toStock->stock = round((float) $toStock->stock + $normalizedQuantity, 3);
-            $fromStock->save();
-            $toStock->save();
-            $this->syncLegacyProductStock($product);
+            $this->transferLocked(
+                $stocks->get($fromBranch->id),
+                $stocks->get($toBranch->id),
+                $product,
+                $quantity,
+            );
         });
+    }
+
+    /**
+     * Applies the stock side of a transfer after the product and both branch rows
+     * have been locked by the caller. Higher-level inventory operations must use
+     * this primitive together with their own batch and traceability handling.
+     */
+    public function transferLocked(
+        BranchProductStock $fromStock,
+        BranchProductStock $toStock,
+        Product $product,
+        float $quantity,
+    ): array {
+        if ((int) $fromStock->business_id !== (int) $product->business_id
+            || (int) $toStock->business_id !== (int) $product->business_id
+            || (int) $fromStock->product_id !== (int) $product->id
+            || (int) $toStock->product_id !== (int) $product->id
+            || (int) $fromStock->branch_id === (int) $toStock->branch_id) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'El stock de origen o destino no corresponde a la transferencia.',
+            ]);
+        }
+
+        $normalizedQuantity = $this->normalizedQuantity($quantity);
+
+        if ($normalizedQuantity <= 0) {
+            throw ValidationException::withMessages([
+                'quantity' => 'La cantidad a transferir debe ser mayor a cero.',
+            ]);
+        }
+
+        if ($fromStock->availableStock() < $normalizedQuantity) {
+            throw ValidationException::withMessages([
+                'quantity' => "Stock insuficiente para transferir desde {$fromStock->branch->name}.",
+            ]);
+        }
+
+        $fromBefore = round((float) $fromStock->stock, 3);
+        $toBefore = round((float) $toStock->stock, 3);
+        $fromStock->stock = round($fromBefore - $normalizedQuantity, 3);
+        $toStock->stock = round($toBefore + $normalizedQuantity, 3);
+        $fromStock->save();
+        $toStock->save();
+        $this->syncLegacyProductStock($product);
+
+        return [
+            'from_before' => $fromBefore,
+            'from_after' => round((float) $fromStock->stock, 3),
+            'to_before' => $toBefore,
+            'to_after' => round((float) $toStock->stock, 3),
+        ];
     }
 
     public function lockStock(Branch $branch, Product $product, ?float $minStock = null): BranchProductStock

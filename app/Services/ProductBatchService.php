@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Business;
 use App\Models\Branch;
+use App\Models\Business;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductBatchCorrection;
@@ -143,6 +143,7 @@ class ProductBatchService
                 'batch_id' => $batch->id,
                 'batch_code' => $batch->batch_code,
                 'expires_at' => $batch->expires_at?->toDateString(),
+                'unit_cost' => $batch->unit_cost !== null ? round((float) $batch->unit_cost, 2) : null,
                 'quantity' => $taken,
             ]);
 
@@ -154,6 +155,77 @@ class ProductBatchService
             'batched_quantity' => round($quantity - $remaining, 3),
             'unbatched_quantity' => $remaining,
         ];
+    }
+
+    /**
+     * Moves physical batch stock with FEFO from one branch to another. Historical
+     * stock without a batch remains intentionally unbatched, matching outbound
+     * sales and inventory adjustments.
+     *
+     * @param  array<string, mixed>  $context
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function transferStock(
+        Business $business,
+        Branch $fromBranch,
+        Branch $toBranch,
+        Product $product,
+        float $quantity,
+        array $context = [],
+    ): Collection {
+        $this->ensureBranchContext($business, $fromBranch, $product);
+        $this->ensureBranchContext($business, $toBranch, $product);
+
+        if ((int) $fromBranch->id === (int) $toBranch->id) {
+            throw ValidationException::withMessages([
+                'to_branch_id' => 'La sucursal de origen y destino deben ser distintas.',
+            ]);
+        }
+
+        $reference = (string) ($context['reference'] ?? 'transferencia');
+        $outbound = $this->consumeStock($business, $fromBranch, $product, $quantity, [
+            'movement_type' => 'transfer_out',
+            'reference_type' => $context['reference_type'] ?? null,
+            'reference_id' => $context['reference_id'] ?? null,
+            'notes' => $context['outbound_notes'] ?? "Transferencia {$reference} a {$toBranch->name}",
+            'created_by' => $context['created_by'] ?? null,
+        ]);
+
+        return $outbound['allocations']->map(function (array $allocation) use (
+            $business,
+            $fromBranch,
+            $toBranch,
+            $product,
+            $context,
+            $reference,
+        ): array {
+            $batchCode = $this->transferDestinationBatchCode(
+                $business,
+                $toBranch,
+                $product,
+                (string) $allocation['batch_code'],
+                $allocation['expires_at'],
+                $allocation['unit_cost'],
+                $reference,
+            );
+            $destination = $this->receiveStock($business, $toBranch, $product, (float) $allocation['quantity'], [
+                'batch_code' => $batchCode,
+                'expires_at' => $allocation['expires_at'],
+                'unit_cost' => $allocation['unit_cost'],
+                'movement_type' => 'transfer_in',
+                'reference_type' => $context['reference_type'] ?? null,
+                'reference_id' => $context['reference_id'] ?? null,
+                'notes' => $context['inbound_notes'] ?? "Transferencia {$reference} desde {$fromBranch->name}",
+                'created_by' => $context['created_by'] ?? null,
+                'error_key' => 'quantity',
+            ]);
+
+            return [
+                ...$allocation,
+                'destination_batch_id' => $destination?->id,
+                'destination_batch_code' => $destination?->batch_code,
+            ];
+        })->values();
     }
 
     public function availableBatchStock(Branch $branch, Product $product): float
@@ -310,6 +382,53 @@ class ProductBatchService
         throw ValidationException::withMessages([
             $errorKey => 'El lote seleccionado ya tiene una fecha de vencimiento distinta.',
         ]);
+    }
+
+    private function transferDestinationBatchCode(
+        Business $business,
+        Branch $branch,
+        Product $product,
+        string $sourceBatchCode,
+        ?string $expiresAt,
+        ?float $unitCost,
+        string $reference,
+    ): string {
+        $existing = ProductBatch::query()
+            ->forBusiness($business->id)
+            ->where('branch_id', $branch->id)
+            ->where('product_id', $product->id)
+            ->where('batch_code', $sourceBatchCode)
+            ->lockForUpdate()
+            ->first();
+
+        if ($existing === null || $this->matchesTransferMetadata($existing, $expiresAt, $unitCost)) {
+            return $sourceBatchCode;
+        }
+
+        $suffixBase = '-T'.substr(str_replace('-', '', $reference), 0, 8);
+        for ($sequence = 1; ; $sequence++) {
+            $suffix = $suffixBase.'-'.$sequence;
+            $candidate = substr($sourceBatchCode, 0, max(1, 80 - strlen($suffix))).$suffix;
+            $exists = ProductBatch::query()
+                ->forBusiness($business->id)
+                ->where('branch_id', $branch->id)
+                ->where('product_id', $product->id)
+                ->where('batch_code', $candidate)
+                ->lockForUpdate()
+                ->exists();
+
+            if (! $exists) {
+                return $candidate;
+            }
+        }
+    }
+
+    private function matchesTransferMetadata(ProductBatch $batch, ?string $expiresAt, ?float $unitCost): bool
+    {
+        $batchExpiresAt = $batch->expires_at?->toDateString();
+        $batchUnitCost = $batch->unit_cost !== null ? round((float) $batch->unit_cost, 2) : null;
+
+        return $batchExpiresAt === $expiresAt && $batchUnitCost === $unitCost;
     }
 
     /**

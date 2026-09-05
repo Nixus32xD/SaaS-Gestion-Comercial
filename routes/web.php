@@ -15,6 +15,7 @@ use App\Http\Controllers\Customers\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Fiscal\ElectronicBillingController;
 use App\Http\Controllers\Fiscal\FiscalCredentialProxyController;
+use App\Http\Controllers\Inventory\InventoryTransferController;
 use App\Http\Controllers\Notifications\NotificationSettingsController;
 use App\Http\Controllers\Payments\MercadoPagoPointController;
 use App\Http\Controllers\Payments\MercadoPagoSettingsController;
@@ -84,6 +85,9 @@ Route::middleware(['auth', 'business'])->group(function (): void {
     Route::get('/products/{product}/batch-corrections', [ProductController::class, 'batchCorrections'])->name('products.batch-corrections.index');
     Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
     Route::put('/products/{product}/batches/{batch}', [ProductController::class, 'updateBatch'])->name('products.batches.update');
+
+    Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])->name('inventory.transfers.index');
+    Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])->name('inventory.transfers.store');
 
     Route::get('/suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
     Route::get('/suppliers/create', [SupplierController::class, 'create'])->name('suppliers.create');

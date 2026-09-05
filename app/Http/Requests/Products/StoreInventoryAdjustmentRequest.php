@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Products;
 
 use App\Models\Product;
+use App\Support\ProductMeasurement;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -45,14 +46,11 @@ class StoreInventoryAdjustmentRequest extends FormRequest
                 return;
             }
 
-            $quantity = abs((float) $this->input('delta'));
-            $valid = match ($product->unit_type) {
-                'unit' => abs($quantity - round($quantity)) < 0.000001,
-                'weight' => $product->weight_unit === 'g'
-                    ? abs($quantity - round($quantity)) < 0.000001
-                    : abs($quantity - round($quantity, 3)) < 0.000001,
-                default => false,
-            };
+            $valid = ProductMeasurement::respectsQuantityPrecision(
+                $product->unit_type,
+                $product->weight_unit,
+                (float) $this->input('delta'),
+            );
 
             if (! $valid) {
                 $validator->errors()->add('delta', 'La cantidad no respeta la unidad de medida del producto.');

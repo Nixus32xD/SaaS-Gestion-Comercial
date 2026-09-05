@@ -58,6 +58,19 @@ class ProductMeasurement
         return $weightUnit === 'g' ? '1' : '0.001';
     }
 
+    public static function respectsQuantityPrecision(?string $unitType, ?string $weightUnit, float $quantity): bool
+    {
+        $quantity = abs($quantity);
+
+        return match ($unitType) {
+            'unit' => abs($quantity - round($quantity)) < 0.000001,
+            'weight' => $weightUnit === 'g'
+                ? abs($quantity - round($quantity)) < 0.000001
+                : abs($quantity - round($quantity, 3)) < 0.000001,
+            default => false,
+        };
+    }
+
     public static function calculateSubtotal(float $quantity, float $unitPrice, ?string $unitType, ?string $weightUnit): float
     {
         $normalizedWeightUnit = self::normalizeWeightUnit($unitType, $weightUnit);

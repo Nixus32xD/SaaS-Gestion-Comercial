@@ -12,7 +12,6 @@ const pageModules = import.meta.glob([
     '!./Pages/Auth/Register.vue',
     '!./Pages/Catalog/**/*.vue',
     '!./Pages/Dashboard.vue',
-    '!./Pages/Inventory/**/*.vue',
     '!./Pages/Pos/**/*.vue',
     '!./Pages/Purchases/Dashboard.vue',
     '!./Pages/Purchases/Workbench.vue',
