@@ -167,6 +167,23 @@ class User extends Authenticatable
         return (int) $this->business_id === (int) $branch->business_id && $this->branches()->whereKey($branch->id)->exists();
     }
 
+    public function canAccessAllActiveBranches(): bool
+    {
+        if (! $this->isBusinessUser()) {
+            return false;
+        }
+
+        if ($this->isOwner()) {
+            return true;
+        }
+
+        return ! Branch::query()
+            ->forBusiness((int) $this->business_id)
+            ->active()
+            ->whereNotIn('id', $this->branches()->select('branches.id'))
+            ->exists();
+    }
+
     /**
      * @param  Builder<self>  $query
      * @return Builder<self>

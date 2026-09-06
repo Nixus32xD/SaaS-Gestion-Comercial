@@ -39,7 +39,7 @@ class DashboardController extends Controller
         $business = $currentBusiness->get();
         $branch = $currentBranch->get();
         abort_if($business === null || $branch === null, 404);
-        $branchScope = $request->query('branch_scope') === 'all' && $request->user()?->isOwner() ? 'all' : 'current';
+        $branchScope = $request->query('branch_scope') === 'all' && $request->user()?->canAccessAllActiveBranches() ? 'all' : 'current';
         $branchId = $branchScope === 'current' ? $branch->id : null;
 
         $advancedSaleSettingsEnabled = $commercialSettingsResolver

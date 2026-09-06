@@ -9,12 +9,33 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Schema;
 
 class Branch extends Model
 {
     use BelongsToBusiness;
 
     public const DEFAULT_CODE = 'principal';
+
+    protected static function booted(): void
+    {
+        static::created(function (Branch $branch): void {
+            if (! Schema::hasTable('branch_user')) {
+                return;
+            }
+
+            // Los administradores legados conservan el alcance comercial total
+            // que tenían antes de introducir la asignación explícita por sucursal.
+            // Los usuarios staff y los roles configurados siguen requiriendo una
+            // asignación puntual desde la gestión de accesos.
+            User::query()
+                ->where('business_id', $branch->business_id)
+                ->where('role', 'admin')
+                ->each(fn (User $user) => $user->branches()->syncWithoutDetaching([
+                    $branch->id => ['business_id' => $branch->business_id],
+                ]));
+        });
+    }
 
     /**
      * @var list<string>

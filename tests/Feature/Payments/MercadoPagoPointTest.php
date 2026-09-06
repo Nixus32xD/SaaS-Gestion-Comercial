@@ -557,6 +557,7 @@ test('Mercado Pago Point uses the terminal configured for the sale branch', func
     ], 201)]);
 
     $this->actingAs($admin)
+        ->withSession(['branch_id' => $branch->id])
         ->post(route('sales.payments.mercadopago-point.store', $sale), ['payment_method' => Payment::METHOD_DEBIT_CARD])
         ->assertRedirect(route('sales.show', $sale));
 

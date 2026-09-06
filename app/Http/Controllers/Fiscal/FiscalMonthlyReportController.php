@@ -24,7 +24,7 @@ class FiscalMonthlyReportController extends Controller
         abort_if($business === null || $branch === null, 404);
 
         $period = $this->period((string) $request->query('month', now()->format('Y-m')));
-        $scope = $request->query('branch_scope') === 'all' && $request->user()?->isOwner() ? 'all' : 'current';
+        $scope = $request->query('branch_scope') === 'all' && $request->user()?->canAccessAllActiveBranches() ? 'all' : 'current';
         $branchId = $scope === 'all' ? null : $branch->id;
         $report = $this->reports->build($business, $period['from'], $period['to'], $branchId);
 
@@ -36,7 +36,7 @@ class FiscalMonthlyReportController extends Controller
             'period' => ['month' => $period['month'], 'date_from' => $period['from']->toDateString(), 'date_to' => $period['to']->toDateString()],
             'branch_scope' => $scope,
             'current_branch' => ['id' => $branch->id, 'name' => $branch->name],
-            'branches' => Branch::query()->forBusiness($business->id)->active()->when(! $request->user()?->isOwner(), fn ($query) => $query->whereIn('id', $request->user()?->branches()->select('branches.id')))->orderBy('name')->get(['id', 'name']),
+            'branches' => Branch::query()->forBusiness($business->id)->active()->when(! $request->user()?->canAccessAllActiveBranches(), fn ($query) => $query->whereIn('id', $request->user()?->branches()->select('branches.id')))->orderBy('name')->get(['id', 'name']),
             'report' => $report,
         ]);
     }
