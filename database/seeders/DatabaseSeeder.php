@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Authorization\BusinessAuthorizationService;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -71,7 +72,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Sucursal Centro', 'is_active' => true, 'is_default' => false]
         );
 
-        User::query()->updateOrCreate(
+        $demoAdmin = User::query()->updateOrCreate(
             ['email' => 'admin@demo.test'],
             [
                 'business_id' => $business->id,
@@ -81,6 +82,19 @@ class DatabaseSeeder extends Seeder
                 'is_active' => true,
                 'email_verified_at' => now(),
             ]
+        );
+
+        // El seeder evita eventos de modelo, por lo que asigna explícitamente
+        // el rol y las sucursales que normalmente se otorgan al crear un admin.
+        $authorization = app(BusinessAuthorizationService::class);
+        $role = $authorization->legacyRole($business, 'admin');
+        $demoAdmin->roles()->syncWithoutDetaching([
+            $role->id => ['business_id' => $business->id],
+        ]);
+        $demoAdmin->branches()->syncWithoutDetaching(
+            $business->branches()->active()->pluck('id')->mapWithKeys(
+                fn ($branchId) => [$branchId => ['business_id' => $business->id]],
+            )->all(),
         );
 
         $supplierRows = [
